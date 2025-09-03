@@ -1,0 +1,202 @@
+import { adminDb, adminAuth } from '@/lib/firebase-admin';
+import { Collections } from './firebase';
+
+// Server-side Firebase operations using Admin SDK
+export class FirebaseAdminService {
+  // User management operations
+  static async createUser(userData: {
+    email: string;
+    password: string;
+    displayName?: string;
+    role?: string;
+  }) {
+    try {
+      // Create user in Firebase Auth
+      const userRecord = await adminAuth.createUser({
+        email: userData.email,
+        password: userData.password,
+        displayName: userData.displayName,
+      });
+
+      // Create user document in Firestore
+      const userDoc = {
+        email: userData.email,
+        displayName: userData.displayName,
+        role: userData.role || 'customer',
+        isVerified: false,
+        profile: {
+          preferences: {
+            notifications: {
+              email: true,
+              sms: false,
+              push: true
+            },
+            theme: 'light'
+          }
+        },
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      await adminDb.collection(Collections.USERS).doc(userRecord.uid).set(userDoc);
+
+      return { uid: userRecord.uid, ...userDoc };
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  }
+
+  // Get user by email
+  static async getUserByEmail(email: string) {
+    try {
+      const userRecord = await adminAuth.getUserByEmail(email);
+      const userDoc = await adminDb.collection(Collections.USERS).doc(userRecord.uid).get();
+      
+      if (userDoc.exists) {
+        return { uid: userRecord.uid, ...userDoc.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting user by email:', error);
+      throw error;
+    }
+  }
+
+  // Update user role
+  static async updateUserRole(uid: string, role: string) {
+    try {
+      await adminDb.collection(Collections.USERS).doc(uid).update({
+        role,
+        updatedAt: new Date()
+      });
+
+      // Set custom claims for role-based access
+      await adminAuth.setCustomUserClaims(uid, { role });
+
+      return { uid, role };
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      throw error;
+    }
+  }
+
+  // Verify user email
+  static async verifyUserEmail(uid: string) {
+    try {
+      await adminAuth.updateUser(uid, {
+        emailVerified: true
+      });
+
+      await adminDb.collection(Collections.USERS).doc(uid).update({
+        isVerified: true,
+        updatedAt: new Date()
+      });
+
+      return { uid, isVerified: true };
+    } catch (error) {
+      console.error('Error verifying user email:', error);
+      throw error;
+    }
+  }
+
+  // Delete user
+  static async deleteUser(uid: string) {
+    try {
+      // Delete from Firebase Auth
+      await adminAuth.deleteUser(uid);
+
+      // Delete user document
+      await adminDb.collection(Collections.USERS).doc(uid).delete();
+
+      return { uid };
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      throw error;
+    }
+  }
+
+  // Batch operations
+  static async batchWrite(operations: Array<{
+    type: 'set' | 'update' | 'delete';
+    collection: string;
+    doc: string;
+    data?: any;
+  }>) {
+    try {
+      const batch = adminDb.batch();
+
+      operations.forEach(op => {
+        const docRef = adminDb.collection(op.collection).doc(op.doc);
+        
+        switch (op.type) {
+          case 'set':
+            batch.set(docRef, { ...op.data, updatedAt: new Date() });
+            break;
+          case 'update':
+            batch.update(docRef, { ...op.data, updatedAt: new Date() });
+            break;
+          case 'delete':
+            batch.delete(docRef);
+            break;
+        }
+      });
+
+      await batch.commit();
+      return { success: true, operations: operations.length };
+    } catch (error) {
+      console.error('Error in batch write:', error);
+      throw error;
+    }
+  }
+
+  // Query with advanced filters
+  static async queryDocuments(
+    collection: string,
+    filters: Array<{
+      field: string;
+      operator: FirebaseFirestore.WhereFilterOp;
+      value: any;
+    }> = [],
+    orderBy?: { field: string; direction: 'asc' | 'desc' },
+    limit?: number
+  ) {
+    try {
+      let query: FirebaseFirestore.Query = adminDb.collection(collection);
+
+      // Apply filters
+      filters.forEach(filter => {
+        query = query.where(filter.field, filter.operator, filter.value);
+      });
+
+      // Apply ordering
+      if (orderBy) {
+        query = query.orderBy(orderBy.field, orderBy.direction);
+      }
+
+      // Apply limit
+      if (limit) {
+        query = query.limit(limit);
+      }
+
+      const snapshot = await query.get();
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error querying documents:', error);
+      throw error;
+    }
+  }
+
+  // Generate custom token for client authentication
+  static async createCustomToken(uid: string, additionalClaims?: object) {
+    try {
+      return await adminAuth.createCustomToken(uid, additionalClaims);
+    } catch (error) {
+      console.error('Error creating custom token:', error);
+      throw error;
+    }
+  }
+}
