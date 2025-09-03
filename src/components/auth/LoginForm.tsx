@@ -84,9 +84,15 @@ export function LoginForm() {
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
+    setGeneralError('');
+    
     try {
-      await signIn('google', { callbackUrl: '/dashboard' });
+      // Direct redirect to role selection
+      await signIn('google', { 
+        callbackUrl: `${window.location.origin}/role-selection`
+      });
     } catch (error) {
+      console.error('Google sign-in error:', error);
       setGeneralError('Google sign-in failed. Please try again.');
       setLoading(false);
     }
