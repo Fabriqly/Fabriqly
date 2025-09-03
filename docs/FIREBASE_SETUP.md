@@ -144,22 +144,34 @@ src/
 
 ## 🔐 Authentication Flow
 
-### Registration Flow
+### Email/Password Registration Flow
 1. User fills registration form
 2. NextAuth calls Firebase Auth to create user
 3. User document created in Firestore
 4. Session established with user data
 
-### Login Flow
+### Email/Password Login Flow
 1. User provides credentials
 2. NextAuth validates with Firebase Auth
 3. User data fetched from Firestore
 4. Session established
 
+### Google OAuth Flow
+1. User clicks "Continue with Google"
+2. Redirected to Google OAuth consent screen
+3. User grants permissions (email, profile, openid scopes)
+4. Google redirects back to NextAuth callback
+5. NextAuth processes Google OAuth response
+6. User redirected to role selection page
+7. User selects role (Customer, Designer, Business Owner)
+8. API creates/updates user document in Firestore with selected role
+9. User redirected to dashboard
+
 ### Session Management
 - Sessions stored in JWT tokens
 - Automatic session refresh
 - Role-based access control
+- User data synchronized between NextAuth and Firestore
 
 ## 🗄️ Database Schema
 
@@ -267,6 +279,8 @@ service firebase.storage {
 
 ### Debug Tools
 - `/debug-firebase` - Test Firebase configuration
+- `/debug-session` - Session and user data debugging
+- `/debug-google-oauth` - Google OAuth specific debugging
 - Environment variable validation
 - Direct Firebase Auth testing
 
@@ -283,6 +297,19 @@ service firebase.storage {
 #### 3. Environment variables not loading
 - **Cause**: Missing or incorrect `.env.local` file
 - **Solution**: Verify all required variables are set
+
+#### 4. Google OAuth "Access Denied" Error
+- **Cause**: Missing Google OAuth configuration or test users
+- **Solution**: 
+  1. Set up OAuth consent screen in Google Cloud Console
+  2. Add required scopes: `openid`, `email`, `profile`
+  3. Add your email as a test user
+  4. Ensure OAuth client has correct redirect URIs
+
+#### 5. "No document to update" Error During Role Selection
+- **Cause**: User document not created during Google OAuth sign-in
+- **Solution**: API route now handles this automatically by creating the document if it doesn't exist
+- **Implementation**: The `/api/users/update-role` endpoint uses try/catch to update existing documents or create new ones
 
 ## 📈 Performance Considerations
 
@@ -336,6 +363,39 @@ npm run lint
 - [Next.js Documentation](https://nextjs.org/docs)
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 
+## 🔧 Google OAuth Setup Checklist
+
+### Google Cloud Console Configuration
+1. **Create OAuth 2.0 Client ID**:
+   - Application type: Web application
+   - Authorized JavaScript origins: `http://localhost:3000`
+   - Authorized redirect URIs: `http://localhost:3000/api/auth/callback/google`
+
+2. **Configure OAuth Consent Screen**:
+   - Choose "External" for testing
+   - Fill required fields (app name, user support email)
+   - Add scopes: `openid`, `email`, `profile`
+   - Add test users (your email address)
+   - Set publishing status to "Testing"
+
+3. **Enable Required APIs**:
+   - Google Identity API
+   - Google+ API (if available)
+
+### Environment Variables
+```env
+GOOGLE_CLIENT_ID=your_actual_client_id
+GOOGLE_CLIENT_SECRET=your_actual_client_secret
+NEXTAUTH_SECRET=generated_secret_key
+NEXTAUTH_URL=http://localhost:3000
+```
+
+### Role Selection API Enhancement
+The `/api/users/update-role` endpoint includes automatic user document creation:
+- Attempts to update existing user document
+- If document doesn't exist, creates new document with Google OAuth data
+- Ensures all Google OAuth users have proper Firestore documents
+
 ## 🔮 Future Enhancements
 
 1. **Advanced Analytics**: Firebase Analytics integration
@@ -343,7 +403,9 @@ npm run lint
 3. **Advanced Security**: Custom claims and security rules
 4. **Performance Monitoring**: Firebase Performance Monitoring
 5. **A/B Testing**: Firebase Remote Config
+6. **Account Linking**: Link multiple auth providers to single account
+7. **Email Verification**: Verify email addresses for enhanced security
 
 ---
 
-*This documentation covers the complete Firebase setup and authentication system implemented for Fabriqly. For questions or issues, refer to the Firebase Console and NextAuth.js documentation.*
+*This documentation covers the complete Firebase setup and authentication system implemented for Fabriqly. The system now supports both email/password and Google OAuth authentication with automatic user document creation and role-based access control.*

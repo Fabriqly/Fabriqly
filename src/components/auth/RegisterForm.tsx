@@ -126,7 +126,7 @@ export function RegisterForm() {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      await signIn('google', { callbackUrl: '/dashboard' });
+      await signIn('google', { callbackUrl: '/role-selection' });
     } catch (error) {
       setGeneralError('Google sign-in failed. Please try again.');
       setLoading(false);

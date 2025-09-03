@@ -31,23 +31,29 @@ Visit `http://localhost:3000` to see your app!
    - Real-time Firestore database
    - Firebase Storage for file uploads
 
-2. **Authentication System**
-   - Email/Password authentication
-   - Google OAuth (optional)
+2. **Complete Authentication System**
+   - Email/Password authentication with Firebase Auth
+   - Google OAuth with automatic user document creation
    - Session management with NextAuth.js
    - Role-based access control (Customer, Designer, Business Owner, Admin)
+   - Role selection flow for new Google OAuth users
+   - Automatic user document creation/update in Firestore
 
 3. **User Interface**
    - Modern, responsive design with Tailwind CSS
-   - Login and registration forms
+   - Login and registration forms with Google OAuth buttons
+   - Role selection page with visual role cards
    - Protected routes and navigation
-   - Reusable UI components
+   - Reusable UI components (Button, Input)
+   - Debug tools for troubleshooting
 
-4. **Security**
+4. **Security & Error Handling**
    - Environment variable protection
    - Firebase security rules
-   - JWT session tokens
-   - Route protection
+   - JWT session tokens with role information
+   - Route protection middleware
+   - Comprehensive error handling for OAuth failures
+   - Automatic fallback for missing user documents
 
 ### 🔄 Migration Summary
 
