@@ -9,6 +9,7 @@ import { auth, db } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Collections } from '@/services/firebase';
 import bcrypt from 'bcryptjs';
+import { UserRole } from '@/types/next-auth';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -71,7 +72,7 @@ export const authOptions: NextAuthOptions = {
             return {
               id: userCredential.user.uid,
               email: credentials.email,
-              role: credentials.role || 'customer',
+              role: (credentials.role || 'customer') as UserRole,
               name: credentials.firstName && credentials.lastName 
                 ? `${credentials.firstName} ${credentials.lastName}` 
                 : undefined
@@ -91,7 +92,7 @@ export const authOptions: NextAuthOptions = {
             return {
               id: userCredential.user.uid,
               email: credentials.email,
-              role: userData?.role || 'customer',
+              role: (userData?.role || 'customer') as UserRole,
               ...userData
             };
           }
@@ -163,11 +164,11 @@ export const authOptions: NextAuthOptions = {
               
               await setDoc(doc(db, Collections.USERS, user.id!), userData);
               console.log('✅ Google user document created successfully:', user.id, 'for email:', user.email);
-              token.role = 'customer';
+              token.role = 'customer' as UserRole;
             } else {
               console.log('User document exists, getting role...');
               const userData = userDoc.data();
-              token.role = userData.role;
+              token.role = userData.role as UserRole;
               console.log('Existing user role:', userData.role);
             }
             
@@ -175,7 +176,7 @@ export const authOptions: NextAuthOptions = {
             token.photoURL = user.image;
           } catch (error) {
             console.error('❌ Error in JWT callback:', error);
-            token.role = 'customer'; // Fallback
+            token.role = 'customer' as UserRole; // Fallback
           }
         } else {
           token.role = user.role;
@@ -187,7 +188,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub!;
-        session.user.role = token.role as string;
+        session.user.role = token.role;
       }
       return session;
     }
