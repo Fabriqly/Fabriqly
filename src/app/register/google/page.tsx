@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
-import { User, Palette, Building2 } from 'lucide-react';
-import { signOut } from 'next-auth/react';
+import { User, Palette, Building2, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
 interface RoleOption {
   id: 'customer' | 'designer' | 'business_owner';
@@ -54,68 +54,39 @@ const roleOptions: RoleOption[] = [
   }
 ];
 
-export default function RoleSelectionPage() {
-  const { data: session, status } = useSession();
+export default function GoogleRegisterPage() {
   const router = useRouter();
   const [selectedRole, setSelectedRole] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Redirect if not authenticated or already has a role
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (status === 'unauthenticated') {
-    router.push('/login');
-    return null;
-  }
-
-  // If user already has a role other than 'customer', redirect to dashboard
-  if (session?.user?.role && session.user.role !== 'customer') {
-    router.push('/dashboard');
-    return null;
-  }
-
-  // If user has role 'customer' (default for new Google users), allow them to change it
-  // This page is now mainly for users who signed up via Google and need to select their role
-
-  const handleRoleSelection = async () => {
-    if (!selectedRole) return;
+  const handleGoogleSignIn = async () => {
+    if (!selectedRole) {
+      setError('Please select a role before continuing');
+      return;
+    }
 
     setLoading(true);
+    setError('');
+
     try {
-      const response = await fetch('/api/users/update-role', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          role: selectedRole,
-        }),
+      // Store the selected role in sessionStorage for the summary page
+      sessionStorage.setItem('googleRegistrationRole', selectedRole);
+      
+      // Sign in with Google
+      const result = await signIn('google', { 
+        callbackUrl: '/register/google/summary',
+        redirect: false 
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Role updated successfully:', data);
-        
-        // Redirect to dashboard without signing out
-        // The session will be updated on next request
-        router.push('/dashboard');
-        router.refresh();
+      if (result?.error) {
+        setError('Google sign-in failed. Please try again.');
       } else {
-        const errorData = await response.json();
-        console.error('Role update failed:', errorData);
-        throw new Error(errorData.error || 'Failed to update role');
+        // Redirect to summary page
+        router.push('/register/google/summary');
       }
     } catch (error) {
-      console.error('Error updating role:', error);
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -126,12 +97,19 @@ export default function RoleSelectionPage() {
       <div className="max-w-4xl mx-auto px-4">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Welcome to Fabriqly!
+            Complete Your Registration
           </h1>
           <p className="text-lg text-gray-600">
-            Please select your role to complete your account setup
+            Choose your role to continue with Google sign-in
           </p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md max-w-2xl mx-auto">
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        )}
 
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           {roleOptions.map((role) => (
@@ -142,7 +120,10 @@ export default function RoleSelectionPage() {
                   ? 'border-blue-500 shadow-lg'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
-              onClick={() => setSelectedRole(role.id)}
+              onClick={() => {
+                setSelectedRole(role.id);
+                setError('');
+              }}
             >
               <div className="text-center mb-4">
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
@@ -178,17 +159,27 @@ export default function RoleSelectionPage() {
 
         <div className="text-center">
           <Button
-            onClick={handleRoleSelection}
+            onClick={handleGoogleSignIn}
             disabled={!selectedRole || loading}
             loading={loading}
-            className="px-8 py-3"
+            className="px-8 py-3 flex items-center mx-auto"
           >
-            Continue with {selectedRole ? roleOptions.find(r => r.id === selectedRole)?.title : 'Role'}
+            Continue with Google
+            <ArrowRight size={16} className="ml-2" />
           </Button>
         </div>
 
         <div className="mt-8 text-center text-sm text-gray-500">
           <p>You can change your role later in your account settings.</p>
+        </div>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600">
+            Prefer to register with email?{' '}
+            <Link href="/register" className="text-blue-600 hover:text-blue-500">
+              Use email registration
+            </Link>
+          </p>
         </div>
       </div>
     </div>

@@ -4,15 +4,16 @@ import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { Suspense } from 'react';
 
-export default function AuthErrorPage() {
+function AuthErrorContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
 
   const getErrorMessage = (error: string | null) => {
     switch (error) {
       case 'AccessDenied':
-        if (error.includes('email-already-in-use')) {
+        if (error?.includes('email-already-in-use')) {
           return 'This email is already registered with a different sign-in method. Please use the original sign-in method or a different email.';
         }
         return 'Access was denied. Please check your Google OAuth configuration.';
@@ -81,5 +82,20 @@ export default function AuthErrorPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AuthErrorPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <AuthErrorContent />
+    </Suspense>
   );
 }
