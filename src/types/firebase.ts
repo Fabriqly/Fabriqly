@@ -13,7 +13,7 @@ export interface User extends BaseDocument {
   displayName?: string;
   photoURL?: string;
   role: 'customer' | 'designer' | 'business_owner' | 'admin';
-  isVerified: boolean;
+  isVerified: boolean;  
   profile: UserProfile;
 }
 
