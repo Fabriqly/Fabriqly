@@ -29,7 +29,7 @@ export function RegisterForm() {
     role: 'customer',
     agreeToTerms: false
   });
-  const [errors, setErrors] = useState<Partial<RegisterFormData>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof RegisterFormData, string>>>({});
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -53,7 +53,7 @@ export function RegisterForm() {
   };
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<RegisterFormData> = {};
+    const newErrors: Partial<Record<keyof RegisterFormData, string>> = {};
 
     if (!formData.firstName.trim()) {
       newErrors.firstName = 'First name is required';
