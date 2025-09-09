@@ -127,6 +127,9 @@ export class FirebaseService {
 export const Collections = {
   USERS: 'users',
   PRODUCTS: 'products',
+  PRODUCT_CATEGORIES: 'productCategories',
+  PRODUCT_IMAGES: 'productImages',
+  PRODUCT_VARIANTS: 'productVariants',
   ORDERS: 'orders',
   DESIGNS: 'designs',
   SHOPS: 'shops',
