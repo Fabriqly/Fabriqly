@@ -66,6 +66,15 @@ We've successfully enhanced the Fabriqly Firebase system to match the comprehens
 - **Multiple measurement units** (cm, inches)
 - **Chart management** with descriptions and naming
 
+### **6. Hierarchical Categories System**
+- **Parent-child relationships** with unlimited depth (max 5 levels)
+- **Automatic path generation** (e.g., "Apparel > T-Shirts > Graphic Tees")
+- **Level tracking** for easy navigation and filtering
+- **Circular reference prevention** and validation
+- **Tree structure API** with expandable nodes
+- **Breadcrumb navigation** for category paths
+- **Sort order management** within each level
+
 ## 🔗 **API Endpoints Added**
 
 ### **Designer Profiles**
@@ -113,6 +122,16 @@ PUT    /api/size-charts/[id]              # Update size chart (admin only)
 DELETE /api/size-charts/[id]              # Delete size chart (admin only)
 ```
 
+### **Hierarchical Categories**
+```
+GET    /api/categories                     # List categories (flat or tree format)
+POST   /api/categories                     # Create category (admin only)
+GET    /api/categories/[id]               # Get category details
+PUT    /api/categories/[id]               # Update category (admin only)
+DELETE /api/categories/[id]               # Delete category (admin only)
+GET    /api/categories/breadcrumbs/[id]   # Get category breadcrumb path
+```
+
 ## 🎨 **Frontend Components Created**
 
 ### **Designer Components**
@@ -126,6 +145,11 @@ DELETE /api/size-charts/[id]              # Delete size chart (admin only)
 - **ProductCard**: Enhanced with new data
 - **ProductList**: Updated management interface
 - **ProductCatalog**: Enhanced customer view
+
+### **Category Components**
+- **HierarchicalCategorySelector**: Tree-style category selection
+- **CategoryManagement**: Admin interface for category hierarchy
+- **CategoryBreadcrumbs**: Navigation breadcrumbs for category paths
 
 ## 📊 **Data Models**
 
@@ -353,6 +377,50 @@ const response = await fetch('/api/product-colors', {
 });
 ```
 
+### **Creating Hierarchical Categories**
+```typescript
+// Create root category
+const rootCategory = {
+  categoryName: "Apparel",
+  description: "Clothing and accessories",
+  slug: "apparel",
+  isActive: true
+};
+
+const rootResponse = await fetch('/api/categories', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(rootCategory)
+});
+
+// Create subcategory
+const subCategory = {
+  categoryName: "T-Shirts",
+  description: "Cotton t-shirts and tops",
+  slug: "t-shirts",
+  parentCategoryId: "apparel-id", // ID from root category
+  isActive: true
+};
+
+const subResponse = await fetch('/api/categories', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(subCategory)
+});
+
+// Get category tree
+const treeResponse = await fetch('/api/categories?format=tree&includeChildren=true');
+const treeData = await treeResponse.json();
+// Returns: [{ id: "apparel-id", categoryName: "Apparel", children: [{ id: "t-shirts-id", categoryName: "T-Shirts" }] }]
+```
+
+### **Getting Category Breadcrumbs**
+```typescript
+const breadcrumbsResponse = await fetch('/api/categories/breadcrumbs/t-shirts-id');
+const breadcrumbsData = await breadcrumbsResponse.json();
+// Returns: [{ id: "apparel-id", name: "Apparel", slug: "apparel", level: 0 }, { id: "t-shirts-id", name: "T-Shirts", slug: "t-shirts", level: 1 }]
+```
+
 ## 📈 **Analytics & Tracking**
 
 ### **Design Analytics**
@@ -392,12 +460,12 @@ const response = await fetch('/api/product-colors', {
 - Shop profile system
 - Color management system
 - Size chart system
+- Hierarchical categories system
 - Enhanced product system
 - API endpoints for all new features
 - Frontend components for management
 
 🔄 **In Progress:**
-- Hierarchical categories
 - Product color variants
 - Enhanced analytics
 
