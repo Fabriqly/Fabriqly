@@ -23,6 +23,7 @@ import {
   Settings
 } from 'lucide-react';
 import { CategorySelector } from './CategorySelector';
+import { ProductColorManager } from './ProductColorManager';
 
 interface ProductFormProps {
   product?: Product;
@@ -34,6 +35,7 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [showColorManagement, setShowColorManagement] = useState(false);
   const [formData, setFormData] = useState<CreateProductData>({
     name: '',
     description: '',
@@ -490,6 +492,34 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
               </div>
             </div>
           </div>
+
+          {/* Color Management - Only show for existing products */}
+          {product && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Settings className="w-5 h-5 text-purple-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Color Management</h3>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowColorManagement(!showColorManagement)}
+                >
+                  {showColorManagement ? 'Hide Colors' : 'Manage Colors'}
+                </Button>
+              </div>
+
+              {showColorManagement && (
+                <ProductColorManager
+                  productId={product.id}
+                  onColorChange={() => {
+                    // Optionally refresh product data or show notification
+                  }}
+                />
+              )}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
