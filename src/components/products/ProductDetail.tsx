@@ -8,6 +8,8 @@ import {
   ProductWithDetails, 
   ProductVariant 
 } from '@/types/products';
+import { ColorSelector } from './ColorSelector';
+import { ProductColorWithDetails } from './ProductColorManager';
 import { 
   ArrowLeft,
   Heart,
@@ -36,10 +38,14 @@ export function ProductDetail() {
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [productColors, setProductColors] = useState<ProductColorWithDetails[]>([]);
+  const [selectedColorId, setSelectedColorId] = useState<string>('');
+  const [colorPriceAdjustment, setColorPriceAdjustment] = useState<number>(0);
 
   useEffect(() => {
     if (productId) {
       loadProduct();
+      loadProductColors();
     }
   }, [productId]);
 
@@ -70,6 +76,23 @@ export function ProductDetail() {
     }
   };
 
+  const loadProductColors = async () => {
+    try {
+      const response = await fetch(`/api/products/${productId}/colors`);
+      if (response.ok) {
+        const data = await response.json();
+        setProductColors(data.productColors || []);
+      }
+    } catch (error) {
+      console.error('Error loading product colors:', error);
+    }
+  };
+
+  const handleColorSelect = (colorId: string, priceAdjustment: number) => {
+    setSelectedColorId(colorId);
+    setColorPriceAdjustment(priceAdjustment);
+  };
+
   const handleVariantChange = (variantName: string, variantValue: string) => {
     setSelectedVariants(prev => ({
       ...prev,
@@ -80,7 +103,7 @@ export function ProductDetail() {
   const calculatePrice = () => {
     if (!product) return 0;
     
-    let totalPrice = product.price;
+    let totalPrice = product.price + colorPriceAdjustment;
     
     // Add variant price adjustments
     Object.entries(selectedVariants).forEach(([variantName, variantValue]) => {
@@ -306,7 +329,7 @@ export function ProductDetail() {
 
               <div className="text-3xl font-bold text-gray-900 mb-4">
                 ${calculatePrice().toFixed(2)}
-                {Object.keys(selectedVariants).length > 0 && (
+                {(Object.keys(selectedVariants).length > 0 || colorPriceAdjustment !== 0) && (
                   <span className="text-lg text-gray-500 ml-2">
                     (Base: ${product.price.toFixed(2)})
                   </span>
@@ -351,6 +374,16 @@ export function ProductDetail() {
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* Color Selection */}
+            {productColors.length > 0 && (
+              <ColorSelector
+                productColors={productColors}
+                selectedColorId={selectedColorId}
+                onColorSelect={handleColorSelect}
+                basePrice={product.price}
+              />
             )}
 
             {/* Quantity and Actions */}
