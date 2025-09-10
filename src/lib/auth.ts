@@ -1,14 +1,9 @@
+// lib/auth.ts - SIMPLIFIED & SECURE VERSION
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword
-} from 'firebase/auth';
-import { auth, db } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from './firebase';
 import { Collections } from '@/services/firebase';
-import bcrypt from 'bcryptjs';
 import { UserRole } from '@/types/next-auth';
 
 export const authOptions: NextAuthOptions = {
@@ -24,96 +19,20 @@ export const authOptions: NextAuthOptions = {
         }
       }
     }),
-    CredentialsProvider({
-      name: 'credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
-        action: { label: 'Action', type: 'text' }, // 'signin' or 'signup'
-        firstName: { label: 'First Name', type: 'text' },
-        lastName: { label: 'Last Name', type: 'text' },
-        role: { label: 'Role', type: 'text' }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error('Email and password required');
-        }
-
-        try {
-          if (credentials.action === 'signup') {
-            // Create new user with Firebase Auth
-            const userCredential = await createUserWithEmailAndPassword(
-              auth,
-              credentials.email,
-              credentials.password
-            );
-            
-            // Create user document in Firestore
-            const userData = {
-              email: credentials.email,
-              role: credentials.role || 'customer',
-              isVerified: false,
-              profile: {
-                firstName: credentials.firstName,
-                lastName: credentials.lastName,
-                preferences: {
-                  notifications: {
-                    email: true,
-                    sms: false,
-                    push: true
-                  },
-                  theme: 'light'
-                }
-              }
-            };
-
-            await setDoc(doc(db, Collections.USERS, userCredential.user.uid), userData);
-
-            return {
-              id: userCredential.user.uid,
-              email: credentials.email,
-              role: (credentials.role || 'customer') as UserRole,
-              name: credentials.firstName && credentials.lastName 
-                ? `${credentials.firstName} ${credentials.lastName}` 
-                : undefined
-            };
-          } else {
-            // Sign in existing user
-            const userCredential = await signInWithEmailAndPassword(
-              auth,
-              credentials.email,
-              credentials.password
-            );
-
-            // Get user data from Firestore
-            const userDoc = await getDoc(doc(db, Collections.USERS, userCredential.user.uid));
-            const userData = userDoc.data();
-
-            return {
-              id: userCredential.user.uid,
-              email: credentials.email,
-              role: (userData?.role || 'customer') as UserRole,
-              ...userData
-            };
-          }
-        } catch (error: any) {
-          console.error('Auth error:', error);
-          throw new Error(error.message || 'Authentication failed');
-        }
-      }
-    })
+    // Remove Firebase credentials provider for simplicity
+    // Use Firebase only for data storage, not authentication
   ],
+  
   callbacks: {
     async signIn({ user, account, profile }) {
-      console.log('SignIn callback - Provider:', account?.provider);
-      console.log('SignIn callback - User:', user);
-      
       if (account?.provider === 'google') {
         try {
-          console.log('Processing Google sign-in for:', user.email);
+          // Validate required user data
+          if (!user.email) {
+            console.error('No email provided by Google');
+            return false;
+          }
           
-          // Just return true for now to allow sign-in
-          // We'll create the Firestore document in the JWT callback
           return true;
         } catch (error) {
           console.error('Error in Google sign in:', error);
@@ -122,30 +41,27 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, user, account }) {
-      console.log('JWT Callback - Token:', token);
-      console.log('JWT Callback - User:', user);
-      console.log('JWT Callback - Account:', account);
-      
+    
+    async jwt({ token, user, account }) {      
       if (account && user) {
-        // First time JWT callback is run, user object is available
-        if (account.provider === 'google') {
-          try {
-            console.log('Creating/getting user document for Google user:', user.email, 'with ID:', user.id);
-            
-            // Create or get user document in Firestore
-            const userDoc = await getDoc(doc(db, Collections.USERS, user.id!));
+        try {
+          // Create consistent user ID (use Google's sub or generate one)
+          const userId = user.id || token.sub!;
+          
+          if (account.provider === 'google') {
+            // Check if user document exists
+            const userDocRef = doc(db, Collections.USERS, userId);
+            const userDoc = await getDoc(userDocRef);
             
             if (!userDoc.exists()) {
-              console.log('User document does not exist, creating new one...');
-              
-              // Create new user document
+              // Create new user document with secure defaults
               const userData = {
-                email: user.email,
-                displayName: user.name,
-                photoURL: user.image,
-                role: 'customer',
-                isVerified: true,
+                email: user.email!,
+                displayName: user.name || '',
+                photoURL: user.image || null,
+                role: 'customer' as UserRole, // Default role
+                isVerified: true, // Google users are pre-verified
+                provider: 'google',
                 profile: {
                   firstName: user.name?.split(' ')[0] || '',
                   lastName: user.name?.split(' ').slice(1).join(' ') || '',
@@ -155,50 +71,85 @@ export const authOptions: NextAuthOptions = {
                       sms: false,
                       push: true
                     },
-                    theme: 'light'
+                    theme: 'light' as const
                   }
                 },
-                createdAt: new Date(),
-                updatedAt: new Date()
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                lastLoginAt: new Date().toISOString()
               };
               
-              await setDoc(doc(db, Collections.USERS, user.id!), userData);
-              console.log('✅ Google user document created successfully:', user.id, 'for email:', user.email);
+              await setDoc(userDocRef, userData);
+              console.log('✅ New Google user created:', userId);
               token.role = 'customer' as UserRole;
             } else {
-              console.log('User document exists, getting role...');
+              // Update existing user's last login
               const userData = userDoc.data();
+              await setDoc(userDocRef, {
+                ...userData,
+                lastLoginAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+              
               token.role = userData.role as UserRole;
-              console.log('Existing user role:', userData.role);
             }
             
+            // Add additional token data
             token.displayName = user.name;
             token.photoURL = user.image;
-          } catch (error) {
-            console.error('❌ Error in JWT callback:', error);
-            token.role = 'customer' as UserRole; // Fallback
+            token.provider = 'google';
           }
-        } else {
-          token.role = user.role;
+        } catch (error) {
+          console.error('❌ Error in JWT callback:', error);
+          // Don't fail the authentication, use defaults
+          token.role = 'customer' as UserRole;
         }
       }
       
       return token;
     },
+    
     async session({ session, token }) {
-      if (session.user) {
+      if (session.user && token) {
         session.user.id = token.sub!;
         session.user.role = token.role;
+        
+        // Add custom properties if available
+        if (token.displayName) session.user.name = token.displayName as string;
+        if (token.photoURL) session.user.image = token.photoURL as string;
       }
       return session;
     }
   },
+  
   pages: {
     signIn: '/login',
     error: '/auth/error',
+    signOut: '/auth/signout'
   },
+  
   session: {
     strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
+  
   secret: process.env.NEXTAUTH_SECRET,
+  
+  // Enhanced security options
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production' 
+        ? '__Secure-next-auth.session-token' 
+        : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
+    }
+  },
+  
+  // Enable debug in development
+  debug: process.env.NODE_ENV === 'development',
 };
