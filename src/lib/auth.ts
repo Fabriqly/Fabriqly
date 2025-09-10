@@ -5,6 +5,16 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { Collections } from '@/services/firebase';
 import { UserRole } from '@/types/next-auth';
+import { validateEnvironment } from './env-validation';
+import { AuthErrorHandler, AuthErrorCode } from './auth-errors';
+
+// Validate environment variables on startup
+try {
+  validateEnvironment();
+} catch (error) {
+  console.error('❌ Environment validation failed:', error);
+  throw error;
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -29,13 +39,18 @@ export const authOptions: NextAuthOptions = {
         try {
           // Validate required user data
           if (!user.email) {
-            console.error('No email provided by Google');
+            const authError = AuthErrorHandler.createError(
+              AuthErrorCode.GOOGLE_AUTH_FAILED,
+              { reason: 'No email provided by Google' }
+            );
+            AuthErrorHandler.logError(authError, 'Google signIn callback');
             return false;
           }
           
           return true;
         } catch (error) {
-          console.error('Error in Google sign in:', error);
+          const authError = AuthErrorHandler.handleError(error);
+          AuthErrorHandler.logError(authError, 'Google signIn callback');
           return false;
         }
       }
@@ -100,7 +115,8 @@ export const authOptions: NextAuthOptions = {
             token.provider = 'google';
           }
         } catch (error) {
-          console.error('❌ Error in JWT callback:', error);
+          const authError = AuthErrorHandler.handleError(error);
+          AuthErrorHandler.logError(authError, 'JWT callback');
           // Don't fail the authentication, use defaults
           token.role = 'customer' as UserRole;
         }
