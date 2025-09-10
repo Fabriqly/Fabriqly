@@ -1,9 +1,9 @@
-// hooks/useAuth.ts - ENHANCED VERSION
+// hooks/useAuth.ts - ENHANCED VERSION WITH BETTER SESSION HANDLING
 'use client';
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { AuthErrorHandler, AuthErrorCode } from '@/lib/auth-errors';
 import { authLogger } from '@/lib/auth-logging';
 
@@ -19,7 +19,7 @@ export interface User {
 import { AuthError } from '@/lib/auth-errors';
 
 export function useAuth(requireAuth = false, requiredRole?: string) {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
   const [authError, setAuthError] = useState<AuthError | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -27,6 +27,19 @@ export function useAuth(requireAuth = false, requiredRole?: string) {
   const user = session?.user as User | undefined;
   const isLoading = status === 'loading' || isRedirecting;
   const isAuthenticated = !!session && !!user;
+
+  // Function to refresh user data from database
+  const refreshUserData = useCallback(async () => {
+    if (!session?.user?.id) return;
+    
+    try {
+      // Trigger session update - this will call the JWT callback
+      // which will fetch fresh user data from the database
+      await update();
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+    }
+  }, [session?.user?.id, update]);
 
   useEffect(() => {
     // Handle session errors based on status
@@ -82,11 +95,13 @@ export function useAuth(requireAuth = false, requiredRole?: string) {
     }
   }, [session, authError]);
 
+  // Expose refresh function for components that need it
   return {
     user,
     isLoading,
     isAuthenticated,
     error: authError,
+    refreshUserData,
     isCustomer: user?.role === 'customer',
     isDesigner: user?.role === 'designer',
     isBusinessOwner: user?.role === 'business_owner',
@@ -99,7 +114,7 @@ export function useRequireAuth(requiredRole?: string) {
 }
 
 export function useRole() {
-  const { user, error } = useAuth();
+  const { user, error, refreshUserData } = useAuth();
   
   const hasRole = (role: string | string[]) => {
     if (!user || error) return false;
@@ -162,6 +177,7 @@ export function useRole() {
     hasRole,
     hasPermission,
     canAccess,
+    refreshUserData,
     error
   };
 }

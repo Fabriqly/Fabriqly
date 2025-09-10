@@ -100,23 +100,32 @@ export function RegisterForm() {
     setGeneralError('');
 
     try {
-      const result = await signIn('credentials', {
-        email: formData.email,
-        password: formData.password,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        role: formData.role,
-        action: 'signup',
-        redirect: false
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role,
+        }),
       });
 
-      if (result?.error) {
-        setGeneralError(result.error);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Registration successful:', data);
+        
+        // Redirect to login page with success message
+        router.push('/login?message=Registration successful. Please sign in.');
       } else {
-        router.push('/dashboard');
-        router.refresh();
+        const errorData = await response.json();
+        setGeneralError(errorData.error || 'Registration failed. Please try again.');
       }
     } catch (error) {
+      console.error('Registration error:', error);
       setGeneralError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);

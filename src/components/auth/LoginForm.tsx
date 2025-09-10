@@ -64,7 +64,6 @@ export function LoginForm() {
       const result = await signIn('credentials', {
         email: formData.email,
         password: formData.password,
-        action: 'signin',
         redirect: false
       });
 
@@ -87,9 +86,10 @@ export function LoginForm() {
     setGeneralError('');
     
     try {
-      // Direct redirect to role selection
+      // Let NextAuth handle the redirect based on user's existing role
+      // The auth callback will determine the appropriate redirect
       await signIn('google', { 
-        callbackUrl: `${window.location.origin}/role-selection`
+        callbackUrl: `${window.location.origin}/dashboard`
       });
     } catch (error) {
       console.error('Google sign-in error:', error);

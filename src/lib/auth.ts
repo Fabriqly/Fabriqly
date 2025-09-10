@@ -1,20 +1,24 @@
-// lib/auth.ts - SIMPLIFIED & SECURE VERSION
+// lib/auth.ts - UPDATED VERSION WITH BETTER SESSION REFRESH
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
+import CredentialsProvider from 'next-auth/providers/credentials';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { Collections } from '@/services/firebase';
 import { UserRole } from '@/types/next-auth';
 import { validateEnvironment } from './env-validation';
 import { AuthErrorHandler, AuthErrorCode } from './auth-errors';
+import { FirebaseAdminService } from '@/services/firebase-admin';
 
 // Validate environment variables on startup
-try {
-  validateEnvironment();
-} catch (error) {
-  console.error('❌ Environment validation failed:', error);
-  throw error;
-}
+(async () => {
+  try {
+    await validateEnvironment();
+  } catch (error) {
+    console.error('❌ Environment validation failed:', error);
+    throw error;
+  }
+})();
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -29,15 +33,45 @@ export const authOptions: NextAuthOptions = {
         }
       }
     }),
-    // Remove Firebase credentials provider for simplicity
-    // Use Firebase only for data storage, not authentication
+    CredentialsProvider({
+      name: 'credentials',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        try {
+          // Get user by email from Firebase Auth
+          const userRecord = await FirebaseAdminService.getUserByEmail(credentials.email);
+          
+          if (!userRecord) {
+            return null;
+          }
+
+          // Return user data for NextAuth session
+          return {
+            id: userRecord.uid,
+            email: userRecord.email || '',
+            name: userRecord.displayName || (userRecord as any).firstName + ' ' + (userRecord as any).lastName || userRecord.email,
+            image: userRecord.photoURL || '',
+            role: (userRecord as any).role as UserRole
+          };
+        } catch (error) {
+          console.error('Credentials verification error:', error);
+          return null;
+        }
+      }
+    })
   ],
   
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google') {
         try {
-          // Validate required user data
           if (!user.email) {
             const authError = AuthErrorHandler.createError(
               AuthErrorCode.GOOGLE_AUTH_FAILED,
@@ -46,7 +80,6 @@ export const authOptions: NextAuthOptions = {
             AuthErrorHandler.logError(authError, 'Google signIn callback');
             return false;
           }
-          
           return true;
         } catch (error) {
           const authError = AuthErrorHandler.handleError(error);
@@ -57,25 +90,54 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     
-    async jwt({ token, user, account }) {      
+    async jwt({ token, user, account, trigger, session }) {      
+      // CRITICAL: Handle session update triggers
+      if (trigger === 'update' && token.sub) {
+        console.log('JWT: Session update triggered, refreshing user data...');
+        try {
+          const userDocRef = doc(db, Collections.USERS, token.sub);
+          const userDoc = await getDoc(userDocRef);
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            console.log('JWT: Fresh user data from DB:', userData);
+            
+            // Update all relevant token fields
+            token.role = userData.role as UserRole;
+            token.displayName = userData.displayName;
+            token.photoURL = userData.photoURL;
+            
+            console.log('JWT: Updated token with fresh data:', {
+              role: token.role,
+              displayName: token.displayName,
+              sub: token.sub
+            });
+          } else {
+            console.log('JWT: User document not found during update');
+          }
+        } catch (error) {
+          console.error('JWT: Error updating token during session update:', error);
+        }
+      }
+      
+      // Handle initial login
       if (account && user) {
         try {
-          // Create consistent user ID (use Google's sub or generate one)
           const userId = user.id || token.sub!;
+          console.log('JWT: Processing initial login for user:', userId);
           
           if (account.provider === 'google') {
-            // Check if user document exists
             const userDocRef = doc(db, Collections.USERS, userId);
             const userDoc = await getDoc(userDocRef);
             
             if (!userDoc.exists()) {
-              // Create new user document with secure defaults
+              // Create new user document
               const userData = {
                 email: user.email!,
                 displayName: user.name || '',
                 photoURL: user.image || null,
                 role: 'customer' as UserRole, // Default role
-                isVerified: true, // Google users are pre-verified
+                isVerified: true,
                 provider: 'google',
                 profile: {
                   firstName: user.name?.split(' ')[0] || '',
@@ -95,10 +157,10 @@ export const authOptions: NextAuthOptions = {
               };
               
               await setDoc(userDocRef, userData);
-              console.log('✅ New Google user created:', userId);
+              console.log('JWT: New Google user created:', userId);
               token.role = 'customer' as UserRole;
             } else {
-              // Update existing user's last login
+              // Update existing user's last login and get current role
               const userData = userDoc.data();
               await setDoc(userDocRef, {
                 ...userData,
@@ -107,17 +169,40 @@ export const authOptions: NextAuthOptions = {
               }, { merge: true });
               
               token.role = userData.role as UserRole;
+              console.log('JWT: Existing user login, role:', token.role);
             }
             
-            // Add additional token data
+            // Set additional token data
             token.displayName = user.name;
             token.photoURL = user.image;
             token.provider = 'google';
+          } else if (account.provider === 'credentials') {
+            // Handle credentials provider (email/password login)
+            console.log('JWT: Processing credentials login for user:', userId);
+            console.log('JWT: User data from credentials provider:', { role: user.role, name: user.name });
+            
+            // Use the role and data already provided by the credentials provider
+            token.role = user.role as UserRole;
+            token.displayName = user.name;
+            token.photoURL = user.image;
+            token.provider = 'credentials';
+            
+            // Update last login time in Firestore (but don't override the role)
+            try {
+              const userDocRef = doc(db, Collections.USERS, userId);
+              await setDoc(userDocRef, {
+                lastLoginAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+              
+              console.log('JWT: Credentials login successful, role:', token.role);
+            } catch (error) {
+              console.error('JWT: Error updating last login time:', error);
+            }
           }
         } catch (error) {
           const authError = AuthErrorHandler.handleError(error);
           AuthErrorHandler.logError(authError, 'JWT callback');
-          // Don't fail the authentication, use defaults
           token.role = 'customer' as UserRole;
         }
       }
@@ -133,8 +218,26 @@ export const authOptions: NextAuthOptions = {
         // Add custom properties if available
         if (token.displayName) session.user.name = token.displayName as string;
         if (token.photoURL) session.user.image = token.photoURL as string;
+        
+        console.log('Session callback: Final session data:', {
+          userId: session.user.id,
+          role: session.user.role,
+          email: session.user.email
+        });
       }
       return session;
+    },
+
+    async redirect({ url, baseUrl }) {
+      // Handle role-based redirects after authentication
+      if (url.startsWith('/')) {
+        return `${baseUrl}${url}`;
+      } else if (new URL(url).origin === baseUrl) {
+        return url;
+      }
+      
+      // Default redirect to dashboard
+      return `${baseUrl}/dashboard`;
     }
   },
   

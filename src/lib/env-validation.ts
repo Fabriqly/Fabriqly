@@ -1,5 +1,4 @@
 // lib/env-validation.ts - Comprehensive Environment Variable Validation
-'use server';
 
 interface EnvConfig {
   // NextAuth Configuration
@@ -39,7 +38,7 @@ class EnvValidator {
     return EnvValidator.instance;
   }
 
-  validate(): { isValid: boolean; errors: string[] } {
+  async validate(): Promise<{ isValid: boolean; errors: string[] }> {
     if (this.validated) {
       return { isValid: this.errors.length === 0, errors: this.errors };
     }
@@ -121,8 +120,8 @@ class EnvValidator {
     }
   }
 
-  getConfig(): Partial<EnvConfig> {
-    this.validate();
+  async getConfig(): Promise<Partial<EnvConfig>> {
+    await this.validate();
     return {
       NEXTAUTH_URL: process.env.NEXTAUTH_URL!,
       NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET!,
@@ -146,11 +145,11 @@ class EnvValidator {
 export const envValidator = EnvValidator.getInstance();
 
 // Export validation function for easy use
-export function validateEnvironment(): void {
-  envValidator.validate();
+export async function validateEnvironment(): Promise<void> {
+  await envValidator.validate();
 }
 
 // Export config getter
-export function getValidatedConfig(): Partial<EnvConfig> {
-  return envValidator.getConfig();
+export async function getValidatedConfig(): Promise<Partial<EnvConfig>> {
+  return await envValidator.getConfig();
 }

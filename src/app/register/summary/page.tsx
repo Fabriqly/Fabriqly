@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/Button';
 import { User, Mail, Lock, Briefcase, CheckCircle, ArrowLeft } from 'lucide-react';
 
@@ -52,26 +51,35 @@ export default function RegistrationSummaryPage() {
     setError('');
 
     try {
-      const result = await signIn('credentials', {
-        email: registrationData.email,
-        password: registrationData.password,
-        firstName: registrationData.firstName,
-        lastName: registrationData.lastName,
-        role: registrationData.role,
-        action: 'signup',
-        redirect: false
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName: registrationData.firstName,
+          lastName: registrationData.lastName,
+          email: registrationData.email,
+          password: registrationData.password,
+          role: registrationData.role,
+        }),
       });
 
-      if (result?.error) {
-        setError(result.error);
-      } else {
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Registration successful:', data);
+        
         // Clear the registration data from sessionStorage
         sessionStorage.removeItem('registrationData');
-        // Redirect to dashboard
-        router.push('/dashboard');
-        router.refresh();
+        
+        // Redirect to login page with success message
+        router.push('/login?message=Registration successful. Please sign in.');
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Registration failed. Please try again.');
       }
     } catch (error) {
+      console.error('Registration error:', error);
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
