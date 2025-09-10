@@ -4,6 +4,8 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { AuthErrorHandler, AuthErrorCode } from '@/lib/auth-errors';
+import { authLogger } from '@/lib/auth-logging';
 
 export interface User {
   id: string;
@@ -13,10 +15,8 @@ export interface User {
   role: 'customer' | 'designer' | 'business_owner' | 'admin';
 }
 
-interface AuthError {
-  message: string;
-  code?: string;
-}
+// Use the comprehensive AuthError from auth-errors.ts
+import { AuthError } from '@/lib/auth-errors';
 
 export function useAuth(requireAuth = false, requiredRole?: string) {
   const { data: session, status } = useSession();
@@ -31,15 +31,36 @@ export function useAuth(requireAuth = false, requiredRole?: string) {
   useEffect(() => {
     // Handle session errors based on status
     if (status === 'unauthenticated' && requireAuth) {
-      setAuthError({ message: 'Authentication required', code: 'UNAUTHENTICATED' });
+      const authError = AuthErrorHandler.createError(AuthErrorCode.UNAUTHENTICATED);
+      setAuthError(authError);
+      
+      authLogger.log({
+        level: 'WARN' as any,
+        message: 'Unauthenticated access attempt',
+        action: 'PERMISSION_DENIED' as any,
+        details: { requireAuth, requiredRole }
+      });
     }
 
     if (!isLoading && !isRedirecting) {
       if (requireAuth && !isAuthenticated) {
         setIsRedirecting(true);
+        authLogger.log({
+          level: 'INFO' as any,
+          message: 'Redirecting to login due to authentication requirement',
+          action: 'SIGN_IN_ATTEMPT' as any,
+          details: { callbackUrl: window.location.pathname }
+        });
         router.push(`/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
       } else if (requiredRole && user && user.role !== requiredRole) {
         setIsRedirecting(true);
+        authLogger.log({
+          level: 'WARN' as any,
+          message: `Access denied: user role ${user.role} does not match required role ${requiredRole}`,
+          action: 'PERMISSION_DENIED' as any,
+          userId: user.id,
+          details: { userRole: user.role, requiredRole }
+        });
         router.push('/unauthorized');
       }
     }
