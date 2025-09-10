@@ -5,12 +5,14 @@ import { getStorage } from 'firebase-admin/storage';
 import { validateEnvironment } from './env-validation';
 
 // Validate environment variables on startup
-try {
-  validateEnvironment();
-} catch (error) {
-  console.error('❌ Firebase Admin environment validation failed:', error);
-  throw error;
-}
+(async () => {
+  try {
+    await validateEnvironment();
+  } catch (error) {
+    console.error('❌ Firebase Admin environment validation failed:', error);
+    throw error;
+  }
+})();
 
 // Initialize Firebase Admin SDK
 const initializeFirebaseAdmin = () => {

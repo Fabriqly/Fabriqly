@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { User, Palette, Building2 } from 'lucide-react';
-import { signOut } from 'next-auth/react';
 
 interface RoleOption {
   id: 'customer' | 'designer' | 'business_owner';
@@ -55,12 +54,12 @@ const roleOptions: RoleOption[] = [
 ];
 
 export default function RoleSelectionPage() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
-  const [selectedRole, setSelectedRole] = useState<string>('');
+  const [selectedRole, setSelectedRole] = useState<string>(session?.user?.role || '');
   const [loading, setLoading] = useState(false);
 
-  // Redirect if not authenticated or already has a role
+  // Redirect if not authenticated
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -76,15 +75,6 @@ export default function RoleSelectionPage() {
     router.push('/login');
     return null;
   }
-
-  // If user already has a role other than 'customer', redirect to dashboard
-  if (session?.user?.role && session.user.role !== 'customer') {
-    router.push('/dashboard');
-    return null;
-  }
-
-  // If user has role 'customer' (default for new Google users), allow them to change it
-  // This page is now mainly for users who signed up via Google and need to select their role
 
   const handleRoleSelection = async () => {
     if (!selectedRole) return;
@@ -105,10 +95,21 @@ export default function RoleSelectionPage() {
         const data = await response.json();
         console.log('Role updated successfully:', data);
         
-        // Redirect to dashboard without signing out
-        // The session will be updated on next request
-        router.push('/dashboard');
-        router.refresh();
+        // CRITICAL: Force NextAuth session update
+        await update({
+          ...session,
+          user: {
+            ...session?.user,
+            role: selectedRole
+          }
+        });
+
+        // Small delay to ensure session is updated
+        setTimeout(() => {
+          // Force a hard refresh to ensure all components get the updated session
+          window.location.href = '/dashboard';
+        }, 500);
+        
       } else {
         const errorData = await response.json();
         console.error('Role update failed:', errorData);
@@ -116,6 +117,7 @@ export default function RoleSelectionPage() {
       }
     } catch (error) {
       console.error('Error updating role:', error);
+      alert('Failed to update role. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -126,11 +128,19 @@ export default function RoleSelectionPage() {
       <div className="max-w-4xl mx-auto px-4">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Welcome to Fabriqly!
+            {session?.user?.role ? 'Update Your Role' : 'Welcome to Fabriqly!'}
           </h1>
           <p className="text-lg text-gray-600">
-            Please select your role to complete your account setup
+            {session?.user?.role 
+              ? 'You can change your role at any time'
+              : 'Please select your role to complete your account setup'
+            }
           </p>
+          {session?.user?.role && (
+            <p className="text-sm text-blue-600 mt-2">
+              Current role: {session.user.role.replace('_', ' ')}
+            </p>
+          )}
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 mb-8">
@@ -183,7 +193,7 @@ export default function RoleSelectionPage() {
             loading={loading}
             className="px-8 py-3"
           >
-            Continue with {selectedRole ? roleOptions.find(r => r.id === selectedRole)?.title : 'Role'}
+            {session?.user?.role ? 'Update Role' : 'Continue with'} {selectedRole ? roleOptions.find(r => r.id === selectedRole)?.title : 'Role'}
           </Button>
         </div>
 
