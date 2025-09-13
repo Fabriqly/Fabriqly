@@ -111,7 +111,12 @@ export function RegisterForm() {
       });
 
       if (result?.error) {
-        setGeneralError(result.error);
+        // Handle specific error messages
+        if (result.error.includes('email already exists')) {
+          setErrors(prev => ({ ...prev, email: 'This email is already registered. Please try logging in instead.' }));
+        } else {
+          setGeneralError(result.error);
+        }
       } else {
         router.push('/dashboard');
         router.refresh();

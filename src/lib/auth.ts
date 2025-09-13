@@ -3,12 +3,37 @@ import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail
 } from 'firebase/auth';
 import { auth, db } from './firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { Collections } from '@/services/firebase';
 import bcrypt from 'bcryptjs';
+
+// Utility function to check if email already exists
+async function checkEmailExists(email: string): Promise<boolean> {
+  try {
+    // Check in Firebase Auth
+    const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+    if (signInMethods.length > 0) {
+      return true;
+    }
+
+    // Also check in Firestore (in case of data inconsistencies)
+    const usersRef = collection(db, Collections.USERS);
+    const q = query(usersRef, where('email', '==', email));
+    const querySnapshot = await getDocs(q);
+    
+    return !querySnapshot.empty;
+  } catch (error) {
+    console.error('Error checking email existence:', error);
+    // If we can't check, assume it doesn't exist to allow the process to continue
+    // Firebase Auth will handle the actual duplicate check
+    return false;
+  }
+}
+
 import { UserRole } from '@/types/next-auth';
 
 export const authOptions: NextAuthOptions = {
@@ -41,6 +66,12 @@ export const authOptions: NextAuthOptions = {
 
         try {
           if (credentials.action === 'signup') {
+            // Check if email already exists
+            const emailExists = await checkEmailExists(credentials.email);
+            if (emailExists) {
+              throw new Error('An account with this email already exists. Please try logging in instead.');
+            }
+
             // Create new user with Firebase Auth
             const userCredential = await createUserWithEmailAndPassword(
               auth,
@@ -111,9 +142,7 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === 'google') {
         try {
           console.log('Processing Google sign-in for:', user.email);
-          
-          // Just return true for now to allow sign-in
-          // We'll create the Firestore document in the JWT callback
+          // Allow sign-in, we'll handle duplicate detection in JWT callback
           return true;
         } catch (error) {
           console.error('Error in Google sign in:', error);
@@ -131,13 +160,34 @@ export const authOptions: NextAuthOptions = {
         // First time JWT callback is run, user object is available
         if (account.provider === 'google') {
           try {
-            console.log('Creating/getting user document for Google user:', user.email, 'with ID:', user.id);
+            console.log('Processing JWT for Google user:', user.email, 'with ID:', user.id);
             
-            // Create or get user document in Firestore
+            // First check if there's an existing user with this email
+            const usersRef = collection(db, Collections.USERS);
+            const emailQuery = query(usersRef, where('email', '==', user.email));
+            const existingUserSnapshot = await getDocs(emailQuery);
+            
+            if (!existingUserSnapshot.empty) {
+              console.log('Found existing user with email:', user.email);
+              // Use the existing user's data
+              const existingUserDoc = existingUserSnapshot.docs[0];
+              const existingUserData = existingUserDoc.data();
+              
+              // Update token to use existing user's ID and data
+              token.sub = existingUserDoc.id;
+              token.role = existingUserData.role || 'customer';
+              token.displayName = existingUserData.displayName || user.name;
+              token.photoURL = user.image;
+              
+              console.log('Using existing user:', existingUserDoc.id, 'with role:', existingUserData.role);
+              return token;
+            }
+            
+            // No existing user found, create new one with Google ID
             const userDoc = await getDoc(doc(db, Collections.USERS, user.id!));
             
             if (!userDoc.exists()) {
-              console.log('User document does not exist, creating new one...');
+              console.log('Creating new user document for Google user:', user.id);
               
               // Create new user document
               const userData = {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { FirebaseAdminService } from '@/services/firebase-admin';
-import { FirebaseService } from '@/services/firebase';
+import { adminDb } from '@/lib/firebase-admin';
 
 // GET /api/users/[id] - Get user by ID
 export async function GET(
@@ -29,16 +29,16 @@ export async function GET(
       );
     }
 
-    const user = await FirebaseService.getById('users', userId);
+    const user = await adminDb.collection('users').doc(userId).get();
     
-    if (!user) {
+    if (!user.exists) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ user });
+    return NextResponse.json({ user: { id: user.id, ...user.data() } });
   } catch (error) {
     console.error('Error fetching user:', error);
     return NextResponse.json(
@@ -82,18 +82,33 @@ export async function PUT(
       );
     }
 
-    const updatedUser = await FirebaseService.update('users', userId, body);
+    // Add updatedAt timestamp
+    const updateData = {
+      ...body,
+      updatedAt: new Date()
+    };
+
+    await adminDb.collection('users').doc(userId).update(updateData);
     
     // If role was updated, use admin service to update custom claims
     if (body.role && session.user.role === 'admin') {
       await FirebaseAdminService.updateUserRole(userId, body.role);
     }
 
-    return NextResponse.json({ user: updatedUser });
+    // Get the updated user data
+    const updatedUser = await adminDb.collection('users').doc(userId).get();
+    
+    return NextResponse.json({ user: { id: updatedUser.id, ...updatedUser.data() } });
   } catch (error) {
     console.error('Error updating user:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: params.id,
+      requestBody: 'Request body not available in error context'
+    });
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

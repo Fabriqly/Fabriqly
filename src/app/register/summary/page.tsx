@@ -63,7 +63,12 @@ export default function RegistrationSummaryPage() {
       });
 
       if (result?.error) {
-        setError(result.error);
+        // Handle specific error messages
+        if (result.error.includes('email already exists')) {
+          setError('This email is already registered. Please try logging in instead or use a different email address.');
+        } else {
+          setError(result.error);
+        }
       } else {
         // Clear the registration data from sessionStorage
         sessionStorage.removeItem('registrationData');
