@@ -7,7 +7,10 @@ import { Button } from '@/components/ui/Button';
 import { User, LogOut, Settings, Bell } from 'lucide-react';
 
 function DashboardContent() {
-  const { user, isCustomer, isDesigner, isBusinessOwner, isAdmin } = useAuth();
+  const { user, isCustomer, isDesigner, isBusinessOwner, isAdmin, isLoading } = useAuth();
+
+  // Dashboard now displays whatever role is stored in the database
+  // No more automatic redirects to role selection
 
   const handleSignOut = () => {
     signOut({ callbackUrl: '/' });
@@ -26,7 +29,7 @@ function DashboardContent() {
               <Button variant="ghost" size="sm">
                 <Bell className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" onClick={() => window.location.href = '/role-selection'}>
                 <Settings className="h-4 w-4" />
               </Button>
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
@@ -50,9 +53,19 @@ function DashboardContent() {
               <h2 className="text-xl font-semibold text-gray-900">
                 Welcome back, {user?.name || user?.email}!
               </h2>
-              <p className="text-gray-600">
-                Role: <span className="capitalize font-medium">{user?.role}</span>
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-gray-600">
+                  Role: <span className="capitalize font-medium">{user?.role}</span>
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => window.location.href = '/role-selection'}
+                  className="ml-2"
+                >
+                  Change Role
+                </Button>
+              </div>
             </div>
           </div>
         </div>
