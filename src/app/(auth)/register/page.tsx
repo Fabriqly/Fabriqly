@@ -1,5 +1,6 @@
 import { MultiStepRegisterForm } from '@/components/auth/MultiStepRegisterForm';
 import { Metadata } from 'next';
+import Header from '@/components/layout/Header';
 
 export const metadata: Metadata = {
   title: 'Sign Up | Fabriqly',
@@ -8,8 +9,11 @@ export const metadata: Metadata = {
 
 export default function RegisterPage() {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <MultiStepRegisterForm />
+    <div className="min-h-screen bg-white flex flex-col">
+      <Header />
+      <main className="flex-1 flex items-center justify-center py-12 sm:px-6 lg:px-8">
+        <MultiStepRegisterForm />
+      </main>
     </div>
   );
 }
