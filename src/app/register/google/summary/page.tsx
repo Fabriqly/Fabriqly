@@ -73,9 +73,8 @@ export default function GoogleRegistrationSummaryPage() {
       if (response.ok) {
         // Clear the role from sessionStorage
         sessionStorage.removeItem('googleRegistrationRole');
-        // Redirect to dashboard
-        router.push('/dashboard');
-        router.refresh();
+        // Force session update to get the new role
+        window.location.href = '/dashboard';
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to complete registration');

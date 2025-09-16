@@ -1,4 +1,22 @@
+
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { getStorage } from 'firebase-admin/storage';
+import { validateEnvironment } from './env-validation';
+
+// Validate environment variables on startup
+(async () => {
+  try {
+    await validateEnvironment();
+  } catch (error) {
+    console.error('❌ Firebase Admin environment validation failed:', error);
+    throw error;
+  }
+})();
+
 import * as admin from "firebase-admin";
+
 
 // More robust private key handling
 function getPrivateKey(): string {
