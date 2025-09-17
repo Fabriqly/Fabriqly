@@ -227,4 +227,66 @@ export class FirebaseAdminService {
       throw error;
     }
   }
+
+  // Get a single document by ID
+  static async getDocument(collection: string, docId: string) {
+    try {
+      const docRef = adminDb.collection(collection).doc(docId);
+      const docSnap = await docRef.get();
+      
+      if (docSnap.exists) {
+        return { id: docSnap.id, ...docSnap.data() };
+      } else {
+        return null;
+      }
+    } catch (error) {
+      console.error('Error getting document:', error);
+      throw error;
+    }
+  }
+
+  // Create a new document
+  static async createDocument(collection: string, data: any) {
+    try {
+      const docRef = await adminDb.collection(collection).add({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      return { id: docRef.id, ...data };
+    } catch (error) {
+      console.error('Error creating document:', error);
+      throw error;
+    }
+  }
+
+  // Update a document
+  static async updateDocument(collection: string, docId: string, data: any) {
+    try {
+      const docRef = adminDb.collection(collection).doc(docId);
+      await docRef.update({
+        ...data,
+        updatedAt: new Date()
+      });
+      
+      return { id: docId, ...data };
+    } catch (error) {
+      console.error('Error updating document:', error);
+      throw error;
+    }
+  }
+
+  // Delete a document
+  static async deleteDocument(collection: string, docId: string) {
+    try {
+      const docRef = adminDb.collection(collection).doc(docId);
+      await docRef.delete();
+      
+      return { id: docId };
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      throw error;
+    }
+  }
 }

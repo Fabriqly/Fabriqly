@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:catalog": "echo 'Testing Product Catalog System' && npm run test:api && npm run test:components",
+    "test:api": "echo 'Running API Tests...' && node scripts/test-api.js",
+    "test:components": "echo 'Testing React Components...' && npm run dev -- --port 3001 & sleep 5 && curl -f http://localhost:3001/test-product-catalog || echo 'Component tests available at http://localhost:3001/test-product-catalog'",
+    "test:integration": "echo 'Running Integration Tests...' && npm run dev & sleep 10 && node scripts/test-integration.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",

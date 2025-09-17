@@ -80,7 +80,7 @@ export default function RegistrationSummaryPage() {
       }
     } catch (error) {
       console.error('Registration error:', error);
-      setError('An unexpected error occurred. Please try again.');
+        setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
