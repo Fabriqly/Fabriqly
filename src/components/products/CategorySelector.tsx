@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Category } from '@/types/enhanced-products';
+import { Category } from '@/types/products';
 import { ChevronDown, Check } from 'lucide-react';
 
 interface CategorySelectorProps {
@@ -124,7 +124,7 @@ export function CategorySelector({
                   }`}
                 >
                   <div>
-                    <div className="font-medium">{category.categoryName}</div>
+                    <div className="font-medium">{category.name}</div>
                     {category.description && (
                       <div className="text-sm text-gray-500">{category.description}</div>
                     )}

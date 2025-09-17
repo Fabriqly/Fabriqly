@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { CategorySelector } from './CategorySelector';
 import { ProductColorManager } from './ProductColorManager';
+import { ImageUploader } from './ImageUploader';
 
 interface ProductFormProps {
   product?: Product;
@@ -36,6 +37,8 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [showColorManagement, setShowColorManagement] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<any[]>([]);
+  const [createdProductId, setCreatedProductId] = useState<string | null>(null);
   const [formData, setFormData] = useState<CreateProductData>({
     name: '',
     description: '',
@@ -47,8 +50,6 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
     status: 'active',
     isCustomizable: false,
     isDigital: false,
-    weight: undefined,
-    dimensions: undefined,
     tags: [],
     specifications: {},
     seoTitle: '',
@@ -153,12 +154,17 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
       const url = product ? `/api/products/${product.id}` : '/api/products';
       const method = product ? 'PUT' : 'POST';
       
+      // Filter out undefined values before sending to API
+      const cleanFormData = Object.fromEntries(
+        Object.entries(formData).filter(([_, value]) => value !== undefined)
+      );
+      
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(cleanFormData),
       });
 
       if (!response.ok) {
@@ -167,9 +173,17 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
       }
 
       const data = await response.json();
+      const savedProduct = data.product;
+      
+      // If this is a new product and we have images to upload
+      if (!product && uploadedImages.length > 0) {
+        setCreatedProductId(savedProduct.id);
+        // Images will be uploaded via the ImageUploader component
+        // which will be enabled after product creation
+      }
       
       if (onSave) {
-        onSave(data.product);
+        onSave(savedProduct);
       } else {
         router.push('/dashboard/products');
       }
@@ -368,6 +382,62 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
                   placeholder="0.0"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Product Images */}
+          <div className="space-y-6">
+            <div className="flex items-center space-x-2 mb-4">
+              <ImageIcon className="w-5 h-5 text-blue-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Product Images</h3>
+            </div>
+
+            <div className="space-y-4">
+              <ImageUploader
+                productId={product?.id || createdProductId || ''}
+                onImagesUploaded={(images) => {
+                  setUploadedImages(prev => [...prev, ...images]);
+                }}
+                existingImages={uploadedImages}
+                maxImages={5}
+              />
+              
+              {!product && !createdProductId && (
+                <div className="text-sm text-gray-500 bg-blue-50 p-3 rounded-md">
+                  <p>💡 <strong>Tip:</strong> Save the product first to enable image uploads.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Product Colors */}
+          <div className="space-y-6">
+            <div className="flex items-center space-x-2 mb-4">
+              <Package className="w-5 h-5 text-purple-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Product Colors</h3>
+            </div>
+
+            <div className="space-y-4">
+              {(product?.id || createdProductId) ? (
+                <div className="space-y-4">
+                  <ProductColorManager
+                    productId={product?.id || createdProductId || ''}
+                    onColorChange={() => {
+                      // Color changes are handled by the ProductColorManager component
+                    }}
+                  />
+                  <div className="text-sm text-gray-500 bg-blue-50 p-3 rounded-md">
+                    <p>💡 <strong>Need more colors?</strong> <a href="/dashboard/products/colors" className="text-blue-600 hover:text-blue-800 underline">Create new colors</a> to use in your products.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 bg-purple-50 p-3 rounded-md">
+                  <p>💡 <strong>Tip:</strong> Save the product first to manage colors.</p>
+                  <p>• Add different color variants for your product</p>
+                  <p>• Set different prices for each color if needed</p>
+                  <p>• Manage stock quantities per color</p>
+                </div>
+              )}
             </div>
           </div>
 

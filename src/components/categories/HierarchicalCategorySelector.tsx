@@ -133,7 +133,7 @@ export function HierarchicalCategorySelector({
             )}
             
             <div className="flex-1">
-              <div className="font-medium">{node.categoryName}</div>
+              <div className="font-medium">{node.name}</div>
               {showPath && node.path.length > 1 && (
                 <div className="text-xs text-gray-500">
                   {node.path.join(' > ')}
@@ -176,7 +176,7 @@ export function HierarchicalCategorySelector({
           <span className={selectedCategory ? 'text-gray-900' : 'text-gray-500'}>
             {selectedCategory ? (
               <div>
-                <div>{selectedCategory.categoryName}</div>
+                <div>{selectedCategory.name}</div>
                 {showPath && selectedCategory.path.length > 1 && (
                   <div className="text-xs text-gray-500">
                     {selectedCategory.path.join(' > ')}

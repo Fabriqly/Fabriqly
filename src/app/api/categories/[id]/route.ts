@@ -99,9 +99,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     let level = existingCategory.level;
     let path = existingCategory.path;
     
-    if (body.parentCategoryId !== undefined && body.parentCategoryId !== existingCategory.parentCategoryId) {
+    if (body.parentId !== undefined && body.parentId !== (existingCategory.parentId || existingCategory.parentCategoryId)) {
       // Prevent self-parenting
-      if (body.parentCategoryId === categoryId) {
+      if (body.parentId === categoryId) {
         return NextResponse.json(
           { error: 'Category cannot be its own parent' },
           { status: 400 }
@@ -109,10 +109,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
 
       // Check if new parent exists
-      if (body.parentCategoryId) {
+      if (body.parentId) {
         const newParent = await FirebaseAdminService.getDocument(
           Collections.PRODUCT_CATEGORIES,
-          body.parentCategoryId
+          body.parentId
         );
         
         if (!newParent) {
@@ -123,7 +123,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         }
 
         // Check for circular reference
-        if (newParent.path.includes(existingCategory.categoryName)) {
+        if (newParent.path.includes(existingCategory.name || existingCategory.categoryName)) {
           return NextResponse.json(
             { error: 'Cannot create circular category reference' },
             { status: 400 }
@@ -131,7 +131,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         }
 
         level = newParent.level + 1;
-        path = [...newParent.path, body.categoryName || existingCategory.categoryName];
+        path = [...newParent.path, body.name || existingCategory.name || existingCategory.categoryName];
         
         // Prevent too deep nesting
         if (level > 5) {
@@ -143,13 +143,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       } else {
         // Moving to root level
         level = 0;
-        path = [body.categoryName || existingCategory.categoryName];
+        path = [body.name || existingCategory.name || existingCategory.categoryName];
       }
     }
 
-    // Prepare update data
+    // Prepare update data - transform to old field format for database compatibility
     const updateData = {
-      ...body,
+      ...(body.name && { categoryName: body.name }),
+      ...(body.description !== undefined && { description: body.description }),
+      ...(body.slug && { slug: body.slug }),
+      ...(body.parentId !== undefined && { parentCategoryId: body.parentId }),
+      ...(body.isActive !== undefined && { isActive: body.isActive }),
       level,
       path,
       updatedAt: new Date()
@@ -187,7 +191,7 @@ async function updateChildrenPaths(parentId: string, parentPath: string[]) {
   );
 
   for (const child of children) {
-    const newPath = [...parentPath, child.categoryName];
+    const newPath = [...parentPath, child.name || child.categoryName];
     await FirebaseAdminService.updateDocument(
       Collections.PRODUCT_CATEGORIES,
       child.id,

@@ -40,14 +40,14 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/colors - Create color (admin only)
+// POST /api/colors - Create color (admin and business_owner)
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session || session.user.role !== 'admin') {
+    if (!session || !['admin', 'business_owner'].includes(session.user.role)) {
       return NextResponse.json(
-        { error: 'Unauthorized - Admin access required' },
+        { error: 'Unauthorized - Admin or business owner access required' },
         { status: 401 }
       );
     }
@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
       colorName: body.colorName,
       hexCode: body.hexCode,
       rgbCode: body.rgbCode,
+      businessOwnerId: session.user.role === 'business_owner' ? session.user.id : undefined,
       isActive: true,
       createdAt: new Date()
     };

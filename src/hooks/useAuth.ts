@@ -4,7 +4,7 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
-import { AuthErrorHandler, AuthErrorCode } from '@/lib/auth-errors';
+import { AuthErrorHandler, AuthErrorCode, AuthError } from '@/lib/auth-errors';
 import { authLogger } from '@/lib/auth-logging';
 
 export interface User {
@@ -14,9 +14,6 @@ export interface User {
   image?: string;
   role: 'customer' | 'designer' | 'business_owner' | 'admin';
 }
-
-// Use the comprehensive AuthError from auth-errors.ts
-import { AuthError } from '@/lib/auth-errors';
 
 export function useAuth(requireAuth = false, requiredRole?: string) {
   const { data: session, status, update } = useSession();
