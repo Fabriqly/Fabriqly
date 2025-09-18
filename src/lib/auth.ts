@@ -3,10 +3,6 @@ import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from './firebase';
-import { Collections } from '@/services/firebase';
-
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
@@ -16,6 +12,12 @@ import { auth, db } from './firebase';
 import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { Collections } from '@/services/firebase';
 import bcrypt from 'bcryptjs';
+import { validateEnvironment } from './env-validation';
+import { AuthErrorHandler, AuthErrorCode } from './auth-errors';
+import { FirebaseAdminService } from '@/services/firebase-admin';
+
+// Define UserRole type
+type UserRole = 'admin' | 'business_owner' | 'designer' | 'customer';
 
 // Utility function to check if email already exists
 async function checkEmailExists(email: string): Promise<boolean> {
@@ -69,7 +71,11 @@ export const authOptions: NextAuthOptions = {
       name: 'credentials',
       credentials: {
         email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' }
+        password: { label: 'Password', type: 'password' },
+        action: { label: 'Action', type: 'text' },
+        role: { label: 'Role', type: 'text' },
+        firstName: { label: 'First Name', type: 'text' },
+        lastName: { label: 'Last Name', type: 'text' }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -77,13 +83,6 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-
-          // Get user by email from Firebase Auth
-          const userRecord = await FirebaseAdminService.getUserByEmail(credentials.email);
-          
-          if (!userRecord) {
-            return null;
-
           if (credentials.action === 'signup') {
             // Check if email already exists
             const emailExists = await checkEmailExists(credentials.email);
@@ -143,19 +142,10 @@ export const authOptions: NextAuthOptions = {
               id: userCredential.user.uid,
               email: credentials.email,
               role: (userData?.role || 'customer') as UserRole,
-              ...userData
+              name: userData?.displayName || `${userData?.profile?.firstName || ''} ${userData?.profile?.lastName || ''}`.trim() || credentials.email,
+              image: userData?.photoURL || ''
             };
-
           }
-
-          // Return user data for NextAuth session
-          return {
-            id: userRecord.uid,
-            email: userRecord.email || '',
-            name: userRecord.displayName || (userRecord as any).firstName + ' ' + (userRecord as any).lastName || userRecord.email,
-            image: userRecord.photoURL || '',
-            role: (userRecord as any).role as UserRole
-          };
         } catch (error) {
           console.error('Credentials verification error:', error);
           return null;
@@ -191,7 +181,7 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     
-    async jwt({ token, user, account, trigger, session }) {      
+    async jwt({ token, user, account, trigger, session }): Promise<any> {      
       // CRITICAL: Handle session update triggers
       if (trigger === 'update' && token.sub) {
         console.log('JWT: Session update triggered, refreshing user data...');
@@ -233,46 +223,12 @@ export const authOptions: NextAuthOptions = {
             const userDoc = await getDoc(userDocRef);
             
             if (!userDoc.exists()) {
-
-        // First time JWT callback is run, user object is available
-        if (account.provider === 'google') {
-          try {
-            console.log('Processing JWT for Google user:', user.email, 'with ID:', user.id);
-            
-            // First check if there's an existing user with this email
-            const usersRef = collection(db, Collections.USERS);
-            const emailQuery = query(usersRef, where('email', '==', user.email));
-            const existingUserSnapshot = await getDocs(emailQuery);
-            
-            if (!existingUserSnapshot.empty) {
-              console.log('Found existing user with email:', user.email);
-              // Use the existing user's data
-              const existingUserDoc = existingUserSnapshot.docs[0];
-              const existingUserData = existingUserDoc.data();
-              
-              // Update token to use existing user's ID and data
-              token.sub = existingUserDoc.id;
-              token.role = existingUserData.role || 'customer';
-              token.displayName = existingUserData.displayName || user.name;
-              token.photoURL = user.image;
-              
-              console.log('Using existing user:', existingUserDoc.id, 'with role:', existingUserData.role);
-              return token;
-            }
-            
-            // No existing user found, create new one with Google ID
-            const userDoc = await getDoc(doc(db, Collections.USERS, user.id!));
-            
-            if (!userDoc.exists()) {
-              console.log('Creating new user document for Google user:', user.id);
-              
-
-              // Create new user document
+              // Create new user document for Google user
               const userData = {
                 email: user.email!,
                 displayName: user.name || '',
                 photoURL: user.image || null,
-                role: 'customer' as UserRole, // Default role
+                role: 'customer' as UserRole,
                 isVerified: true,
                 provider: 'google',
                 profile: {
@@ -312,33 +268,119 @@ export const authOptions: NextAuthOptions = {
             token.displayName = user.name;
             token.photoURL = user.image;
             token.provider = 'google';
-          } else if (account.provider === 'credentials') {
-            // Handle credentials provider (email/password login)
-            console.log('JWT: Processing credentials login for user:', userId);
-            console.log('JWT: User data from credentials provider:', { role: user.role, name: user.name });
-            
-            // Use the role and data already provided by the credentials provider
-            token.role = user.role as UserRole;
-            token.displayName = user.name;
-            token.photoURL = user.image;
-            token.provider = 'credentials';
-            
-            // Update last login time in Firestore (but don't override the role)
-            try {
-              const userDocRef = doc(db, Collections.USERS, userId);
-              await setDoc(userDocRef, {
-                lastLoginAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              }, { merge: true });
-              
-              console.log('JWT: Credentials login successful, role:', token.role);
-            } catch (error) {
-              console.error('JWT: Error updating last login time:', error);
-            }
           }
         } catch (error) {
           const authError = AuthErrorHandler.handleError(error);
-          AuthErrorHandler.logError(authError, 'JWT callback');
+          AuthErrorHandler.logError(authError, 'JWT callback - Google provider');
+          token.role = 'customer' as UserRole;
+        }
+      }
+      
+      // Handle other providers or subsequent calls
+      if (account && user && account.provider === 'google') {
+        try {
+          console.log('Processing JWT for Google user:', user.email, 'with ID:', user.id);
+          
+          // First check if there's an existing user with this email
+          const usersRef = collection(db, Collections.USERS);
+          const emailQuery = query(usersRef, where('email', '==', user.email));
+          const existingUserSnapshot = await getDocs(emailQuery);
+          
+          if (!existingUserSnapshot.empty) {
+            console.log('Found existing user with email:', user.email);
+            // Use the existing user's data
+            const existingUserDoc = existingUserSnapshot.docs[0];
+            const existingUserData = existingUserDoc.data();
+            
+            // Update token to use existing user's ID and data
+            token.sub = existingUserDoc.id;
+            token.role = existingUserData.role || 'customer';
+            token.displayName = existingUserData.displayName || user.name;
+            token.photoURL = user.image;
+            
+            console.log('Using existing user:', existingUserDoc.id, 'with role:', existingUserData.role);
+            return token;
+          }
+          
+          // No existing user found, create new one with Google ID
+          const userDoc = await getDoc(doc(db, Collections.USERS, user.id!));
+          
+          if (!userDoc.exists()) {
+            console.log('Creating new user document for Google user:', user.id);
+            
+            // Create new user document
+            const userData = {
+              email: user.email!,
+              displayName: user.name || '',
+              photoURL: user.image || null,
+              role: 'customer' as UserRole, // Default role
+              isVerified: true,
+              provider: 'google',
+              profile: {
+                firstName: user.name?.split(' ')[0] || '',
+                lastName: user.name?.split(' ').slice(1).join(' ') || '',
+                preferences: {
+                  notifications: {
+                    email: true,
+                    sms: false,
+                    push: true
+                  },
+                  theme: 'light' as const
+                }
+              },
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              lastLoginAt: new Date().toISOString()
+            };
+            
+            await setDoc(doc(db, Collections.USERS, user.id!), userData);
+            console.log('JWT: New Google user created:', user.id);
+            token.role = 'customer' as UserRole;
+          } else {
+            // Update existing user's last login and get current role
+            const userData = userDoc.data();
+            await setDoc(doc(db, Collections.USERS, user.id!), {
+              ...userData,
+              lastLoginAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+            
+            token.role = userData.role as UserRole;
+            console.log('JWT: Existing user login, role:', token.role);
+          }
+          
+          // Set additional token data
+          token.displayName = user.name;
+          token.photoURL = user.image;
+          token.provider = 'google';
+        } catch (error) {
+          const authError = AuthErrorHandler.handleError(error);
+          AuthErrorHandler.logError(authError, 'JWT callback - Google provider');
+          token.role = 'customer' as UserRole;
+        }
+      } else if (account && user && account.provider === 'credentials') {
+        // Handle credentials provider (email/password login)
+        try {
+          const userId = user.id || token.sub!;
+          console.log('JWT: Processing credentials login for user:', userId);
+          console.log('JWT: User data from credentials provider:', { role: user.role, name: user.name });
+          
+          // Use the role and data already provided by the credentials provider
+          token.role = user.role as UserRole;
+          token.displayName = user.name;
+          token.photoURL = user.image;
+          token.provider = 'credentials';
+          
+          // Update last login time in Firestore (but don't override the role)
+          const userDocRef = doc(db, Collections.USERS, userId);
+          await setDoc(userDocRef, {
+            lastLoginAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+          
+          console.log('JWT: Credentials login successful, role:', token.role);
+        } catch (error) {
+          console.error('JWT: Error updating last login time:', error);
           token.role = 'customer' as UserRole;
         }
       }

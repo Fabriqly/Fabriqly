@@ -4,7 +4,7 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useAuth } from '@/hooks/useAuth';
 import { signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/Button';
-import { User, LogOut, Settings, Bell } from 'lucide-react';
+import { User, LogOut, Settings, Bell, Palette } from 'lucide-react';
 import { ProfileModal } from '@/components/auth/ProfileModal';
 import { useState, useEffect } from 'react';
 
@@ -172,6 +172,17 @@ function DashboardContent() {
                   Manage your shop settings and products.
                 </p>
                 <Button size="sm">Manage Shop</Button>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Product Colors</h3>
+                <p className="text-gray-600 text-sm mb-4">
+                  Create and manage colors for your products.
+                </p>
+                <Button size="sm" onClick={() => window.location.href = '/dashboard/products/colors'}>
+                  <Palette className="w-4 h-4 mr-2" />
+                  Manage Colors
+                </Button>
               </div>
               
               <div className="bg-white rounded-lg shadow p-6">

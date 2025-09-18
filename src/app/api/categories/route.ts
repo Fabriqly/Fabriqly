@@ -22,9 +22,11 @@ export async function GET(request: NextRequest) {
     // Build query constraints
     const constraints = [];
     
-    if (!includeInactive) {
-      constraints.push({ field: 'isActive', operator: '==' as const, value: true });
-    }
+    // Temporarily remove isActive filter to avoid index requirement
+    // TODO: Create Firestore index for isActive + sortOrder
+    // if (!includeInactive) {
+    //   constraints.push({ field: 'isActive', operator: '==' as const, value: true });
+    // }
     
     if (parentId !== null) {
       if (parentId === '') {
@@ -45,13 +47,35 @@ export async function GET(request: NextRequest) {
       { field: 'sortOrder', direction: 'asc' }
     );
 
+    // Transform categories from old format to new format
+    const transformedCategories = categories.map(cat => ({
+      id: cat.id,
+      name: cat.name || cat.categoryName, // Handle both old and new formats
+      description: cat.description,
+      slug: cat.slug,
+      parentId: cat.parentId || cat.parentCategoryId, // Handle both old and new formats
+      isActive: cat.isActive !== false,
+      createdAt: cat.createdAt,
+      updatedAt: cat.updatedAt,
+      // Keep additional fields for backward compatibility
+      ...(cat.level !== undefined && { level: cat.level }),
+      ...(cat.path && { path: cat.path }),
+      ...(cat.sortOrder !== undefined && { sortOrder: cat.sortOrder }),
+      ...(cat.iconUrl && { iconUrl: cat.iconUrl })
+    }));
+
+    // Filter by isActive in memory to avoid index requirement
+    const filteredCategories = !includeInactive 
+      ? transformedCategories.filter(cat => cat.isActive !== false)
+      : transformedCategories;
+
     if (format === 'tree' || includeChildren) {
       // Build hierarchical tree structure
-      const categoryTree = await buildCategoryTree(categories, includeChildren);
+      const categoryTree = await buildCategoryTree(filteredCategories, includeChildren);
       return NextResponse.json({ categories: categoryTree });
     }
 
-    return NextResponse.json({ categories });
+    return NextResponse.json({ categories: filteredCategories });
   } catch (error) {
     console.error('Error fetching categories:', error);
     return NextResponse.json(
@@ -120,9 +144,9 @@ export async function POST(request: NextRequest) {
     const body: CreateCategoryData = await request.json();
     
     // Validate required fields
-    if (!body.categoryName || !body.slug) {
+    if (!body.name || !body.slug) {
       return NextResponse.json(
-        { error: 'Missing required fields: categoryName, slug' },
+        { error: 'Missing required fields: name, slug' },
         { status: 400 }
       );
     }
@@ -142,12 +166,12 @@ export async function POST(request: NextRequest) {
 
     // Calculate level and path based on parent
     let level = 0;
-    let path: string[] = [body.categoryName];
+    let path: string[] = [body.name];
     
-    if (body.parentCategoryId) {
+    if (body.parentId) {
       const parentCategory = await FirebaseAdminService.getDocument(
         Collections.PRODUCT_CATEGORIES,
-        body.parentCategoryId
+        body.parentId
       );
       
       if (!parentCategory) {
@@ -158,7 +182,7 @@ export async function POST(request: NextRequest) {
       }
       
       level = parentCategory.level + 1;
-      path = [...parentCategory.path, body.categoryName];
+      path = [...parentCategory.path, body.name];
       
       // Prevent too deep nesting (max 5 levels)
       if (level > 5) {
@@ -172,20 +196,17 @@ export async function POST(request: NextRequest) {
     // Get next sort order
     const siblings = await FirebaseAdminService.queryDocuments(
       Collections.PRODUCT_CATEGORIES,
-      [{ field: 'parentCategoryId', operator: '==' as const, value: body.parentCategoryId || null }]
+      [{ field: 'parentCategoryId', operator: '==' as const, value: body.parentId || null }]
     );
     const sortOrder = siblings.length;
 
-    const categoryData: Omit<Category, 'id'> = {
-      categoryName: body.categoryName,
+    const categoryData = {
+      categoryName: body.name, // Store as categoryName for backward compatibility
       description: body.description,
       slug: body.slug,
-      iconUrl: body.iconUrl,
-      parentCategoryId: body.parentCategoryId,
-      level,
-      path,
+      ...(body.parentId && { parentCategoryId: body.parentId }), // Store as parentCategoryId
       isActive: body.isActive !== false, // Default to true
-      sortOrder,
+      sortOrder: sortOrder, // Add sortOrder for backward compatibility
       createdAt: new Date(),
       updatedAt: new Date()
     };
