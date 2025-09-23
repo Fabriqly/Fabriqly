@@ -121,6 +121,7 @@ export interface Color {
   colorName: string;
   hexCode: string;
   rgbCode: string;
+  businessOwnerId?: string; // Track who created the color
   isActive: boolean;
   createdAt: Timestamp;
 }
@@ -336,6 +337,16 @@ export interface CreateSizeChartData {
   description?: string;
   sizeData: SizeChart['sizeData'];
   categoryId?: string;
+}
+
+export interface CreateColorData {
+  colorName: string;
+  hexCode: string;
+  rgbCode: string;
+}
+
+export interface UpdateColorData extends Partial<CreateColorData> {
+  isActive?: boolean;
 }
 
 export interface CreateProductColorData {

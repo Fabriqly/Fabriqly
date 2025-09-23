@@ -68,12 +68,72 @@ export async function GET(request: NextRequest) {
     }
 
     // Get products with pagination
-    const result = await FirebaseAdminService.queryDocuments(
-      Collections.PRODUCTS,
-      constraints,
-      { field: filters.sortBy!, direction: filters.sortOrder! },
-      filters.limit! + 1 // Get one extra to check if there are more
-    );
+    // For businessOwnerId queries, we'll fetch all and filter/sort in memory to avoid index requirements
+    let result;
+    if (filters.businessOwnerId) {
+      // Fetch all products for this business owner without any constraints
+      const allProducts = await FirebaseAdminService.queryDocuments(
+        Collections.PRODUCTS,
+        [], // No constraints to avoid index requirements
+        undefined, // No sorting in Firestore
+        undefined // No limit in Firestore
+      );
+      
+      // Filter by businessOwnerId and other criteria in memory
+      let filteredProducts = allProducts.filter(p => p.businessOwnerId === filters.businessOwnerId);
+      
+      // Apply other filters in memory
+      if (filters.categoryId) {
+        filteredProducts = filteredProducts.filter(p => p.categoryId === filters.categoryId);
+      }
+      
+      if (filters.status) {
+        filteredProducts = filteredProducts.filter(p => p.status === filters.status);
+      }
+      
+      if (filters.isCustomizable !== undefined) {
+        filteredProducts = filteredProducts.filter(p => p.isCustomizable === filters.isCustomizable);
+      }
+      
+      if (filters.isDigital !== undefined) {
+        filteredProducts = filteredProducts.filter(p => p.isDigital === filters.isDigital);
+      }
+      
+      if (filters.minPrice !== undefined) {
+        filteredProducts = filteredProducts.filter(p => p.price >= filters.minPrice!);
+      }
+      
+      if (filters.maxPrice !== undefined) {
+        filteredProducts = filteredProducts.filter(p => p.price <= filters.maxPrice!);
+      }
+      
+      // Sort in memory
+      if (filters.sortBy) {
+        filteredProducts.sort((a, b) => {
+          const aValue = a[filters.sortBy!];
+          const bValue = b[filters.sortBy!];
+          
+          if (filters.sortOrder === 'desc') {
+            return bValue > aValue ? 1 : bValue < aValue ? -1 : 0;
+          } else {
+            return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+          }
+        });
+      }
+      
+      // Apply pagination
+      const startIndex = filters.offset!;
+      const endIndex = startIndex + filters.limit! + 1;
+      result = filteredProducts.slice(startIndex, endIndex);
+    } else {
+      // For other queries, use the original approach
+      result = await FirebaseAdminService.queryDocuments(
+        Collections.PRODUCTS,
+        constraints,
+        { field: filters.sortBy!, direction: filters.sortOrder! },
+        filters.limit! + 1 // Get one extra to check if there are more
+      );
+    }
 
     const hasMore = result.length > filters.limit!;
     const products = hasMore ? result.slice(0, filters.limit!) : result;
@@ -87,17 +147,19 @@ export async function GET(request: NextRequest) {
           product.categoryId
         );
 
-        // Get images
-        const images = await FirebaseAdminService.queryDocuments(
+        // Get images - fetch all and filter in memory to avoid index requirements
+        const allImages = await FirebaseAdminService.queryDocuments(
           Collections.PRODUCT_IMAGES,
-          [{ field: 'productId', operator: '==' as const, value: product.id }],
-          { field: 'sortOrder', direction: 'asc' }
+          [], // No constraints to avoid index requirements
+          undefined, // No sorting in Firestore
+          undefined // No limit
         );
+        const images = allImages.filter(img => img.productId === product.id);
 
         return {
           ...product,
           category: category || { id: '', name: 'Unknown', slug: 'unknown', isActive: true, createdAt: new Date(), updatedAt: new Date() },
-          images: images || [],
+          images: Array.isArray(images) ? images : [],
           variants: [] // TODO: Implement variants
         };
       })
@@ -157,14 +219,15 @@ export async function POST(request: NextRequest) {
       status: body.status || 'active',
       isCustomizable: body.isCustomizable || false,
       isDigital: body.isDigital || false,
-      weight: body.weight,
-      dimensions: body.dimensions,
       tags: body.tags || [],
-      specifications: body.specifications,
-      seoTitle: body.seoTitle,
-      seoDescription: body.seoDescription,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      // Only include optional fields if they have values
+      ...(body.weight !== undefined && { weight: body.weight }),
+      ...(body.dimensions !== undefined && { dimensions: body.dimensions }),
+      ...(body.specifications !== undefined && { specifications: body.specifications }),
+      ...(body.seoTitle !== undefined && { seoTitle: body.seoTitle }),
+      ...(body.seoDescription !== undefined && { seoDescription: body.seoDescription })
     };
 
     const product = await FirebaseAdminService.createDocument(

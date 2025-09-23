@@ -30,7 +30,7 @@ export function ProductCard({
   showActions = true,
   variant = 'management'
 }: ProductCardProps) {
-  const primaryImage = product.images.find(img => img.isPrimary) || product.images[0];
+  const primaryImage = product.images?.find(img => img.isPrimary) || product.images?.[0];
   const statusColor = {
     active: 'bg-green-100 text-green-800',
     inactive: 'bg-gray-100 text-gray-800',
@@ -42,6 +42,28 @@ export function ProductCard({
       style: 'currency',
       currency: 'USD'
     }).format(price);
+  };
+
+  const formatDate = (date: any) => {
+    try {
+      if (!date) return 'Unknown';
+      
+      // Handle Firestore Timestamp
+      if (date.toDate && typeof date.toDate === 'function') {
+        return date.toDate().toLocaleDateString();
+      }
+      
+      // Handle regular Date object or timestamp
+      const dateObj = new Date(date);
+      if (isNaN(dateObj.getTime())) {
+        return 'Unknown';
+      }
+      
+      return dateObj.toLocaleDateString();
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Unknown';
+    }
   };
 
   if (variant === 'catalog') {
@@ -104,9 +126,9 @@ export function ProductCard({
             </div>
           </div>
 
-          {product.tags.length > 0 && (
+          {product.tags?.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-3">
-              {product.tags.slice(0, 3).map((tag, index) => (
+              {product.tags?.slice(0, 3).map((tag, index) => (
                 <span
                   key={index}
                   className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600"
@@ -115,9 +137,9 @@ export function ProductCard({
                   {tag}
                 </span>
               ))}
-              {product.tags.length > 3 && (
+              {product.tags?.length > 3 && (
                 <span className="text-xs text-gray-500">
-                  +{product.tags.length - 3} more
+                  +{product.tags?.length - 3} more
                 </span>
               )}
             </div>
@@ -216,14 +238,14 @@ export function ProductCard({
 
           <div className="text-center">
             <div className="text-2xl font-bold text-purple-600">
-              {product.images.length}
+              {product.images?.length || 0}
             </div>
             <div className="text-sm text-gray-500">Images</div>
           </div>
 
           <div className="text-center">
             <div className="text-2xl font-bold text-orange-600">
-              {product.tags.length}
+              {product.tags?.length || 0}
             </div>
             <div className="text-sm text-gray-500">Tags</div>
           </div>
@@ -231,7 +253,7 @@ export function ProductCard({
 
         <div className="flex items-center justify-between text-sm text-gray-500">
           <div className="flex items-center space-x-4">
-            <span>Category: {product.category.name}</span>
+            <span>Category: {product.category?.name || 'Unknown'}</span>
             {product.isCustomizable && (
               <span className="text-blue-600 font-medium">Customizable</span>
             )}
@@ -241,14 +263,14 @@ export function ProductCard({
           </div>
           
           <span>
-            Updated: {new Date(product.updatedAt).toLocaleDateString()}
+            Updated: {formatDate(product.updatedAt)}
           </span>
         </div>
 
-        {product.tags.length > 0 && (
+        {product.tags?.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="flex flex-wrap gap-1">
-              {product.tags.map((tag, index) => (
+              {product.tags?.map((tag, index) => (
                 <span
                   key={index}
                   className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600"
