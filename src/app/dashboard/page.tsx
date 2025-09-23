@@ -23,7 +23,6 @@ interface ProfileData {
 }
 
 function DashboardContent() {
-
   const { user, isCustomer, isDesigner, isBusinessOwner, isAdmin, isLoading } = useAuth();
 
   // Dashboard now displays whatever role is stored in the database

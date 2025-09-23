@@ -31,7 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (!user) {
       return NextResponse.json(
         { error: 'User not found' },
-        { status: 404 }
+        { status: 404 } 
       );
     }
 
@@ -71,6 +71,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     // Non-admin users cannot change their role
     if (session.user.role !== 'admin' && body.role) {
       delete body.role;
+    }
+
+    // If role was updated by admin, update custom claims
+    if (body.role && session.user.role === 'admin') {
+      await FirebaseAdminService.updateUserRole(id, body.role);
     }
 
     const updatedUser = await FirebaseAdminService.updateDocument(
