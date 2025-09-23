@@ -109,6 +109,67 @@ export class FirebaseAdminService {
     }
   }
 
+  // Find and clean up duplicate users by email
+  static async findDuplicateUsersByEmail(email: string) {
+    try {
+      const usersRef = adminDb.collection(Collections.USERS);
+      const q = usersRef.where('email', '==', email);
+      const querySnapshot = await q.get();
+      
+      const duplicates = [];
+      querySnapshot.forEach((doc) => {
+        duplicates.push({ uid: doc.id, ...doc.data() });
+      });
+      
+      return duplicates;
+    } catch (error) {
+      console.error('Error finding duplicate users:', error);
+      throw error;
+    }
+  }
+
+  // Remove duplicate user documents (keep the oldest one)
+  static async removeDuplicateUsers(email: string) {
+    try {
+      const duplicates = await this.findDuplicateUsersByEmail(email);
+      
+      if (duplicates.length <= 1) {
+        return { message: 'No duplicates found', duplicatesRemoved: 0 };
+      }
+
+      // Sort by creation date and keep the oldest one
+      duplicates.sort((a, b) => {
+        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      const toKeep = duplicates[0];
+      const toRemove = duplicates.slice(1);
+
+      // Remove duplicate documents from Firestore
+      for (const duplicate of toRemove) {
+        await adminDb.collection(Collections.USERS).doc(duplicate.uid).delete();
+        
+        // Also try to delete from Firebase Auth if it exists
+        try {
+          await adminAuth.deleteUser(duplicate.uid);
+        } catch (authError) {
+          console.log(`User ${duplicate.uid} not found in Firebase Auth, skipping...`);
+        }
+      }
+
+      return {
+        message: `Removed ${toRemove.length} duplicate(s) for email ${email}`,
+        duplicatesRemoved: toRemove.length,
+        keptUser: toKeep.uid
+      };
+    } catch (error) {
+      console.error('Error removing duplicate users:', error);
+      throw error;
+    }
+  }
+
   // Verify user email
   static async verifyUserEmail(uid: string) {
     try {

@@ -114,12 +114,22 @@ export function RegisterForm() {
         }),
       });
 
+
       if (response.ok) {
         const data = await response.json();
         console.log('Registration successful:', data);
         
         // Redirect to login page with success message
         router.push('/login?message=Registration successful. Please sign in.');
+
+      if (result?.error) {
+        // Handle specific error messages
+        if (result.error.includes('email already exists')) {
+          setErrors(prev => ({ ...prev, email: 'This email is already registered. Please try logging in instead.' }));
+        } else {
+          setGeneralError(result.error);
+        }
+
       } else {
         const errorData = await response.json();
         setGeneralError(errorData.error || 'Registration failed. Please try again.');

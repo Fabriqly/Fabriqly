@@ -31,11 +31,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (!user) {
       return NextResponse.json(
         { error: 'User not found' },
-        { status: 404 }
+        { status: 404 } 
       );
     }
 
-    return NextResponse.json({ user });
+    return NextResponse.json({ user: { id: user.id, ...user.data() } });
   } catch (error) {
     console.error('Error fetching user:', error);
     return NextResponse.json(
@@ -73,6 +73,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       delete body.role;
     }
 
+    // If role was updated by admin, update custom claims
+    if (body.role && session.user.role === 'admin') {
+      await FirebaseAdminService.updateUserRole(id, body.role);
+    }
+
     const updatedUser = await FirebaseAdminService.updateDocument(
       Collections.USERS,
       id,
@@ -85,8 +90,14 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ user: updatedUser });
   } catch (error) {
     console.error('Error updating user:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: params.id,
+      requestBody: 'Request body not available in error context'
+    });
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

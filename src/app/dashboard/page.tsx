@@ -5,6 +5,22 @@ import { useAuth } from '@/hooks/useAuth';
 import { signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/Button';
 import { User, LogOut, Settings, Bell, Palette } from 'lucide-react';
+import { ProfileModal } from '@/components/auth/ProfileModal';
+import { useState, useEffect } from 'react';
+
+interface ProfileData {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  bio?: string;
+  location?: string;
+  website?: string;
+  businessName?: string;
+  businessType?: string;
+  specialties?: string[];
+  portfolioUrl?: string;
+}
 
 function DashboardContent() {
   const { user, isCustomer, isDesigner, isBusinessOwner, isAdmin, isLoading } = useAuth();
@@ -12,9 +28,44 @@ function DashboardContent() {
   // Dashboard now displays whatever role is stored in the database
   // No more automatic redirects to role selection
 
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+
   const handleSignOut = () => {
     signOut({ callbackUrl: '/' });
   };
+
+  const handleEditProfile = () => {
+    setIsProfileModalOpen(true);
+  };
+
+  const handleProfileSaved = (updatedProfile: ProfileData) => {
+    setProfileData(updatedProfile);
+  };
+
+  // Fetch profile data when component mounts
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const response = await fetch(`/api/users/${user.id}`);
+        if (response.ok) {
+          const { user: userData } = await response.json();
+          setProfileData(userData.profile);
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      }
+    };
+
+    fetchProfile();
+  }, [user?.id]);
+
+  // Get display name from profile data or fallback to session data
+  const displayName = profileData?.firstName && profileData?.lastName 
+    ? `${profileData.firstName} ${profileData.lastName}` 
+    : user?.name || user?.email;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -51,7 +102,7 @@ function DashboardContent() {
             </div>
             <div className="ml-4">
               <h2 className="text-xl font-semibold text-gray-900">
-                Welcome back, {user?.name || user?.email}!
+                Welcome back, {displayName}!
               </h2>
               <div className="flex items-center gap-2">
                 <p className="text-gray-600">
@@ -169,7 +220,7 @@ function DashboardContent() {
             <p className="text-gray-600 text-sm mb-4">
               Update your profile information and preferences.
             </p>
-            <Button variant="outline" size="sm">Edit Profile</Button>
+            <Button variant="outline" size="sm" onClick={handleEditProfile}>Edit Profile</Button>
           </div>
         </div>
 
@@ -200,6 +251,13 @@ function DashboardContent() {
           </div>
         </div>
       </div>
+
+      {/* Profile Modal */}
+      <ProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)}
+        onSave={handleProfileSaved}
+      />
     </div>
   );
 }

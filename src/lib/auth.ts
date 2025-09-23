@@ -2,13 +2,45 @@
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
+
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { Collections } from '@/services/firebase';
-import { UserRole } from '@/types/next-auth';
-import { validateEnvironment } from './env-validation';
-import { AuthErrorHandler, AuthErrorCode } from './auth-errors';
-import { FirebaseAdminService } from '@/services/firebase-admin';
+
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail
+} from 'firebase/auth';
+import { auth, db } from './firebase';
+import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
+import { Collections } from '@/services/firebase';
+import bcrypt from 'bcryptjs';
+
+// Utility function to check if email already exists
+async function checkEmailExists(email: string): Promise<boolean> {
+  try {
+    // Check in Firebase Auth
+    const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+    if (signInMethods.length > 0) {
+      return true;
+    }
+
+    // Also check in Firestore (in case of data inconsistencies)
+    const usersRef = collection(db, Collections.USERS);
+    const q = query(usersRef, where('email', '==', email));
+    const querySnapshot = await getDocs(q);
+    
+    return !querySnapshot.empty;
+  } catch (error) {
+    console.error('Error checking email existence:', error);
+    // If we can't check, assume it doesn't exist to allow the process to continue
+    // Firebase Auth will handle the actual duplicate check
+    return false;
+  }
+}
+
+
 
 // Validate environment variables on startup
 (async () => {
@@ -45,11 +77,75 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
+
           // Get user by email from Firebase Auth
           const userRecord = await FirebaseAdminService.getUserByEmail(credentials.email);
           
           if (!userRecord) {
             return null;
+
+          if (credentials.action === 'signup') {
+            // Check if email already exists
+            const emailExists = await checkEmailExists(credentials.email);
+            if (emailExists) {
+              throw new Error('An account with this email already exists. Please try logging in instead.');
+            }
+
+            // Create new user with Firebase Auth
+            const userCredential = await createUserWithEmailAndPassword(
+              auth,
+              credentials.email,
+              credentials.password
+            );
+            
+            // Create user document in Firestore
+            const userData = {
+              email: credentials.email,
+              role: credentials.role || 'customer',
+              isVerified: false,
+              profile: {
+                firstName: credentials.firstName,
+                lastName: credentials.lastName,
+                preferences: {
+                  notifications: {
+                    email: true,
+                    sms: false,
+                    push: true
+                  },
+                  theme: 'light'
+                }
+              }
+            };
+
+            await setDoc(doc(db, Collections.USERS, userCredential.user.uid), userData);
+
+            return {
+              id: userCredential.user.uid,
+              email: credentials.email,
+              role: (credentials.role || 'customer') as UserRole,
+              name: credentials.firstName && credentials.lastName 
+                ? `${credentials.firstName} ${credentials.lastName}` 
+                : undefined
+            };
+          } else {
+            // Sign in existing user
+            const userCredential = await signInWithEmailAndPassword(
+              auth,
+              credentials.email,
+              credentials.password
+            );
+
+            // Get user data from Firestore
+            const userDoc = await getDoc(doc(db, Collections.USERS, userCredential.user.uid));
+            const userData = userDoc.data();
+
+            return {
+              id: userCredential.user.uid,
+              email: credentials.email,
+              role: (userData?.role || 'customer') as UserRole,
+              ...userData
+            };
+
           }
 
           // Return user data for NextAuth session
@@ -72,6 +168,7 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google') {
         try {
+
           if (!user.email) {
             const authError = AuthErrorHandler.createError(
               AuthErrorCode.GOOGLE_AUTH_FAILED,
@@ -80,6 +177,10 @@ export const authOptions: NextAuthOptions = {
             AuthErrorHandler.logError(authError, 'Google signIn callback');
             return false;
           }
+
+          console.log('Processing Google sign-in for:', user.email);
+          // Allow sign-in, we'll handle duplicate detection in JWT callback
+
           return true;
         } catch (error) {
           const authError = AuthErrorHandler.handleError(error);
@@ -122,6 +223,7 @@ export const authOptions: NextAuthOptions = {
       
       // Handle initial login
       if (account && user) {
+
         try {
           const userId = user.id || token.sub!;
           console.log('JWT: Processing initial login for user:', userId);
@@ -131,6 +233,40 @@ export const authOptions: NextAuthOptions = {
             const userDoc = await getDoc(userDocRef);
             
             if (!userDoc.exists()) {
+
+        // First time JWT callback is run, user object is available
+        if (account.provider === 'google') {
+          try {
+            console.log('Processing JWT for Google user:', user.email, 'with ID:', user.id);
+            
+            // First check if there's an existing user with this email
+            const usersRef = collection(db, Collections.USERS);
+            const emailQuery = query(usersRef, where('email', '==', user.email));
+            const existingUserSnapshot = await getDocs(emailQuery);
+            
+            if (!existingUserSnapshot.empty) {
+              console.log('Found existing user with email:', user.email);
+              // Use the existing user's data
+              const existingUserDoc = existingUserSnapshot.docs[0];
+              const existingUserData = existingUserDoc.data();
+              
+              // Update token to use existing user's ID and data
+              token.sub = existingUserDoc.id;
+              token.role = existingUserData.role || 'customer';
+              token.displayName = existingUserData.displayName || user.name;
+              token.photoURL = user.image;
+              
+              console.log('Using existing user:', existingUserDoc.id, 'with role:', existingUserData.role);
+              return token;
+            }
+            
+            // No existing user found, create new one with Google ID
+            const userDoc = await getDoc(doc(db, Collections.USERS, user.id!));
+            
+            if (!userDoc.exists()) {
+              console.log('Creating new user document for Google user:', user.id);
+              
+
               // Create new user document
               const userData = {
                 email: user.email!,
