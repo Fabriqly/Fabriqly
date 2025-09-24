@@ -46,7 +46,7 @@ export function ProductCard({
 
   const formatDate = (date: any) => {
     try {
-      if (!date) return 'Unknown';
+      if (!date) return 'No date available';
       
       // Handle Firestore Timestamp
       if (date.toDate && typeof date.toDate === 'function') {
@@ -56,13 +56,13 @@ export function ProductCard({
       // Handle regular Date object or timestamp
       const dateObj = new Date(date);
       if (isNaN(dateObj.getTime())) {
-        return 'Unknown';
+        return 'No date available';
       }
       
       return dateObj.toLocaleDateString();
     } catch (error) {
       console.error('Error formatting date:', error);
-      return 'Unknown';
+      return 'No date available';
     }
   };
 
@@ -253,7 +253,7 @@ export function ProductCard({
 
         <div className="flex items-center justify-between text-sm text-gray-500">
           <div className="flex items-center space-x-4">
-            <span>Category: {product.category?.name || 'Unknown'}</span>
+            <span>Category: {product.category?.name || 'No Category'}</span>
             {product.isCustomizable && (
               <span className="text-blue-600 font-medium">Customizable</span>
             )}

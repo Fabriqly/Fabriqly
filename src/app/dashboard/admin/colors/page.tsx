@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Color } from '@/types/enhanced-products';
-import { Plus, Edit, Trash2, Palette } from 'lucide-react';
+import { Plus, Edit, Trash2, Palette, Database } from 'lucide-react';
+import { GLOBAL_COLORS } from '@/lib/global-colors';
 
 interface CreateColorData {
   colorName: string;
@@ -18,6 +19,7 @@ export default function ColorsManagementPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingColor, setEditingColor] = useState<Color | null>(null);
+  const [colorType, setColorType] = useState<'global' | 'custom'>('global');
   const [formData, setFormData] = useState<CreateColorData>({
     colorName: '',
     hexCode: '',
@@ -38,6 +40,60 @@ export default function ColorsManagementPage() {
       }
     } catch (error) {
       console.error('Error loading colors:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getGlobalColors = () => colors.filter(color => !color.businessOwnerId);
+  const getCustomColors = () => colors.filter(color => color.businessOwnerId);
+
+  const handleSeedGlobalColors = async () => {
+    if (!confirm('This will create all standard global colors. Continue?')) return;
+    
+    setLoading(true);
+    try {
+      const createdColors = [];
+      
+      for (const colorData of GLOBAL_COLORS) {
+        // Check if color already exists
+        const exists = colors.some(color => 
+          color.colorName.toLowerCase() === colorData.colorName.toLowerCase() ||
+          color.hexCode.toLowerCase() === colorData.hexCode.toLowerCase()
+        );
+        
+        if (!exists) {
+          try {
+            const response = await fetch('/api/colors', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                ...colorData,
+                isActive: true
+              }),
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              createdColors.push(data.color);
+            }
+          } catch (error) {
+            console.error(`Error creating color ${colorData.colorName}:`, error);
+          }
+        }
+      }
+      
+      if (createdColors.length > 0) {
+        setColors(prev => [...prev, ...createdColors]);
+        alert(`Successfully created ${createdColors.length} global colors!`);
+      } else {
+        alert('All global colors already exist.');
+      }
+    } catch (error) {
+      console.error('Error seeding colors:', error);
+      alert('Failed to seed global colors');
     } finally {
       setLoading(false);
     }
@@ -143,13 +199,24 @@ export default function ColorsManagementPage() {
               <h1 className="text-3xl font-bold text-gray-900">Color Management</h1>
               <p className="mt-2 text-gray-600">Manage available colors for products</p>
             </div>
-            <Button
-              onClick={() => setShowCreateForm(true)}
-              className="flex items-center space-x-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Color</span>
-            </Button>
+            <div className="flex items-center space-x-3">
+              <Button
+                onClick={() => setShowCreateForm(true)}
+                className="flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Color</span>
+              </Button>
+              <Button
+                onClick={handleSeedGlobalColors}
+                variant="outline"
+                className="flex items-center space-x-2"
+                disabled={loading}
+              >
+                <Database className="w-4 h-4" />
+                <span>Seed Global Colors</span>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -162,6 +229,35 @@ export default function ColorsManagementPage() {
             </div>
 
             <form onSubmit={handleCreateColor} className="space-y-4">
+              {/* Color Type Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Color Type *
+                </label>
+                <div className="flex space-x-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      value="global"
+                      checked={colorType === 'global'}
+                      onChange={(e) => setColorType(e.target.value as 'global' | 'custom')}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">🌍 Global Color (Available to all business owners)</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      value="custom"
+                      checked={colorType === 'custom'}
+                      onChange={(e) => setColorType(e.target.value as 'global' | 'custom')}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">🎨 Custom Color (Private to specific business owner)</span>
+                  </label>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -240,52 +336,126 @@ export default function ColorsManagementPage() {
           </div>
         )}
 
-        {/* Colors Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {colors.map((color) => (
-            <div key={color.id} className="bg-white rounded-lg shadow-md p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">{color.colorName}</h3>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setEditingColor(color)}
-                    className="p-1 text-gray-400 hover:text-blue-600"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteColor(color.id)}
-                    className="p-1 text-gray-400 hover:text-red-600"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <div 
-                    className="w-12 h-12 rounded-lg border border-gray-300 shadow-sm"
-                    style={{ backgroundColor: color.hexCode }}
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{color.hexCode}</p>
-                    <p className="text-sm text-gray-500">{color.rgbCode}</p>
+        {/* Global Colors Section */}
+        <div className="mb-8">
+          <div className="flex items-center space-x-2 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">🌍 Global Colors</h2>
+            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+              {getGlobalColors().length} colors
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Global colors are available to all business owners and provide consistency across the platform.
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {getGlobalColors().map((color) => (
+              <div key={color.id} className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">{color.colorName}</h3>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setEditingColor(color)}
+                      className="p-1 text-gray-400 hover:text-blue-600"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteColor(color.id)}
+                      className="p-1 text-gray-400 hover:text-red-600"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    color.isActive 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {color.isActive ? 'Active' : 'Inactive'}
-                  </span>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <div 
+                      className="w-12 h-12 rounded-lg border border-gray-300 shadow-sm"
+                      style={{ backgroundColor: color.hexCode }}
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{color.hexCode}</p>
+                      <p className="text-sm text-gray-500">{color.rgbCode}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      color.isActive 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {color.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                    <span className="text-xs text-gray-500">Global</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        </div>
+
+        {/* Custom Colors Section */}
+        <div className="mb-8">
+          <div className="flex items-center space-x-2 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">🎨 Custom Colors</h2>
+            <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
+              {getCustomColors().length} colors
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Custom colors created by business owners for their specific needs.
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {getCustomColors().map((color) => (
+              <div key={color.id} className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">{color.colorName}</h3>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setEditingColor(color)}
+                      className="p-1 text-gray-400 hover:text-blue-600"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteColor(color.id)}
+                      className="p-1 text-gray-400 hover:text-red-600"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <div 
+                      className="w-12 h-12 rounded-lg border border-gray-300 shadow-sm"
+                      style={{ backgroundColor: color.hexCode }}
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{color.hexCode}</p>
+                      <p className="text-sm text-gray-500">{color.rgbCode}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      color.isActive 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {color.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                    <span className="text-xs text-gray-500">Custom</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {colors.length === 0 && (

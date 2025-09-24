@@ -13,6 +13,8 @@ interface RouteParams {
 
 // POST /api/products/[id]/images - Upload product images
 export async function POST(request: NextRequest, { params }: RouteParams) {
+  console.log('Image upload API called');
+  
   try {
     const session = await getServerSession(authOptions);
     
@@ -58,7 +60,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const altText = formData.get('altText') as string;
     const isPrimary = formData.get('isPrimary') === 'true';
 
+    console.log('Received files:', files.length);
+    console.log('Product ID:', productId);
+
     if (!files || files.length === 0) {
+      console.log('No files provided');
       return NextResponse.json(
         { error: 'No images provided' },
         { status: 400 }
@@ -100,11 +106,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const imageUrl = `https://storage.googleapis.com/your-bucket/${fileName}`;
         const thumbnailUrl = `https://storage.googleapis.com/your-bucket/thumbnails/${fileName}`;
 
-        // Get current sort order
-        const existingImages = await FirebaseAdminService.queryDocuments(
+        // Get current sort order - fetch all and filter in memory to avoid index requirements
+        const allImages = await FirebaseAdminService.queryDocuments(
           Collections.PRODUCT_IMAGES,
-          [{ field: 'productId', operator: '==' as const, value: productId }]
+          [], // No constraints to avoid index requirements
+          undefined, // No sorting in Firestore
+          undefined // No limit
         );
+        const existingImages = allImages.filter(img => img.productId === productId);
 
         const sortOrder = existingImages.length + i;
 
@@ -119,10 +128,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           createdAt: new Date()
         };
 
+        console.log('Creating image document:', imageData);
+
         const image = await FirebaseAdminService.createDocument(
           Collections.PRODUCT_IMAGES,
           imageData
         );
+
+        console.log('Created image:', image);
 
         uploadedImages.push(image as ProductImage);
 
@@ -146,6 +159,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    console.log('Successfully uploaded images:', uploadedImages.length);
+    
     return NextResponse.json({ 
       images: uploadedImages,
       message: `Successfully uploaded ${uploadedImages.length} image(s)`
@@ -171,11 +186,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const images = await FirebaseAdminService.queryDocuments(
+    // Get images - fetch all and filter in memory to avoid index requirements
+    const allImages = await FirebaseAdminService.queryDocuments(
       Collections.PRODUCT_IMAGES,
-      [{ field: 'productId', operator: '==' as const, value: productId }],
-      { field: 'sortOrder', direction: 'asc' }
+      [], // No constraints to avoid index requirements
+      undefined, // No sorting in Firestore
+      undefined // No limit
     );
+    const images = allImages.filter(img => img.productId === productId);
 
     return NextResponse.json({ images });
   } catch (error) {

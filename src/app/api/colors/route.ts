@@ -12,6 +12,7 @@ import {
 // GET /api/colors - List colors
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
     const { searchParams } = new URL(request.url);
     const isActive = searchParams.get('isActive');
     const limit = parseInt(searchParams.get('limit') || '100');
@@ -26,11 +27,27 @@ export async function GET(request: NextRequest) {
     const colors = await FirebaseAdminService.queryDocuments(
       Collections.COLORS,
       constraints,
-      { field: 'colorName', direction: 'asc' },
+      undefined, // No sorting to avoid index requirements
       limit
     );
 
-    return NextResponse.json({ colors });
+    // Filter colors based on user role and ownership
+    let filteredColors = colors;
+    
+    if (session?.user?.role === 'business_owner') {
+      // Business owners can see global colors (no businessOwnerId) + their own colors
+      filteredColors = colors.filter(color => 
+        !color.businessOwnerId || color.businessOwnerId === session.user.id
+      );
+    } else if (session?.user?.role === 'admin') {
+      // Admins can see all colors
+      filteredColors = colors;
+    } else {
+      // Non-authenticated users can only see global colors
+      filteredColors = colors.filter(color => !color.businessOwnerId);
+    }
+
+    return NextResponse.json({ colors: filteredColors });
   } catch (error) {
     console.error('Error fetching colors:', error);
     return NextResponse.json(

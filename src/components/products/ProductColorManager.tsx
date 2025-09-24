@@ -58,13 +58,21 @@ export function ProductColorManager({ productId, onColorChange }: ProductColorMa
 
       if (productColorsResponse.ok) {
         setProductColors(productColorsData.productColors || []);
+      } else {
+        console.error('Failed to load product colors:', productColorsData);
+        setProductColors([]);
       }
 
       if (colorsResponse.ok) {
         setAvailableColors(colorsData.colors || []);
+      } else {
+        console.error('Failed to load colors:', colorsData);
+        setAvailableColors([]);
       }
     } catch (error) {
       console.error('Error loading data:', error);
+      setProductColors([]);
+      setAvailableColors([]);
     } finally {
       setLoading(false);
     }
@@ -146,6 +154,14 @@ export function ProductColorManager({ productId, onColorChange }: ProductColorMa
     return availableColors.filter(color => !usedColorIds.includes(color.id));
   };
 
+  const getGlobalColors = () => {
+    return availableColors.filter(color => !color.businessOwnerId);
+  };
+
+  const getCustomColors = () => {
+    return availableColors.filter(color => color.businessOwnerId);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -157,19 +173,10 @@ export function ProductColorManager({ productId, onColorChange }: ProductColorMa
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-            <Palette className="w-5 h-5 mr-2 text-blue-600" />
-            Product Colors
-          </h3>
-          <p className="text-sm text-gray-600">
-            Manage available colors and pricing for this product
-          </p>
-        </div>
-
+      {/* Add Color Button */}
+      <div className="flex justify-end">
         <Button 
+          type="button"
           onClick={() => setShowAddForm(true)}
           disabled={getAvailableColorsForSelection().length === 0}
         >
@@ -196,7 +203,7 @@ export function ProductColorManager({ productId, onColorChange }: ProductColorMa
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">No colors added</h3>
             <p className="text-gray-600 mb-4">Add colors to make this product customizable</p>
-            <Button onClick={() => setShowAddForm(true)}>
+            <Button type="button" onClick={() => setShowAddForm(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Add First Color
             </Button>
@@ -266,6 +273,7 @@ export function ProductColorManager({ productId, onColorChange }: ProductColorMa
                       {/* Actions */}
                       <div className="flex items-center space-x-2">
                         <Button
+                          type="button"
                           size="sm"
                           variant="outline"
                           onClick={() => setEditingColor(productColor)}
@@ -274,6 +282,7 @@ export function ProductColorManager({ productId, onColorChange }: ProductColorMa
                         </Button>
                         
                         <Button
+                          type="button"
                           size="sm"
                           variant="outline"
                           onClick={() => handleRemoveColor(productColor.colorId)}
@@ -315,7 +324,7 @@ function AddColorForm({ availableColors, onSave, onCancel }: AddColorFormProps) 
   };
 
   const handleInputChange = (field: keyof CreateProductColorData, value: any) => {
-    setFormData(prev => ({
+    setFormData((prev: CreateProductColorData) => ({
       ...prev,
       [field]: value
     }));
@@ -328,7 +337,7 @@ function AddColorForm({ availableColors, onSave, onCancel }: AddColorFormProps) 
         <p className="text-sm text-gray-600">Select a color and set pricing options</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Select Color *
@@ -340,11 +349,28 @@ function AddColorForm({ availableColors, onSave, onCancel }: AddColorFormProps) 
             required
           >
             <option value="">Choose a color</option>
-            {availableColors.map((color) => (
-              <option key={color.id} value={color.id}>
-                {color.colorName} ({color.hexCode})
-              </option>
-            ))}
+            
+            {/* Global Colors */}
+            {availableColors.filter(color => !color.businessOwnerId).length > 0 && (
+              <optgroup label="🌍 Global Colors">
+                {availableColors.filter(color => !color.businessOwnerId).map((color) => (
+                  <option key={color.id} value={color.id}>
+                    {color.colorName} ({color.hexCode})
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            
+            {/* Custom Colors */}
+            {availableColors.filter(color => color.businessOwnerId).length > 0 && (
+              <optgroup label="🎨 Custom Colors">
+                {availableColors.filter(color => color.businessOwnerId).map((color) => (
+                  <option key={color.id} value={color.id}>
+                    {color.colorName} ({color.hexCode})
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
 
@@ -406,12 +432,12 @@ function AddColorForm({ availableColors, onSave, onCancel }: AddColorFormProps) 
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit">
+          <Button type="button" onClick={handleSubmit}>
             <Save className="w-4 h-4 mr-2" />
             Add Color
           </Button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
@@ -455,7 +481,7 @@ function EditColorForm({ productColor, onSave, onCancel }: EditColorFormProps) {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -507,11 +533,11 @@ function EditColorForm({ productColor, onSave, onCancel }: EditColorFormProps) {
           <Button type="button" variant="outline" onClick={onCancel} size="sm">
             <X className="w-4 h-4" />
           </Button>
-          <Button type="submit" size="sm">
+          <Button type="button" onClick={handleSubmit} size="sm">
             <Save className="w-4 h-4" />
           </Button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

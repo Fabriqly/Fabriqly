@@ -56,3 +56,4 @@ export function useAuth(requireAuth = false, requiredRole?: string) {
 export function useRequireAuth(requiredRole?: string) {
   return useAuth(true, requiredRole);
 }
+
