@@ -1,58 +1,8 @@
 'use client';
 
 import { ProductForm } from '@/components/products/ProductForm';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-
-interface User {
-  id: string;
-  email: string;
-  name?: string;
-  image?: string;
-  role: 'customer' | 'designer' | 'business_owner' | 'admin';
-}
-
-function useAuth(requireAuth = false, requiredRole?: string) {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const [isRedirecting, setIsRedirecting] = useState(false);
-
-  const user = session?.user as User | undefined;
-  const isLoading = status === 'loading' || isRedirecting;
-  const isAuthenticated = !!session && !!user;
-
-  useEffect(() => {
-    if (!isLoading && !isRedirecting) {
-      if (requireAuth && !isAuthenticated) {
-        setIsRedirecting(true);
-        router.push(`/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
-      } else if (requiredRole && user && user.role !== requiredRole) {
-        setIsRedirecting(true);
-        router.push('/unauthorized');
-      }
-    }
-  }, [
-    isLoading, 
-    isAuthenticated, 
-    requireAuth, 
-    requiredRole, 
-    user, 
-    router,
-    status,
-    isRedirecting
-  ]);
-
-  return {
-    user,
-    isLoading,
-    isAuthenticated,
-    isCustomer: user?.role === 'customer',
-    isDesigner: user?.role === 'designer',
-    isBusinessOwner: user?.role === 'business_owner',
-    isAdmin: user?.role === 'admin'
-  };
-}
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { useAuth } from '@/hooks/useAuth';
 
 interface EditProductPageProps {
   params: {
@@ -60,8 +10,20 @@ interface EditProductPageProps {
   };
 }
 
-export default function EditProductPage({ params }: EditProductPageProps) {
-  const { user, isLoading } = useAuth(true, 'business_owner');
+function EditProductContent({ params }: EditProductPageProps) {
+  const { user, isLoading } = useAuth();
+
+  // Check if user is a business owner or admin
+  if (!isLoading && user?.role !== 'business_owner' && user?.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You need to be a business owner or admin to edit products.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -76,10 +38,15 @@ export default function EditProductPage({ params }: EditProductPageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <ProductForm productId={params.id} />
-      </div>
+      <ProductForm productId={params.id} />
     </div>
   );
 }
 
+export default function EditProductPage({ params }: EditProductPageProps) {
+  return (
+    <ProtectedRoute>
+      <EditProductContent params={params} />
+    </ProtectedRoute>
+  );
+}

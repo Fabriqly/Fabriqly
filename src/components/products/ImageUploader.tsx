@@ -43,6 +43,13 @@ export function ImageUploader({
   };
 
   const uploadImages = async (files: File[]) => {
+    if (!productId) {
+      console.error('No product ID provided for image upload');
+      alert('No product ID available for image upload');
+      return;
+    }
+    
+    console.log('Uploading images for product:', productId);
     setUploading(true);
     
     try {
@@ -57,11 +64,34 @@ export function ImageUploader({
       });
 
       if (response.ok) {
-        const data = await response.json();
-        onImagesUploaded?.(data.images);
+        const responseText = await response.text();
+        console.log('Image upload response:', responseText);
+        
+        if (!responseText) {
+          throw new Error('Empty response from server');
+        }
+        
+        try {
+          const data = JSON.parse(responseText);
+          onImagesUploaded?.(data.images);
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          console.error('Response text:', responseText);
+          throw new Error('Invalid JSON response from server');
+        }
       } else {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to upload images');
+        const responseText = await response.text();
+        console.error('Upload failed:', response.status, responseText);
+        
+        let errorMessage = 'Failed to upload images';
+        try {
+          const error = JSON.parse(responseText);
+          errorMessage = error.error || errorMessage;
+        } catch {
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        
+        throw new Error(errorMessage);
       }
     } catch (error: any) {
       console.error('Error uploading images:', error);
@@ -176,6 +206,7 @@ export function ImageUploader({
           </div>
 
           <Button
+            type="button"
             onClick={openFileDialog}
             disabled={uploading || existingImages.length >= maxImages}
             variant="outline"
@@ -237,6 +268,7 @@ export function ImageUploader({
                   <div className="flex space-x-2">
                     {!image.isPrimary && (
                       <Button
+                        type="button"
                         size="sm"
                         onClick={() => handleSetPrimary(image.id)}
                         className="bg-white text-gray-900 hover:bg-gray-100"
@@ -245,6 +277,7 @@ export function ImageUploader({
                       </Button>
                     )}
                     <Button
+                      type="button"
                       size="sm"
                       onClick={() => handleDeleteImage(image.id)}
                       className="bg-red-600 text-white hover:bg-red-700"
