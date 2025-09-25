@@ -73,6 +73,36 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     console.log('Product published successfully');
 
+    // Log activity
+    try {
+      console.log('Logging product publication activity...');
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: 'product_published',
+        title: 'Product Published',
+        description: `Product "${existingProduct.name}" has been published and is now live`,
+        priority: 'medium',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: productId,
+        targetType: 'product',
+        targetName: existingProduct.name,
+        metadata: {
+          productName: existingProduct.name,
+          sku: existingProduct.sku,
+          categoryId: existingProduct.categoryId,
+          businessOwnerId: existingProduct.businessOwnerId,
+          publishedBy: session.user.role,
+          publishedAt: new Date().toISOString(),
+          previousStatus: 'draft',
+          newStatus: 'active'
+        }
+      });
+      console.log('✅ Product publication activity logged successfully');
+    } catch (activityError) {
+      console.error('❌ Error logging product publication activity:', activityError);
+      // Don't fail the publication if activity logging fails
+    }
+
     return NextResponse.json({ 
       product: updatedProduct,
       message: 'Product published successfully'

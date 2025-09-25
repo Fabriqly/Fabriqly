@@ -268,11 +268,29 @@ export async function PUT(
     // Log activity
     try {
       const changedFields = Object.keys(updateData).filter(key => key !== 'updatedAt');
+      
+      // Determine activity type based on status change
+      let activityType = 'product_updated';
+      let activityTitle = 'Product Updated';
+      let activityDescription = `Product "${existingProduct.name}" has been updated`;
+      
+      if (updateData.status && updateData.status !== existingProduct.status) {
+        if (updateData.status === 'inactive' && existingProduct.status === 'active') {
+          activityType = 'product_unpublished';
+          activityTitle = 'Product Unpublished';
+          activityDescription = `Product "${existingProduct.name}" has been unpublished and is no longer visible to customers`;
+        } else if (updateData.status === 'active' && existingProduct.status === 'inactive') {
+          activityType = 'product_republished';
+          activityTitle = 'Product Republished';
+          activityDescription = `Product "${existingProduct.name}" has been republished and is now visible to customers`;
+        }
+      }
+      
       await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
-        type: 'product_updated',
-        title: 'Product Updated',
-        description: `Product "${existingProduct.name}" has been updated`,
-        priority: 'low',
+        type: activityType,
+        title: activityTitle,
+        description: activityDescription,
+        priority: updateData.status === 'inactive' ? 'medium' : 'low',
         status: 'active',
         actorId: session.user.id,
         targetId: productId,
@@ -292,7 +310,8 @@ export async function PUT(
             changedFields
               .map(field => [field, updateData[field as keyof Product]])
               .filter(([_, value]) => value !== undefined)
-          )
+          ),
+          ...(updateData.status && { statusChange: { from: existingProduct.status, to: updateData.status } })
         }
       });
     } catch (activityError) {

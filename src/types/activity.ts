@@ -8,6 +8,9 @@ export type ActivityType =
   | 'product_created'
   | 'product_updated'
   | 'product_deleted'
+  | 'product_published'
+  | 'product_unpublished'
+  | 'product_republished'
   | 'product_activated'
   | 'product_deactivated'
   | 'category_created'
@@ -214,6 +217,33 @@ export const ACTIVITY_TYPE_CONFIGS: Record<ActivityType, ActivityTypeConfig> = {
     icon: 'Package',
     color: 'bg-red-500',
     priority: 'high',
+    defaultStatus: 'active'
+  },
+  product_published: {
+    type: 'product_published',
+    title: 'Product Published',
+    description: 'A product has been published and is now live',
+    icon: 'Send',
+    color: 'bg-green-500',
+    priority: 'medium',
+    defaultStatus: 'active'
+  },
+  product_unpublished: {
+    type: 'product_unpublished',
+    title: 'Product Unpublished',
+    description: 'A product has been unpublished and is no longer visible',
+    icon: 'EyeOff',
+    color: 'bg-orange-500',
+    priority: 'medium',
+    defaultStatus: 'active'
+  },
+  product_republished: {
+    type: 'product_republished',
+    title: 'Product Republished',
+    description: 'A product has been republished and is now visible again',
+    icon: 'Eye',
+    color: 'bg-green-500',
+    priority: 'low',
     defaultStatus: 'active'
   },
   product_activated: {
