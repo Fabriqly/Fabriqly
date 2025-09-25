@@ -18,11 +18,24 @@ const convertTimestamps = (data: any): any => {
     // Convert Firestore Timestamps to JavaScript Dates
     Object.keys(converted).forEach(key => {
       const value = converted[key];
-      if (value && typeof value === 'object' && value.seconds !== undefined && value.nanoseconds !== undefined) {
-        // This is a Firestore Timestamp object
+      
+      // Check for Firebase Admin SDK Timestamp (server-side)
+      if (value && typeof value === 'object' && value.toDate && typeof value.toDate === 'function') {
+        // This is a Firebase Admin SDK Timestamp object
+        converted[key] = value.toDate();
+      }
+      // Check for client-side Firestore Timestamp format
+      else if (value && typeof value === 'object' && value.seconds !== undefined && value.nanoseconds !== undefined) {
+        // This is a client-side Firestore Timestamp object
         converted[key] = new Date(value.seconds * 1000 + value.nanoseconds / 1000000);
-      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-        // Recursively convert nested objects
+      }
+      // Check for Date objects (already converted)
+      else if (value instanceof Date) {
+        // Already a Date object, keep as is
+        converted[key] = value;
+      }
+      // Recursively convert nested objects
+      else if (value && typeof value === 'object' && !Array.isArray(value)) {
         converted[key] = convertTimestamps(value);
       }
     });
