@@ -8,6 +8,28 @@ import {
   UpdateColorData 
 } from '@/types/enhanced-products';
 
+// Helper function to convert Firestore Timestamps to JavaScript Dates
+const convertTimestamps = (data: any): any => {
+  if (data && typeof data === 'object') {
+    const converted = { ...data };
+    
+    // Convert Firestore Timestamps to JavaScript Dates
+    Object.keys(converted).forEach(key => {
+      const value = converted[key];
+      if (value && typeof value === 'object' && value.seconds !== undefined && value.nanoseconds !== undefined) {
+        // This is a Firestore Timestamp object
+        converted[key] = new Date(value.seconds * 1000 + value.nanoseconds / 1000000);
+      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+        // Recursively convert nested objects
+        converted[key] = convertTimestamps(value);
+      }
+    });
+    
+    return converted;
+  }
+  return data;
+};
+
 interface RouteParams {
   params: {
     id: string;
@@ -26,17 +48,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const color = await FirebaseAdminService.getDocument(
+    const rawColor = await FirebaseAdminService.getDocument(
       Collections.COLORS,
       colorId
     );
 
-    if (!color) {
+    if (!rawColor) {
       return NextResponse.json(
         { error: 'Color not found' },
         { status: 404 }
       );
     }
+
+    // Convert Firestore Timestamps to JavaScript Dates
+    const color = convertTimestamps(rawColor) as Color;
 
     return NextResponse.json({ color });
   } catch (error: any) {

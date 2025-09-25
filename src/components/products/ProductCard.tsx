@@ -48,7 +48,7 @@ export function ProductCard({
     try {
       if (!date) return 'No date available';
       
-      // Handle Firestore Timestamp
+      // Handle Firestore Timestamp (should now be converted to Date)
       if (date.toDate && typeof date.toDate === 'function') {
         return date.toDate().toLocaleDateString();
       }

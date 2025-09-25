@@ -8,6 +8,29 @@ import {
   CreateColorData, 
   UpdateColorData 
 } from '@/types/enhanced-products';
+import { Timestamp } from 'firebase/firestore';
+
+// Helper function to convert Firestore Timestamps to JavaScript Dates
+const convertTimestamps = (data: any): any => {
+  if (data && typeof data === 'object') {
+    const converted = { ...data };
+    
+    // Convert Firestore Timestamps to JavaScript Dates
+    Object.keys(converted).forEach(key => {
+      const value = converted[key];
+      if (value && typeof value === 'object' && value.seconds !== undefined && value.nanoseconds !== undefined) {
+        // This is a Firestore Timestamp object
+        converted[key] = new Date(value.seconds * 1000 + value.nanoseconds / 1000000);
+      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+        // Recursively convert nested objects
+        converted[key] = convertTimestamps(value);
+      }
+    });
+    
+    return converted;
+  }
+  return data;
+};
 
 // GET /api/colors - List colors
 export async function GET(request: NextRequest) {
@@ -24,12 +47,15 @@ export async function GET(request: NextRequest) {
       constraints.push({ field: 'isActive', operator: '==' as const, value: isActive === 'true' });
     }
 
-    const colors = await FirebaseAdminService.queryDocuments(
+    const rawColors = await FirebaseAdminService.queryDocuments(
       Collections.COLORS,
       constraints,
       undefined, // No sorting to avoid index requirements
       limit
     );
+
+    // Convert Firestore Timestamps to JavaScript Dates
+    const colors = rawColors.map(color => convertTimestamps(color)) as Color[];
 
     // Filter colors based on user role and ownership
     let filteredColors = colors;
@@ -109,9 +135,9 @@ export async function POST(request: NextRequest) {
       colorName: body.colorName,
       hexCode: body.hexCode,
       rgbCode: body.rgbCode,
-      businessOwnerId: session.user.role === 'business_owner' ? session.user.id : undefined,
       isActive: true,
-      createdAt: new Date()
+      createdAt: Timestamp.now(),
+      ...(session.user.role === 'business_owner' && { businessOwnerId: session.user.id })
     };
 
     const color = await FirebaseAdminService.createDocument(
