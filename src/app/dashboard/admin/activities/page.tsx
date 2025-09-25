@@ -35,7 +35,9 @@ import {
   Search,
   Calendar,
   BarChart3,
-  Download
+  Download,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -92,7 +94,7 @@ export default function AdminActivitiesPage() {
     types: [],
     priority: [],
     status: ['active'],
-    limit: 50,
+    limit: 20,
     offset: 0,
     sortBy: 'createdAt',
     sortOrder: 'desc'
@@ -100,10 +102,12 @@ export default function AdminActivitiesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [pagination, setPagination] = useState({
-    limit: 50,
+    limit: 20,
     offset: 0,
     total: 0,
-    hasMore: false
+    hasMore: false,
+    currentPage: 1,
+    totalPages: 0
   });
 
   useEffect(() => {
@@ -116,7 +120,7 @@ export default function AdminActivitiesPage() {
       setError(null);
       
       const params = new URLSearchParams({
-        limit: filters.limit?.toString() || '50',
+        limit: filters.limit?.toString() || '20',
         offset: filters.offset?.toString() || '0',
         sortBy: filters.sortBy || 'createdAt',
         sortOrder: filters.sortOrder || 'desc'
@@ -151,11 +155,21 @@ export default function AdminActivitiesPage() {
       
       if (response.ok) {
         setActivities(data.activities || []);
-        setPagination(data.pagination || {
-          limit: 50,
+        const paginationData = data.pagination || {
+          limit: 20,
           offset: 0,
           total: 0,
           hasMore: false
+        };
+        
+        // Calculate pagination info
+        const currentPage = Math.floor(paginationData.offset / paginationData.limit) + 1;
+        const totalPages = Math.ceil(paginationData.total / paginationData.limit);
+        
+        setPagination({
+          ...paginationData,
+          currentPage,
+          totalPages
         });
       } else {
         setError(data.error || 'Failed to load activities');
@@ -172,10 +186,19 @@ export default function AdminActivitiesPage() {
     loadActivities();
   };
 
-  const handleLoadMore = () => {
+  const handlePageChange = (page: number) => {
+    const newOffset = (page - 1) * (filters.limit || 20);
     setFilters(prev => ({
       ...prev,
-      offset: (prev.offset || 0) + (prev.limit || 50)
+      offset: newOffset
+    }));
+  };
+
+  const handlePageSizeChange = (newLimit: number) => {
+    setFilters(prev => ({
+      ...prev,
+      limit: newLimit,
+      offset: 0 // Reset to first page when changing page size
     }));
   };
 
@@ -188,12 +211,19 @@ export default function AdminActivitiesPage() {
   };
 
   const toggleFilter = (type: 'types' | 'priority', value: ActivityType | ActivityPriority) => {
-    const currentValues = filters[type] || [];
-    const newValues = currentValues.includes(value as any)
-      ? currentValues.filter(item => item !== value)
-      : [...currentValues, value as any];
-    
-    handleFilterChange(type, newValues);
+    if (type === 'types') {
+      const currentValues = filters.types || [];
+      const newValues = currentValues.includes(value as ActivityType)
+        ? currentValues.filter(item => item !== (value as ActivityType))
+        : [...currentValues, value as ActivityType];
+      handleFilterChange('types', newValues);
+    } else if (type === 'priority') {
+      const currentValues = filters.priority || [];
+      const newValues = currentValues.includes(value as ActivityPriority)
+        ? currentValues.filter(item => item !== (value as ActivityPriority))
+        : [...currentValues, value as ActivityPriority];
+      handleFilterChange('priority', newValues);
+    }
   };
 
   const clearFilters = () => {
@@ -201,7 +231,7 @@ export default function AdminActivitiesPage() {
       types: [],
       priority: [],
       status: ['active'],
-      limit: 50,
+      limit: 20,
       offset: 0,
       sortBy: 'createdAt',
       sortOrder: 'desc'
@@ -465,29 +495,84 @@ export default function AdminActivitiesPage() {
               </div>
             )}
 
-            {/* Load More Button */}
-            {pagination.hasMore && (
-              <div className="mt-6 text-center">
-                <Button 
-                  onClick={handleLoadMore} 
-                  variant="outline"
-                  disabled={loading}
+            {/* Pagination Controls */}
+            <div className="mt-6 flex items-center justify-between">
+              {/* Page Size Selector */}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-700">Show:</span>
+                <select
+                  value={filters.limit || 20}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {loading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    'Load More Activities'
-                  )}
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span className="text-sm text-gray-700">per page</span>
+              </div>
+
+              {/* Pagination Info */}
+              <div className="text-sm text-gray-500">
+                {(() => {
+                  const startRecord = pagination.total === 0 ? 0 : ((pagination.currentPage - 1) * (filters.limit || 20)) + 1;
+                  const endRecord = Math.min(pagination.currentPage * (filters.limit || 20), pagination.total);
+                  return `Showing ${startRecord} to ${endRecord} of ${pagination.total} activities`;
+                })()}
+              </div>
+
+              {/* Page Navigation */}
+              <div className="flex items-center space-x-2">
+                <Button
+                  onClick={() => handlePageChange(pagination.currentPage - 1)}
+                  disabled={pagination.currentPage <= 1 || loading}
+                  variant="outline"
+                  size="sm"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </Button>
+                
+                {/* Page Numbers */}
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (pagination.totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (pagination.currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                      pageNum = pagination.totalPages - 4 + i;
+                    } else {
+                      pageNum = pagination.currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <Button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={loading}
+                        variant={pagination.currentPage === pageNum ? "primary" : "outline"}
+                        size="sm"
+                        className="w-8 h-8 p-0"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  onClick={() => handlePageChange(pagination.currentPage + 1)}
+                  disabled={pagination.currentPage >= pagination.totalPages || loading}
+                  variant="outline"
+                  size="sm"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
-            )}
-
-            {/* Pagination Info */}
-            <div className="mt-4 text-center text-sm text-gray-500">
-              Showing {filteredActivities.length} of {pagination.total} activities
             </div>
           </div>
         </div>

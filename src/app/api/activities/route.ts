@@ -68,24 +68,26 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
-    // Build query constraints - simplified to avoid index requirements
+    // FIXED: Build query constraints properly
     const constraints = [];
     
-    // Only add status filter if specified, otherwise get all
+    // Only add status filter if specified
     if (status && status.length > 0) {
       constraints.push({ field: 'status', operator: 'in' as const, value: status });
     }
-    
-    // Apply other filters in memory to avoid complex indexes
-    const rawActivities = await FirebaseAdminService.queryDocuments(
+
+    // FIXED: First, get ALL matching activities to calculate correct total
+    // We need to get more than limit+offset to handle filtering correctly
+    const BATCH_SIZE = 1000; // Adjust based on your data size
+    const allActivities = await FirebaseAdminService.queryDocuments(
       Collections.ACTIVITIES,
       constraints,
-      { field: 'createdAt', direction: 'desc' },
-      limit + offset
+      { field: sortBy, direction: sortOrder as 'asc' | 'desc' },
+      BATCH_SIZE
     );
 
-    // Apply additional filters in memory
-    let filteredActivities = rawActivities;
+    // Apply filters in memory
+    let filteredActivities = allActivities;
     
     if (types && types.length > 0) {
       filteredActivities = filteredActivities.filter(activity => 
@@ -117,12 +119,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Convert timestamps and apply pagination
-    const activities = filteredActivities
-      .slice(offset, offset + limit)
-      .map(activity => convertTimestamps(activity)) as Activity[];
+    // FIXED: Calculate correct total count after filtering
+    const totalCount = filteredActivities.length;
+    
+    // FIXED: Apply proper pagination after filtering
+    const paginatedActivities = filteredActivities
+      .slice(offset, offset + limit);
 
-    // Get related data for activities
+    // Convert timestamps for paginated results
+    const activities = paginatedActivities.map(activity => convertTimestamps(activity)) as Activity[];
+
+    // Get related data for paginated activities only
     const activitiesWithDetails: ActivityWithDetails[] = await Promise.all(
       activities.map(async (activity) => {
         const details: ActivityWithDetails = { ...activity };
@@ -157,7 +164,7 @@ export async function GET(request: NextRequest) {
                 targetCollection = Collections.PRODUCTS;
                 break;
               case 'category':
-                targetCollection = Collections.CATEGORIES;
+                targetCollection = Collections.PRODUCT_CATEGORIES;
                 break;
               case 'color':
                 targetCollection = Collections.COLORS;
@@ -196,13 +203,14 @@ export async function GET(request: NextRequest) {
       })
     );
 
+    // FIXED: Return correct pagination info
     return NextResponse.json({ 
       activities: activitiesWithDetails,
       pagination: {
         limit,
         offset,
-        total: filteredActivities.length,
-        hasMore: filteredActivities.length > offset + limit
+        total: totalCount,
+        hasMore: offset + limit < totalCount
       }
     });
   } catch (error) {
@@ -247,7 +255,9 @@ export async function POST(request: NextRequest) {
       targetType: body.targetType,
       targetName: body.targetName,
       metadata: body.metadata || {},
-      systemEvent: body.systemEvent
+      systemEvent: body.systemEvent,
+      createdAt: new Date() as any,
+      updatedAt: new Date() as any
     };
 
     const activity = await FirebaseAdminService.createDocument(
