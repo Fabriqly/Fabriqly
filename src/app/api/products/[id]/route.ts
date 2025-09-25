@@ -450,10 +450,20 @@ async function fetchBusinessOwner(businessOwnerId: string) {
     );
     
     if (businessOwner) {
-      setCacheWithTTL(businessOwnerCache, businessOwnerId, businessOwner);
+      // Map the user document to the expected businessOwner structure
+      const mappedBusinessOwner = {
+        id: businessOwnerId,
+        name: businessOwner.displayName || 
+              `${businessOwner.profile?.firstName || ''} ${businessOwner.profile?.lastName || ''}`.trim() ||
+              businessOwner.email,
+        businessName: businessOwner.profile?.businessName || businessOwner.displayName
+      };
+      
+      setCacheWithTTL(businessOwnerCache, businessOwnerId, mappedBusinessOwner);
+      return mappedBusinessOwner;
     }
     
-    return businessOwner;
+    return null;
   } catch (error) {
     console.error('Error fetching business owner:', error);
     return null;

@@ -408,7 +408,16 @@ async function fetchBusinessOwnersForProducts(products: any[]) {
       );
       
       if (businessOwner) {
-        businessOwnersMap.set(businessOwnerId, businessOwner);
+        // Map the user document to the expected businessOwner structure
+        const mappedBusinessOwner = {
+          id: businessOwnerId,
+          name: businessOwner.displayName || 
+                `${businessOwner.profile?.firstName || ''} ${businessOwner.profile?.lastName || ''}`.trim() ||
+                businessOwner.email,
+          businessName: businessOwner.profile?.businessName || businessOwner.displayName
+        };
+        
+        businessOwnersMap.set(businessOwnerId, mappedBusinessOwner);
       }
     } catch (error) {
       console.error(`Error fetching business owner ${businessOwnerId}:`, error);
