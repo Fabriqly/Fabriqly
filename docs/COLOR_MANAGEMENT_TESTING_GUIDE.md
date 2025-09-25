@@ -326,3 +326,6 @@ firebase firestore:get colors --limit 5
 ---
 
 **Need Help?** Check the console logs, verify your authentication, and ensure all dependencies are properly installed.
+
+
+

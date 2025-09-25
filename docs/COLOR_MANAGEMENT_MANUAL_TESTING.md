@@ -316,3 +316,6 @@ bash scripts/test-color-management.sh --frontend
 ---
 
 **Need Help?** Check the console logs, verify your authentication, and ensure all dependencies are properly installed. The testing scripts will provide detailed error messages to help diagnose any issues.
+
+
+
