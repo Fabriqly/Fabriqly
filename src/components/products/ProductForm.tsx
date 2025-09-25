@@ -1,4 +1,4 @@
-  'use client';
+'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
   import { useRouter } from 'next/navigation';
@@ -24,7 +24,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
   Settings,
   ArrowLeft,
   AlertCircle,
-  Loader2
+  Loader2,
+  Eye,
+  Send
   } from 'lucide-react';
   import { CategorySelector } from './CategorySelector';
   import { ProductColorManager } from './ProductColorManager';
@@ -109,237 +111,251 @@ const BasicInfoSection = ({ formData, handleInputChange, categories }: any) => (
 );
 
 const PricingInventorySection = ({ formData, handleInputChange }: any) => (
-            <div className="space-y-6">
-              <div className="flex items-center space-x-2 mb-4">
-                <DollarSign className="w-5 h-5 text-green-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Pricing & Inventory</h3>
-              </div>
+  <div className="space-y-6">
+    <div className="flex items-center space-x-2 mb-4">
+      <DollarSign className="w-5 h-5 text-green-600" />
+      <h3 className="text-lg font-semibold text-gray-900">Pricing & Inventory</h3>
+    </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price *
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-gray-500">$</span>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.price}
-                      onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
-                      placeholder="0.00"
-                      className="pl-8"
-                      required
-                    />
-                  </div>
-                </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Price *
+        </label>
+        <Input
+          type="number"
+          value={formData.price}
+          onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+          placeholder="0.00"
+          min="0"
+          step="0.01"
+          required
+        />
+      </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Stock Quantity
-                  </label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={formData.stockQuantity}
-                    onChange={(e) => handleInputChange('stockQuantity', parseInt(e.target.value) || 0)}
-                    placeholder="0"
-                  />
-                </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Stock Quantity *
+        </label>
+        <Input
+          type="number"
+          value={formData.stockQuantity}
+          onChange={(e) => handleInputChange('stockQuantity', parseInt(e.target.value) || 0)}
+          placeholder="0"
+          min="0"
+          required
+        />
+      </div>
+    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => handleInputChange('status', e.target.value as ProductStatus)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="out_of_stock">Out of Stock</option>
-                  </select>
-                </div>
-              </div>
-            </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Weight (kg)
+        </label>
+        <Input
+          type="number"
+          value={formData.weight || ''}
+          onChange={(e) => handleInputChange('weight', parseFloat(e.target.value) || null)}
+          placeholder="0.0"
+          min="0"
+          step="0.1"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Status
+        </label>
+        <select
+          value={formData.status}
+          onChange={(e) => handleInputChange('status', e.target.value as ProductStatus)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="draft">Draft</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="out_of_stock">Out of Stock</option>
+        </select>
+      </div>
+    </div>
+  </div>
 );
 
 const ProductOptionsSection = ({ formData, handleInputChange }: any) => (
-            <div className="space-y-6">
-              <div className="flex items-center space-x-2 mb-4">
-                <Settings className="w-5 h-5 text-purple-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Product Options</h3>
-              </div>
+  <div className="space-y-6">
+    <div className="flex items-center space-x-2 mb-4">
+      <Settings className="w-5 h-5 text-purple-600" />
+      <h3 className="text-lg font-semibold text-gray-900">Product Options</h3>
+    </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.isCustomizable}
-                      onChange={(e) => handleInputChange('isCustomizable', e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700">
-                      Allow customers to customize this product
-                    </span>
-                  </label>
+    <div className="space-y-4">
+      <div className="flex items-center space-x-3">
+        <input
+          type="checkbox"
+          id="isCustomizable"
+          checked={formData.isCustomizable}
+          onChange={(e) => handleInputChange('isCustomizable', e.target.checked)}
+          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+        />
+        <label htmlFor="isCustomizable" className="text-sm font-medium text-gray-700">
+          Allow customization
+        </label>
+      </div>
 
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.isDigital}
-                      onChange={(e) => handleInputChange('isDigital', e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700">
-                      This is a digital product
-                    </span>
-                  </label>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Weight (kg)
-                  </label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={formData.weight || ''}
-                    onChange={(e) => handleInputChange('weight', parseFloat(e.target.value) || undefined)}
-                    placeholder="0.0"
-                  />
-                </div>
-              </div>
-            </div>
+      <div className="flex items-center space-x-3">
+        <input
+          type="checkbox"
+          id="isDigital"
+          checked={formData.isDigital}
+          onChange={(e) => handleInputChange('isDigital', e.target.checked)}
+          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+        />
+        <label htmlFor="isDigital" className="text-sm font-medium text-gray-700">
+          Digital product
+        </label>
+      </div>
+    </div>
+  </div>
 );
 
 const TagsSection = ({ formData, handleInputChange, tagInput, setTagInput, handleAddTag, handleRemoveTag }: any) => (
-            <div className="space-y-6">
-              <div className="flex items-center space-x-2 mb-4">
-                <Tag className="w-5 h-5 text-orange-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Tags</h3>
-              </div>
+  <div className="space-y-6">
+    <div className="flex items-center space-x-2 mb-4">
+      <Tag className="w-5 h-5 text-orange-600" />
+      <h3 className="text-lg font-semibold text-gray-900">Tags</h3>
+    </div>
 
-              <div className="space-y-4">
-                <div className="flex space-x-2">
-                  <Input
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    placeholder="Add a tag"
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                  />
-                  <Button type="button" onClick={handleAddTag} variant="outline">
-                    Add Tag
-                  </Button>
-                </div>
+    <div className="space-y-4">
+      <div className="flex space-x-2">
+        <Input
+          value={tagInput}
+          onChange={(e) => setTagInput(e.target.value)}
+          placeholder="Add a tag"
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleAddTag();
+            }
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleAddTag}
+          disabled={!tagInput.trim()}
+        >
+          Add
+        </Button>
+      </div>
 
-                {formData.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
+      {formData.tags && formData.tags.length > 0 && (
+        <div className="flex flex-wrap gap-2">
           {formData.tags.map((tag: string, index: number) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTag(tag)}
-                          className="ml-2 text-blue-600 hover:text-blue-800"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <span
+              key={index}
+              className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+            >
+              {tag}
+              <button
+                type="button"
+                onClick={() => handleRemoveTag(index)}
+                className="ml-2 text-blue-600 hover:text-blue-800"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
 );
 
 const SpecificationsSection = ({ formData, handleInputChange, specKey, setSpecKey, specValue, setSpecValue, handleAddSpecification, handleRemoveSpecification }: any) => (
-            <div className="space-y-6">
-              <div className="flex items-center space-x-2 mb-4">
-                <FileText className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Specifications</h3>
-              </div>
+  <div className="space-y-6">
+    <div className="flex items-center space-x-2 mb-4">
+      <FileText className="w-5 h-5 text-indigo-600" />
+      <h3 className="text-lg font-semibold text-gray-900">Specifications</h3>
+    </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Input
-                    value={specKey}
-                    onChange={(e) => setSpecKey(e.target.value)}
-                    placeholder="Specification name"
-                  />
-                  <Input
-                    value={specValue}
-                    onChange={(e) => setSpecValue(e.target.value)}
-                    placeholder="Specification value"
-                  />
-                  <Button type="button" onClick={handleAddSpecification} variant="outline">
-                    Add Spec
-                  </Button>
-                </div>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2">
+        <Input
+          value={specKey}
+          onChange={(e) => setSpecKey(e.target.value)}
+          placeholder="Specification name"
+        />
+        <Input
+          value={specValue}
+          onChange={(e) => setSpecValue(e.target.value)}
+          placeholder="Specification value"
+        />
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleAddSpecification}
+        disabled={!specKey.trim() || !specValue.trim()}
+      >
+        Add Specification
+      </Button>
 
-                {Object.keys(formData.specifications || {}).length > 0 && (
-                  <div className="space-y-2">
-                    {Object.entries(formData.specifications || {}).map(([key, value]) => (
-                      <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                        <span className="font-medium text-gray-700">{key}:</span>
-                        <div className="flex items-center space-x-2">
-                <span className="text-gray-600">{value as string}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSpecification(key)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+      {formData.specifications && Object.keys(formData.specifications).length > 0 && (
+        <div className="space-y-2">
+          {Object.entries(formData.specifications).map(([key, value]) => (
+            <div key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+              <span className="text-sm">
+                <strong>{key}:</strong> {value as string}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleRemoveSpecification(key)}
+                className="text-red-600 hover:text-red-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
 );
 
 const SEOSection = ({ formData, handleInputChange }: any) => (
-            <div className="space-y-6">
-              <div className="flex items-center space-x-2 mb-4">
-                <FileText className="w-5 h-5 text-gray-600" />
-                <h3 className="text-lg font-semibold text-gray-900">SEO Settings</h3>
-              </div>
+  <div className="space-y-6">
+    <div className="flex items-center space-x-2 mb-4">
+      <Settings className="w-5 h-5 text-teal-600" />
+      <h3 className="text-lg font-semibold text-gray-900">SEO Settings</h3>
+    </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    SEO Title
-                  </label>
-                  <Input
-                    value={formData.seoTitle}
-                    onChange={(e) => handleInputChange('seoTitle', e.target.value)}
-                    placeholder="SEO optimized title"
-                  />
-                </div>
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          SEO Title
+        </label>
+        <Input
+          value={formData.seoTitle || ''}
+          onChange={(e) => handleInputChange('seoTitle', e.target.value)}
+          placeholder="SEO optimized title"
+        />
+      </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    SEO Description
-                  </label>
-                  <textarea
-                    value={formData.seoDescription}
-                    onChange={(e) => handleInputChange('seoDescription', e.target.value)}
-                    placeholder="SEO optimized description"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows={3}
-                  />
-                </div>
-              </div>
-            </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          SEO Description
+        </label>
+        <textarea
+          value={formData.seoDescription || ''}
+          onChange={(e) => handleInputChange('seoDescription', e.target.value)}
+          placeholder="SEO optimized description"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          rows={3}
+        />
+      </div>
+    </div>
+  </div>
 );
 
 export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
@@ -351,6 +367,8 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [showColorManagement, setShowColorManagement] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<any[]>([]);
+  const [isDraftCreated, setIsDraftCreated] = useState(false);
+  const [currentProductId, setCurrentProductId] = useState<string | undefined>(productId);
 
   const [formData, setFormData] = useState<CreateProductData>({
     name: '',
@@ -360,7 +378,7 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
     price: 0,
     stockQuantity: 0,
     sku: '',
-    status: 'active',
+    status: 'draft', // Default to draft for new products
     isCustomizable: false,
     isDigital: false,
     tags: [],
@@ -373,37 +391,42 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
   const [specKey, setSpecKey] = useState('');
   const [specValue, setSpecValue] = useState('');
 
-  const isEditMode = !!productId;
+  const isEditMode = !!currentProductId;
+
+  // Update currentProductId when productId prop changes
+  useEffect(() => {
+    setCurrentProductId(productId);
+  }, [productId]);
 
   // Load product data if editing
   useEffect(() => {
-    if (productId) {
+    if (currentProductId) {
       loadProduct();
     } else {
       setLoadingProduct(false);
     }
     loadCategories();
-  }, [productId]);
+  }, [currentProductId]);
 
   const loadProduct = useCallback(async () => {
     setLoadingProduct(true);
     setError(null);
     
     try {
-      console.log('Loading product:', productId);
-      const response = await fetch(`/api/products/${productId}`);
-      const data = await response.json();
+      console.log('Loading product:', currentProductId);
+      const response = await fetch(`/api/products/${currentProductId}`);
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to load product');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to load product');
       }
       
+      const data = await response.json();
       const productData = data.product;
+      
       console.log('Product loaded:', productData);
       
       setProduct(productData);
-      
-      // Populate form with existing data
       setFormData({
         name: productData.name || '',
         description: productData.description || '',
@@ -412,35 +435,31 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
         price: productData.price || 0,
         stockQuantity: productData.stockQuantity || 0,
         sku: productData.sku || '',
-        status: productData.status || 'active',
+        status: productData.status || 'draft',
         isCustomizable: productData.isCustomizable || false,
         isDigital: productData.isDigital || false,
-        weight: productData.weight,
-        dimensions: productData.dimensions,
         tags: productData.tags || [],
         specifications: productData.specifications || {},
         seoTitle: productData.seoTitle || '',
         seoDescription: productData.seoDescription || ''
       });
       
-      // Set uploaded images from existing product
-      if (productData.images && productData.images.length > 0) {
-        setUploadedImages(productData.images);
-      }
-      
+      setUploadedImages(productData.images || []);
     } catch (error: any) {
       console.error('Error loading product:', error);
       setError(error.message || 'Failed to load product');
     } finally {
       setLoadingProduct(false);
     }
-  }, [productId]);
+  }, [currentProductId]);
 
   const loadCategories = useCallback(async () => {
     try {
       const response = await fetch('/api/categories');
-      const data = await response.json();
-      setCategories(data.categories || []);
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data.categories || []);
+      }
     } catch (error) {
       console.error('Error loading categories:', error);
     }
@@ -454,19 +473,19 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
   }, []);
 
   const handleAddTag = useCallback(() => {
-    if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
+    if (tagInput.trim()) {
       setFormData(prev => ({
         ...prev,
-        tags: [...prev.tags, tagInput.trim()]
+        tags: [...(prev.tags || []), tagInput.trim()]
       }));
       setTagInput('');
     }
-  }, [tagInput, formData.tags]);
+  }, [tagInput]);
 
-  const handleRemoveTag = useCallback((tagToRemove: string) => {
+  const handleRemoveTag = useCallback((index: number) => {
     setFormData(prev => ({
       ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
+      tags: prev.tags?.filter((_, i) => i !== index) || []
     }));
   }, []);
 
@@ -495,13 +514,58 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
     });
   }, []);
 
+  // Create draft product for image uploads
+  const createDraftProduct = useCallback(async () => {
+    if (isDraftCreated || currentProductId) return currentProductId;
+
+    try {
+      // Validate minimum required fields for draft
+      if (!formData.name.trim() || !formData.description.trim() || !formData.categoryId) {
+        throw new Error('Please fill in name, description, and category to enable image uploads');
+      }
+
+      const draftData = {
+        ...formData,
+        status: 'draft' as ProductStatus,
+        price: formData.price || 0,
+        stockQuantity: formData.stockQuantity || 0
+      };
+
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(draftData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create draft product');
+      }
+
+      const data = await response.json();
+      const draftProduct = data.product;
+      
+      console.log('Draft product created:', draftProduct.id);
+      setIsDraftCreated(true);
+      setCurrentProductId(draftProduct.id); // Update the current product ID
+      
+      return draftProduct.id;
+    } catch (error: any) {
+      console.error('Error creating draft product:', error);
+      setError(error.message || 'Failed to create draft product');
+      return null;
+    }
+  }, [formData, isDraftCreated, currentProductId]);
+
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      const url = isEditMode ? `/api/products/${productId}` : '/api/products';
+      const url = isEditMode ? `/api/products/${currentProductId}` : '/api/products';
       const method = isEditMode ? 'PUT' : 'POST';
       
       // Validate required fields
@@ -556,7 +620,43 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
     } finally {
       setLoading(false);
     }
-  }, [formData, isEditMode, productId, onSave, router]);
+  }, [formData, isEditMode, currentProductId, onSave, router]);
+
+  // Publish draft product
+  const handlePublish = useCallback(async () => {
+    if (!currentProductId) return;
+    
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/products/${currentProductId}/publish`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to publish product');
+      }
+
+      const data = await response.json();
+      console.log('Product published successfully:', data.product.id);
+      
+      // Update local state
+      setFormData(prev => ({ ...prev, status: 'active' }));
+      
+      if (onSave) {
+        onSave(data.product);
+      } else {
+        router.push('/dashboard/products');
+      }
+    } catch (error: any) {
+      console.error('Error publishing product:', error);
+      setError(error.message || 'Failed to publish product');
+    } finally {
+      setLoading(false);
+    }
+  }, [currentProductId, onSave, router]);
 
   const handleCancel = useCallback(() => {
     if (onCancel) {
@@ -578,163 +678,184 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
     );
   }
 
-  // Error state for product fetch
-  if (error && isEditMode && !product) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Product</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <div className="space-x-4">
-            <Button onClick={loadProduct}>
-              Try Again
-            </Button>
-            <Button variant="outline" onClick={handleCancel}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Products
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow-md">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {isEditMode ? 'Edit Product' : 'Add New Product'}
-              </h2>
-              <p className="text-gray-600 mt-1">
-                {isEditMode ? 'Update your product information' : 'Create a new product for your catalog'}
-              </p>
-            </div>
-            <Button variant="outline" onClick={handleCancel}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </div>
-        </div>
-
-        {error && (
-          <div className="px-6 py-4 bg-red-50 border-b border-red-200">
-            <div className="flex items-center">
-              <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-              <p className="text-red-700">{error}</p>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-8">
-          <BasicInfoSection 
-            formData={formData} 
-            handleInputChange={handleInputChange} 
-            categories={categories} 
-          />
-
-          <PricingInventorySection 
-            formData={formData} 
-            handleInputChange={handleInputChange} 
-          />
-
-          <ProductOptionsSection 
-            formData={formData} 
-            handleInputChange={handleInputChange} 
-          />
-
-          {/* Product Images */}
-          <div className="space-y-6">
-            <div className="flex items-center space-x-2 mb-4">
-              <ImageIcon className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Product Images</h3>
-            </div>
-
-            <div className="space-y-4">
-              <ImageUploader
-                productId={productId || ''}
-                onImagesUploaded={(images) => {
-                  setUploadedImages(prev => [...prev, ...images]);
-                }}
-                existingImages={uploadedImages}
-                maxImages={5}
-              />
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto py-8">
+        <div className="bg-white rounded-lg shadow-sm">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancel}
+                  className="flex items-center space-x-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back</span>
+                </Button>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    {isEditMode ? 'Edit Product' : 'Create Product'}
+                  </h1>
+                  <p className="text-sm text-gray-500">
+                    {isEditMode ? 'Update your product information' : 'Add a new product to your catalog'}
+                  </p>
+                </div>
+              </div>
               
-              {!productId && (
-                <div className="text-sm text-gray-500 bg-blue-50 p-3 rounded-md">
-                  <p>Note: Save the product first to enable image uploads.</p>
+              {product?.status === 'draft' && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-orange-600 bg-orange-100 px-2 py-1 rounded-full">
+                    Draft
+                  </span>
+                  <Button
+                    onClick={handlePublish}
+                    disabled={loading}
+                    className="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>Publish</span>
+                  </Button>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Product Colors - Only show for existing products */}
-          {productId && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                  <Package className="w-5 h-5 text-purple-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">Product Colors</h3>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowColorManagement(!showColorManagement)}
-                  >
-                    {showColorManagement ? 'Hide Colors' : 'Manage Colors'}
-                  </Button>
-                </div>
+          {/* Error Display */}
+          {error && (
+            <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            </div>
+          )}
 
-                {showColorManagement && (
-                  <ProductColorManager
-                  productId={productId}
-                    onColorChange={() => {
-                      // Optionally refresh product data or show notification
-                    }}
-                  />
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="p-6 space-y-8">
+            <BasicInfoSection 
+              formData={formData} 
+              handleInputChange={handleInputChange} 
+              categories={categories} 
+            />
+
+            <PricingInventorySection 
+              formData={formData} 
+              handleInputChange={handleInputChange} 
+            />
+
+            <ProductOptionsSection 
+              formData={formData} 
+              handleInputChange={handleInputChange} 
+            />
+
+            {/* Product Images */}
+            <div className="space-y-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <ImageIcon className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Product Images</h3>
+              </div>
+
+              <div className="space-y-4">
+                <ImageUploader
+                  productId={currentProductId || ''}
+                  onImagesUploaded={(images) => {
+                    setUploadedImages(prev => [...prev, ...images]);
+                  }}
+                  existingImages={uploadedImages}
+                  maxImages={5}
+                  onCreateDraft={createDraftProduct}
+                />
+                
+                {!currentProductId && !isDraftCreated && (
+                  <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-md">
+                    <p>💡 <strong>Tip:</strong> Fill in the basic information above and save to enable image uploads, or upload images will create a draft product automatically.</p>
+                  </div>
                 )}
               </div>
-            )}
+            </div>
 
-          <TagsSection 
-            formData={formData}
-            handleInputChange={handleInputChange}
-            tagInput={tagInput}
-            setTagInput={setTagInput}
-            handleAddTag={handleAddTag}
-            handleRemoveTag={handleRemoveTag}
-          />
+            {/* Product Colors - Only show for existing products */}
+            {currentProductId && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                    <Package className="w-5 h-5 text-purple-600" />
+                    <h3 className="text-lg font-semibold text-gray-900">Product Colors</h3>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowColorManagement(!showColorManagement)}
+                    >
+                      {showColorManagement ? 'Hide Colors' : 'Manage Colors'}
+                    </Button>
+                  </div>
 
-          <SpecificationsSection 
-            formData={formData}
-            handleInputChange={handleInputChange}
-            specKey={specKey}
-            setSpecKey={setSpecKey}
-            specValue={specValue}
-            setSpecValue={setSpecValue}
-            handleAddSpecification={handleAddSpecification}
-            handleRemoveSpecification={handleRemoveSpecification}
-          />
+                  {showColorManagement && (
+                    <ProductColorManager
+                    productId={currentProductId}
+                      onColorChange={() => {
+                        // Optionally refresh product data or show notification
+                      }}
+                    />
+                  )}
+                </div>
+              )}
 
-          <SEOSection 
-            formData={formData} 
-            handleInputChange={handleInputChange} 
-          />
+            <TagsSection 
+              formData={formData}
+              handleInputChange={handleInputChange}
+              tagInput={tagInput}
+              setTagInput={setTagInput}
+              handleAddTag={handleAddTag}
+              handleRemoveTag={handleRemoveTag}
+            />
 
-            {/* Actions */}
-            <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
-            <Button type="button" variant="outline" onClick={handleCancel}>
+            <SpecificationsSection 
+              formData={formData}
+              handleInputChange={handleInputChange}
+              specKey={specKey}
+              setSpecKey={setSpecKey}
+              specValue={specValue}
+              setSpecValue={setSpecValue}
+              handleAddSpecification={handleAddSpecification}
+              handleRemoveSpecification={handleRemoveSpecification}
+            />
+
+            <SEOSection 
+              formData={formData} 
+              handleInputChange={handleInputChange} 
+            />
+
+              {/* Actions */}
+              <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={loading}
+                >
                   Cancel
                 </Button>
-              <Button type="submit" loading={loading}>
-                <Save className="w-4 h-4 mr-2" />
-              {isEditMode ? 'Update Product' : 'Create Product'}
-              </Button>
-            </div>
-          </form>
+                
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="flex items-center space-x-2"
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  <span>{isEditMode ? 'Update Product' : 'Save Product'}</span>
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
     );
