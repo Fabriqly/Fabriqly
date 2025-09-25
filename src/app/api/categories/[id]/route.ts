@@ -168,6 +168,41 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updateData
     );
 
+    // Log activity
+    try {
+      const changedFields = Object.keys(updateData).filter(key => key !== 'updatedAt');
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: 'category_updated',
+        title: 'Category Updated',
+        description: `Category "${existingCategory.name || existingCategory.categoryName}" has been updated`,
+        priority: 'low',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: categoryId,
+        targetType: 'category',
+        targetName: existingCategory.name || existingCategory.categoryName,
+        metadata: {
+          categoryName: existingCategory.name || existingCategory.categoryName,
+          changedFields: changedFields,
+          updatedBy: session.user.role,
+          updatedAt: new Date().toISOString(),
+          previousValues: Object.fromEntries(
+            changedFields
+              .map(field => [field, existingCategory[field as keyof typeof existingCategory]])
+              .filter(([_, value]) => value !== undefined)
+          ),
+          newValues: Object.fromEntries(
+            changedFields
+              .map(field => [field, updateData[field as keyof typeof updateData]])
+              .filter(([_, value]) => value !== undefined)
+          )
+        }
+      });
+    } catch (activityError) {
+      console.error('Error logging category update activity:', activityError);
+      // Don't fail the update if activity logging fails
+    }
+
     // If parent changed, update all children's paths
     if (body.parentCategoryId !== undefined && body.parentCategoryId !== existingCategory.parentCategoryId) {
       await updateChildrenPaths(categoryId, path);
@@ -272,6 +307,46 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       Collections.PRODUCT_CATEGORIES,
       categoryId
     );
+
+    // Log activity
+    try {
+      // Helper function to filter out undefined values
+      const filterUndefined = (obj: any) => {
+        const filtered: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined) {
+            filtered[key] = value;
+          }
+        }
+        return filtered;
+      };
+
+      const metadata = filterUndefined({
+        categoryName: existingCategory.name || existingCategory.categoryName,
+        slug: existingCategory.slug,
+        parentId: existingCategory.parentCategoryId,
+        level: existingCategory.level,
+        path: existingCategory.path,
+        deletedBy: session.user.role,
+        deletedAt: new Date().toISOString()
+      });
+
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: 'category_deleted',
+        title: 'Category Deleted',
+        description: `Category "${existingCategory.name || existingCategory.categoryName}" has been deleted`,
+        priority: 'high',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: categoryId,
+        targetType: 'category',
+        targetName: existingCategory.name || existingCategory.categoryName,
+        metadata
+      });
+    } catch (activityError) {
+      console.error('Error logging category deletion activity:', activityError);
+      // Don't fail the deletion if activity logging fails
+    }
 
     return NextResponse.json({ message: 'Category deleted successfully' });
   } catch (error: any) {

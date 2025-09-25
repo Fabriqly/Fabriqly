@@ -82,6 +82,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       );
     }
 
+    // Get existing user data for activity logging
+    const existingUser = await FirebaseAdminService.getDocument(Collections.USERS, id);
+    
     // Update user document
     const updatedUser = await FirebaseAdminService.updateDocument(
       Collections.USERS,
@@ -98,6 +101,40 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     // Update user role in Firebase Auth if needed
     if (body.role) {
       await FirebaseAdminService.updateUserRole(id, body.role);
+    }
+
+    // Log activity
+    try {
+      console.log('Logging user update activity...');
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: 'user_updated',
+        title: 'User Updated',
+        description: `User "${body.name}" has been updated`,
+        priority: 'low',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: id,
+        targetType: 'user',
+        targetName: body.name,
+        metadata: {
+          userName: body.name,
+          email: body.email,
+          role: body.role,
+          isVerified: body.isVerified,
+          updatedBy: session.user.role,
+          updatedAt: new Date().toISOString(),
+          previousValues: {
+            name: existingUser?.name,
+            email: existingUser?.email,
+            role: existingUser?.role,
+            isVerified: existingUser?.isVerified
+          }
+        }
+      });
+      console.log('✅ User update activity logged successfully');
+    } catch (activityError) {
+      console.error('❌ Error logging user update activity:', activityError);
+      // Don't fail the update if activity logging fails
     }
 
     return NextResponse.json({ user: updatedUser });
@@ -132,8 +169,38 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       );
     }
 
+    // Get existing user data for activity logging
+    const existingUser = await FirebaseAdminService.getDocument(Collections.USERS, id);
+
     // Delete user
     await FirebaseAdminService.deleteUser(id);
+
+    // Log activity
+    try {
+      console.log('Logging user deletion activity...');
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: 'user_deleted',
+        title: 'User Deleted',
+        description: `User "${existingUser?.name || existingUser?.email || 'Unknown'}" has been deleted`,
+        priority: 'high',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: id,
+        targetType: 'user',
+        targetName: existingUser?.name || existingUser?.email || 'Unknown',
+        metadata: {
+          userName: existingUser?.name,
+          email: existingUser?.email,
+          role: existingUser?.role,
+          deletedBy: session.user.role,
+          deletedAt: new Date().toISOString()
+        }
+      });
+      console.log('✅ User deletion activity logged successfully');
+    } catch (activityError) {
+      console.error('❌ Error logging user deletion activity:', activityError);
+      // Don't fail the deletion if activity logging fails
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

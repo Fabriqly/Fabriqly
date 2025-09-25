@@ -149,6 +149,9 @@ export const Collections = {
   // Analytics
   PRODUCT_ANALYTICS: 'productAnalytics',
   
+  // Activity System
+  ACTIVITIES: 'activities',
+  
   // Existing Collections
   ORDERS: 'orders',
   REVIEWS: 'reviews',

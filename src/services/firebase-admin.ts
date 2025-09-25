@@ -55,8 +55,8 @@ export class FirebaseAdminService {
             theme: 'light'
           }
         },
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       };
 
       await adminDb.collection(Collections.USERS).doc(userRecord.uid).set(userDoc);
@@ -117,7 +117,7 @@ export class FirebaseAdminService {
     try {
       await adminDb.collection(Collections.USERS).doc(uid).update({
         role,
-        updatedAt: new Date()
+        updatedAt: Timestamp.now()
       });
 
       // Set custom claims for role-based access
@@ -139,7 +139,7 @@ export class FirebaseAdminService {
 
       await adminDb.collection(Collections.USERS).doc(uid).update({
         isVerified: true,
-        updatedAt: new Date()
+        updatedAt: Timestamp.now()
       });
 
       return { uid, isVerified: true };
@@ -180,10 +180,10 @@ export class FirebaseAdminService {
         
         switch (op.type) {
           case 'set':
-            batch.set(docRef, { ...op.data, updatedAt: new Date() });
+            batch.set(docRef, { ...op.data, updatedAt: Timestamp.now() });
             break;
           case 'update':
-            batch.update(docRef, { ...op.data, updatedAt: new Date() });
+            batch.update(docRef, { ...op.data, updatedAt: Timestamp.now() });
             break;
           case 'delete':
             batch.delete(docRef);
@@ -276,10 +276,34 @@ export class FirebaseAdminService {
   // Create a new document
   static async createDocument(collection: string, data: any) {
     try {
-      const docRef = await adminDb.collection(collection).add({
+      // Ensure collection exists by checking if it has any documents
+      const collectionRef = adminDb.collection(collection);
+      const existingDocs = await collectionRef.limit(1).get();
+      
+      // If collection is empty, add a temporary initialization document
+      if (existingDocs.empty && collection === Collections.ACTIVITIES) {
+        console.log(`Initializing ${collection} collection...`);
+        const initDoc = {
+          type: 'system_event',
+          title: `${collection} Collection Initialized`,
+          description: `The ${collection} collection has been initialized`,
+          priority: 'low',
+          status: 'active',
+          actorId: 'system',
+          metadata: { initialization: true },
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        };
+        
+        // Add initialization document
+        await collectionRef.add(initDoc);
+        console.log(`${collection} collection initialized successfully`);
+      }
+      
+      const docRef = await collectionRef.add({
         ...data,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       });
       
       return { id: docRef.id, ...data };
@@ -295,7 +319,7 @@ export class FirebaseAdminService {
       const docRef = adminDb.collection(collection).doc(docId);
       await docRef.update({
         ...data,
-        updatedAt: new Date()
+        updatedAt: Timestamp.now()
       });
       
       return { id: docId, ...data };

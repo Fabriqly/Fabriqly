@@ -108,6 +108,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Log activity for bulk color creation
+    try {
+      if (results.created.length > 0) {
+        console.log('Logging bulk color creation activity...');
+        await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+          type: 'color_created',
+          title: 'Bulk Color Creation',
+          description: `${results.created.length} colors have been created in bulk`,
+          priority: 'low',
+          status: 'active',
+          actorId: session.user.id,
+          targetId: 'bulk-operation',
+          targetType: 'color',
+          targetName: `${results.created.length} colors`,
+          metadata: {
+            operationType: 'bulk_create',
+            totalColors: results.created.length,
+            successfulColors: results.created.length,
+            failedColors: results.errors.length,
+            createdBy: session.user.role,
+            colorNames: results.created.map(c => c.colorName),
+            createdAt: new Date().toISOString()
+          }
+        });
+        console.log('✅ Bulk color creation activity logged successfully');
+      }
+    } catch (activityError) {
+      console.error('❌ Error logging bulk color creation activity:', activityError);
+      // Don't fail the bulk operation if activity logging fails
+    }
+
     return NextResponse.json({
       message: `Bulk operation completed: ${results.created.length} created, ${results.errors.length} errors`,
       results

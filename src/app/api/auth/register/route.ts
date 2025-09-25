@@ -1,6 +1,7 @@
 // app/api/auth/register/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { FirebaseAdminService } from '@/services/firebase-admin';
+import { Collections } from '@/services/firebase';
 import { AuthErrorHandler, AuthErrorCode } from '@/lib/auth-errors';
 import { authLogger } from '@/lib/auth-logging';
 
@@ -66,6 +67,33 @@ export async function POST(request: NextRequest) {
       userId: user.uid,
       details: { email, role }
     });
+
+    // Log activity
+    try {
+      console.log('Logging user registration activity...');
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: 'user_registered',
+        title: 'User Registration',
+        description: `New user registered: ${email}`,
+        priority: 'medium',
+        status: 'active',
+        actorId: user.uid,
+        targetId: user.uid,
+        targetType: 'user',
+        targetName: `${firstName} ${lastName}`,
+        metadata: {
+          email: email,
+          role: role,
+          displayName: `${firstName} ${lastName}`,
+          registrationMethod: 'email',
+          registeredAt: new Date().toISOString()
+        }
+      });
+      console.log('✅ User registration activity logged successfully');
+    } catch (activityError) {
+      console.error('❌ Error logging user registration activity:', activityError);
+      // Don't fail the registration if activity logging fails
+    }
 
     return NextResponse.json({ 
       success: true, 

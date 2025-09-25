@@ -266,6 +266,32 @@ export async function POST(request: NextRequest) {
 
     console.log('Product created successfully:', product.id);
 
+    // Log activity
+    try {
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: 'product_created',
+        title: 'Product Created',
+        description: `New product "${productData.name}" has been created`,
+        priority: 'medium',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: product.id,
+        targetType: 'product',
+        targetName: productData.name,
+        metadata: {
+          productName: productData.name,
+          sku: productData.sku,
+          categoryId: productData.categoryId,
+          price: productData.price,
+          status: productData.status,
+          createdBy: session.user.role
+        }
+      });
+    } catch (activityError) {
+      console.error('Error logging product creation activity:', activityError);
+      // Don't fail the creation if activity logging fails
+    }
+
     // Clear cache for this business owner
     categoryCache.clear();
     imageCache.clear();
