@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 
 // Product Status Enum
-export type ProductStatus = 'active' | 'inactive' | 'out_of_stock';
+export type ProductStatus = 'draft' | 'active' | 'inactive' | 'out_of_stock';
 
 // Product Categories
 export interface Category {
@@ -166,4 +166,3 @@ export interface InventoryUpdate {
   operation: 'add' | 'subtract' | 'set';
   reason?: string; // For audit trail
 }
-
