@@ -170,6 +170,43 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updateData
     );
 
+    // Log activity
+    try {
+      console.log('Logging color update activity...');
+      const changedFields = Object.keys(updateData).filter(key => key !== 'updatedAt');
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: 'color_updated',
+        title: 'Color Updated',
+        description: `Color "${existingColor.colorName}" has been updated`,
+        priority: 'low',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: colorId,
+        targetType: 'color',
+        targetName: existingColor.colorName,
+        metadata: {
+          colorName: existingColor.colorName,
+          changedFields: changedFields,
+          updatedBy: session.user.role,
+          updatedAt: new Date().toISOString(),
+          previousValues: Object.fromEntries(
+            changedFields
+              .map(field => [field, existingColor[field as keyof typeof existingColor]])
+              .filter(([_, value]) => value !== undefined)
+          ),
+          newValues: Object.fromEntries(
+            changedFields
+              .map(field => [field, updateData[field as keyof typeof updateData]])
+              .filter(([_, value]) => value !== undefined)
+          )
+        }
+      });
+      console.log('✅ Color update activity logged successfully');
+    } catch (activityError) {
+      console.error('❌ Error logging color update activity:', activityError);
+      // Don't fail the update if activity logging fails
+    }
+
     return NextResponse.json({ color: updatedColor });
   } catch (error: any) {
     console.error('Error updating color:', error);
@@ -239,6 +276,33 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       Collections.COLORS,
       colorId
     );
+
+    // Log activity
+    try {
+      console.log('Logging color deletion activity...');
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: 'color_deleted',
+        title: 'Color Deleted',
+        description: `Color "${existingColor.colorName}" has been deleted`,
+        priority: 'medium',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: colorId,
+        targetType: 'color',
+        targetName: existingColor.colorName,
+        metadata: {
+          colorName: existingColor.colorName,
+          hexCode: existingColor.hexCode,
+          rgbCode: existingColor.rgbCode,
+          deletedBy: session.user.role,
+          deletedAt: new Date().toISOString()
+        }
+      });
+      console.log('✅ Color deletion activity logged successfully');
+    } catch (activityError) {
+      console.error('❌ Error logging color deletion activity:', activityError);
+      // Don't fail the deletion if activity logging fails
+    }
 
     return NextResponse.json({ message: 'Color deleted successfully' });
   } catch (error: any) {

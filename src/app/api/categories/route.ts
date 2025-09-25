@@ -216,6 +216,45 @@ export async function POST(request: NextRequest) {
       categoryData
     );
 
+    // Log activity
+    try {
+      // Helper function to filter out undefined values
+      const filterUndefined = (obj: any) => {
+        const filtered: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined) {
+            filtered[key] = value;
+          }
+        }
+        return filtered;
+      };
+
+      const metadata = filterUndefined({
+        categoryName: body.name,
+        slug: body.slug,
+        parentId: body.parentId,
+        level: level,
+        path: path,
+        createdBy: session.user.role
+      });
+
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: 'category_created',
+        title: 'Category Created',
+        description: `New category "${body.name}" has been created`,
+        priority: 'medium',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: category.id,
+        targetType: 'category',
+        targetName: body.name,
+        metadata
+      });
+    } catch (activityError) {
+      console.error('Error logging category creation activity:', activityError);
+      // Don't fail the creation if activity logging fails
+    }
+
     return NextResponse.json({ category }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating category:', error);

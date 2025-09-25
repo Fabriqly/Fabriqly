@@ -265,6 +265,41 @@ export async function PUT(
 
     console.log('Product updated successfully');
 
+    // Log activity
+    try {
+      const changedFields = Object.keys(updateData).filter(key => key !== 'updatedAt');
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: 'product_updated',
+        title: 'Product Updated',
+        description: `Product "${existingProduct.name}" has been updated`,
+        priority: 'low',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: productId,
+        targetType: 'product',
+        targetName: existingProduct.name,
+        metadata: {
+          productName: existingProduct.name,
+          changedFields: changedFields,
+          updatedBy: session.user.role,
+          updatedAt: new Date().toISOString(),
+          previousValues: Object.fromEntries(
+            changedFields
+              .map(field => [field, existingProduct[field as keyof Product]])
+              .filter(([_, value]) => value !== undefined)
+          ),
+          newValues: Object.fromEntries(
+            changedFields
+              .map(field => [field, updateData[field as keyof Product]])
+              .filter(([_, value]) => value !== undefined)
+          )
+        }
+      });
+    } catch (activityError) {
+      console.error('Error logging product update activity:', activityError);
+      // Don't fail the update if activity logging fails
+    }
+
     // Clear relevant caches
     categoryCache.clear();
     imageCache.clear();
@@ -355,6 +390,42 @@ export async function DELETE(
     await FirebaseAdminService.deleteDocument(Collections.PRODUCTS, productId);
 
     console.log('Product deleted successfully');
+
+    // Log activity
+    try {
+      console.log('Attempting to log product deletion activity...');
+      console.log('Session user:', session.user);
+      console.log('Existing product:', existingProduct);
+      
+      const activityData = {
+        type: 'product_deleted',
+        title: 'Product Deleted',
+        description: `Product "${existingProduct.name}" has been deleted`,
+        priority: 'high',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: productId,
+        targetType: 'product',
+        targetName: existingProduct.name,
+        metadata: {
+          productName: existingProduct.name,
+          businessOwnerId: existingProduct.businessOwnerId,
+          categoryId: existingProduct.categoryId,
+          deletedBy: session.user.role,
+          deletedAt: new Date().toISOString()
+        }
+      };
+      
+      console.log('Activity data to create:', activityData);
+      
+      const activity = await FirebaseAdminService.createDocument(Collections.ACTIVITIES, activityData);
+      console.log('✅ Activity logged successfully:', activity.id);
+    } catch (activityError) {
+      console.error('❌ Error logging product deletion activity:', activityError);
+      console.error('Activity error details:', activityError.message);
+      console.error('Activity error stack:', activityError.stack);
+      // Don't fail the deletion if activity logging fails
+    }
 
     // Clear caches
     categoryCache.clear();
