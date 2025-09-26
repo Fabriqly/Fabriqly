@@ -55,12 +55,14 @@ export function ImageUploader({
     
     if (!currentProductId && onCreateDraft) {
       console.log('No product ID, attempting to create draft product...');
-      currentProductId = await onCreateDraft();
+      const draftId = await onCreateDraft();
       
-      if (!currentProductId) {
+      if (!draftId) {
         setError('Failed to create draft product for image upload');
         return;
       }
+      
+      currentProductId = draftId;
     }
     
     if (!currentProductId) {

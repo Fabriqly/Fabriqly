@@ -140,7 +140,7 @@ export class PerformanceMonitor {
       maxDuration: Math.max(...durations),
       successRate: (successfulCalls.length / operationMetrics.length) * 100,
       lastCalled: operationMetrics[operationMetrics.length - 1].timestamp,
-      errors: [...new Set(errors)] // Remove duplicates
+      errors: Array.from(new Set(errors)) // Remove duplicates
     };
   }
 
@@ -148,7 +148,7 @@ export class PerformanceMonitor {
    * Get performance statistics for all operations
    */
   static getAllStats(): PerformanceStats[] {
-    const operations = [...new Set(this.metrics.map(m => m.operation))];
+    const operations = Array.from(new Set(this.metrics.map(m => m.operation)));
     return operations
       .map(op => this.getStats(op))
       .filter((stats): stats is PerformanceStats => stats !== null)
@@ -194,7 +194,7 @@ export class PerformanceMonitor {
       };
     }
 
-    const operations = [...new Set(this.metrics.map(m => m.operation))];
+    const operations = Array.from(new Set(this.metrics.map(m => m.operation)));
     const totalCalls = this.metrics.length;
     const averageDuration = this.metrics.reduce((sum, m) => sum + m.duration, 0) / totalCalls;
     const errorCount = this.metrics.filter(m => !m.success).length;

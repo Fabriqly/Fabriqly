@@ -129,7 +129,12 @@ export class EventBus {
       try {
         await PerformanceMonitor.measure(
           `event.${eventType}.${subscription.id}`,
-          () => subscription.handler(event),
+          async () => {
+            const result = subscription.handler(event);
+            if (result instanceof Promise) {
+              await result;
+            }
+          },
           { eventType, subscriptionId: subscription.id }
         );
 
@@ -251,17 +256,14 @@ export class EventBus {
   }
 
   /**
-   * Remove all listeners for an event type
+   * Remove all listeners for an event type or all listeners
    */
-  removeAllListeners(eventType: string): void {
-    this.listeners.delete(eventType);
-  }
-
-  /**
-   * Remove all listeners
-   */
-  removeAllListeners(): void {
-    this.listeners.clear();
+  removeAllListeners(eventType?: string): void {
+    if (eventType) {
+      this.listeners.delete(eventType);
+    } else {
+      this.listeners.clear();
+    }
   }
 
   /**
