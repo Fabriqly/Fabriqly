@@ -4,14 +4,6 @@ This directory contains testing and utility scripts for the Fabriqly application
 
 ## Dashboard Testing
 
-### `test-dashboard-stats.js`
-Tests the dashboard-stats API endpoint to verify real percentage calculations are working correctly.
-
-**Usage:**
-```bash
-node scripts/test-dashboard-stats.js
-```
-
 ### `test-dashboard-browser.md`
 Browser-based testing guide for the dashboard functionality. Use this for manual testing.
 
@@ -23,16 +15,17 @@ Creates initial dashboard snapshots for historical data tracking. Run once to se
 node scripts/init-dashboard-snapshots.js
 ```
 
-## Activity System Testing
+## Analytics Testing
 
-### `test-activity-system.js`
-Comprehensive testing for the activity logging system.
+### `test-analytics-browser.js`
+Browser-based testing guide for the analytics page. Use this for manual testing.
 
-### `test-activity-api.js`
-Tests the activity API endpoints.
+**Usage:**
+```bash
+node scripts/test-analytics-browser.js
+```
 
-### `test-activity-logger.js`
-Tests the activity logger functionality.
+## Activity System
 
 ### `create-test-activities.js`
 Creates test activities for development and testing.
@@ -45,29 +38,20 @@ Initializes the activities collection in Firebase.
 ### `test-color-management.js`
 Tests color management functionality.
 
-### `test-color-management.sh`
-Shell script for color management testing.
-
-## Integration Testing
-
-### `test-integration.js`
-Complete integration testing script for the product catalog system.
-
-### `test-api.js`
-General API testing script.
-
-### `test-performance.js`
-Performance testing script.
+**Usage:**
+```bash
+node scripts/test-color-management.js
+```
 
 ## Usage Guidelines
 
-1. **Dashboard Testing**: Start with `test-dashboard-browser.md` for manual testing, then use `test-dashboard-stats.js` for automated testing.
+1. **Dashboard Testing**: Use `test-dashboard-browser.md` for manual testing.
 
-2. **Activity System**: Use `test-activity-system.js` for comprehensive testing, or individual scripts for specific components.
+2. **Analytics Testing**: Use `test-analytics-browser.js` for manual testing.
 
-3. **Color Management**: Use `test-color-management.js` for JavaScript testing or `test-color-management.sh` for shell-based testing.
+3. **Activity System**: Use `create-test-activities.js` to create test data and `init-activities-collection.js` to initialize the collection.
 
-4. **Integration**: Use `test-integration.js` for complete system testing.
+4. **Color Management**: Use `test-color-management.js` for comprehensive testing.
 
 ## Prerequisites
 
