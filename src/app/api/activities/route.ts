@@ -1,48 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { FirebaseAdminService } from '@/services/firebase-admin';
-import { Collections } from '@/services/firebase';
+import { ActivityService, ActivityFilters } from '@/services/ActivityService';
 import { 
   Activity, 
-  ActivityWithDetails, 
-  ActivityFilters, 
   CreateActivityData, 
-  UpdateActivityData,
-  ActivityStats,
-  ActivityType
+  UpdateActivityData
 } from '@/types/activity';
-
-// Helper function to convert Firestore Timestamps to JavaScript Dates
-const convertTimestamps = (data: any): any => {
-  if (data && typeof data === 'object') {
-    const converted = { ...data };
-    
-    Object.keys(converted).forEach(key => {
-      const value = converted[key];
-      
-      // Check for Firebase Admin SDK Timestamp (server-side)
-      if (value && typeof value === 'object' && value.toDate && typeof value.toDate === 'function') {
-        converted[key] = value.toDate();
-      }
-      // Check for client-side Firestore Timestamp format
-      else if (value && typeof value === 'object' && value.seconds !== undefined && value.nanoseconds !== undefined) {
-        converted[key] = new Date(value.seconds * 1000 + value.nanoseconds / 1000000);
-      }
-      // Check for Date objects (already converted)
-      else if (value instanceof Date) {
-        converted[key] = value;
-      }
-      // Recursively convert nested objects
-      else if (value && typeof value === 'object' && !Array.isArray(value)) {
-        converted[key] = convertTimestamps(value);
-      }
-    });
-    
-    return converted;
-  }
-  return data;
-};
 
 // GET /api/activities - List activities with filters
 export async function GET(request: NextRequest) {
@@ -57,219 +21,88 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50');
+    
+    // Parse pagination parameters
+    const limit = parseInt(searchParams.get('limit') || '20');
     const offset = parseInt(searchParams.get('offset') || '0');
-    const types = searchParams.get('types')?.split(',') as ActivityType[];
-    const priority = searchParams.get('priority')?.split(',') as any[];
-    const status = searchParams.get('status')?.split(',') as any[];
-    const actorId = searchParams.get('actorId');
-    const targetId = searchParams.get('targetId');
-    const targetType = searchParams.get('targetType');
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
-
-    // FIXED: Build query constraints properly
-    const constraints = [];
     
-    // Only add status filter if specified
-    if (status && status.length > 0) {
-      constraints.push({ field: 'status', operator: 'in' as const, value: status });
-    }
+    // Parse filters from query parameters
+    const filters: ActivityFilters = {
+      actorId: searchParams.get('actorId') || undefined,
+      targetId: searchParams.get('targetId') || undefined,
+      targetType: searchParams.get('targetType') || undefined,
+      type: searchParams.get('type') || undefined,
+      priority: searchParams.get('priority') as any || undefined,
+      status: searchParams.get('status') as any || undefined,
+      startDate: searchParams.get('startDate') ? new Date(searchParams.get('startDate')!) : undefined,
+      endDate: searchParams.get('endDate') ? new Date(searchParams.get('endDate')!) : undefined
+    };
 
-    // FIXED: First, get ALL matching activities to calculate correct total
-    // We need to get more than limit+offset to handle filtering correctly
-    const BATCH_SIZE = 1000; // Adjust based on your data size
-    const allActivities = await FirebaseAdminService.queryDocuments(
-      Collections.ACTIVITIES,
-      constraints,
-      { field: sortBy, direction: sortOrder as 'asc' | 'desc' },
-      BATCH_SIZE
-    );
+    // Handle array parameters (types, priority, status)
+    const types = searchParams.get('types');
+    const priority = searchParams.get('priority');
+    const status = searchParams.get('status');
 
-    // Apply filters in memory
-    let filteredActivities = allActivities;
-    
-    if (types && types.length > 0) {
-      filteredActivities = filteredActivities.filter(activity => 
-        types.includes(activity.type)
-      );
-    }
-    
-    if (priority && priority.length > 0) {
-      filteredActivities = filteredActivities.filter(activity => 
-        priority.includes(activity.priority)
-      );
-    }
-    
-    if (actorId) {
-      filteredActivities = filteredActivities.filter(activity => 
-        activity.actorId === actorId
-      );
-    }
-    
-    if (targetId) {
-      filteredActivities = filteredActivities.filter(activity => 
-        activity.targetId === targetId
-      );
-    }
-    
-    if (targetType) {
-      filteredActivities = filteredActivities.filter(activity => 
-        activity.targetType === targetType
-      );
-    }
-
-    // FIXED: Calculate correct total count after filtering
-    const totalCount = filteredActivities.length;
-    
-    // FIXED: Apply proper pagination after filtering
-    const paginatedActivities = filteredActivities
-      .slice(offset, offset + limit);
-
-    // Convert timestamps for paginated results
-    const activities = paginatedActivities.map(activity => convertTimestamps(activity)) as Activity[];
-
-    // Get related data for paginated activities only
-    const activitiesWithDetails: ActivityWithDetails[] = await Promise.all(
-      activities.map(async (activity) => {
-        const details: ActivityWithDetails = { ...activity };
-        
-        // Get actor details if actorId exists
-        if (activity.actorId) {
-          try {
-            const actor = await FirebaseAdminService.getDocument(Collections.USERS, activity.actorId);
-            if (actor) {
-              details.actor = {
-                id: actor.id,
-                name: actor.displayName || actor.email,
-                email: actor.email,
-                role: actor.role,
-                avatar: actor.photoURL
-              };
-            }
-          } catch (error) {
-            console.error('Error fetching actor details:', error);
-          }
-        }
-        
-        // Get target details if targetId exists
-        if (activity.targetId && activity.targetType) {
-          try {
-            let targetCollection = '';
-            switch (activity.targetType) {
-              case 'user':
-                targetCollection = Collections.USERS;
-                break;
-              case 'product':
-                targetCollection = Collections.PRODUCTS;
-                break;
-              case 'category':
-                targetCollection = Collections.PRODUCT_CATEGORIES;
-                break;
-              case 'color':
-                targetCollection = Collections.COLORS;
-                break;
-              case 'order':
-                targetCollection = Collections.ORDERS;
-                break;
-              case 'design':
-                targetCollection = Collections.DESIGNS;
-                break;
-              case 'shop':
-                targetCollection = Collections.SHOP_PROFILES;
-                break;
-              case 'designer':
-                targetCollection = Collections.DESIGNER_PROFILES;
-                break;
-            }
-            
-            if (targetCollection) {
-              const target = await FirebaseAdminService.getDocument(targetCollection, activity.targetId);
-              if (target) {
-                details.target = {
-                  id: target.id,
-                  name: target.name || target.productName || target.categoryName || target.colorName || target.email || 'Unknown',
-                  type: activity.targetType,
-                  url: `/${activity.targetType}s/${target.id}`
-                };
-              }
-            }
-          } catch (error) {
-            console.error('Error fetching target details:', error);
-          }
-        }
-        
-        return details;
-      })
-    );
-
-    // FIXED: Return correct pagination info
-    return NextResponse.json({ 
-      activities: activitiesWithDetails,
-      pagination: {
-        limit,
-        offset,
-        total: totalCount,
-        hasMore: offset + limit < totalCount
-      }
+    const activityService = new ActivityService();
+    const result = await activityService.getActivitiesWithPagination({
+      ...filters,
+      types: types ? types.split(',') : undefined,
+      priority: priority ? priority.split(',') as any : undefined,
+      status: status ? status.split(',') as any : undefined
+    }, {
+      limit,
+      offset,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc'
     });
-  } catch (error) {
+
+    return NextResponse.json(result);
+  } catch (error: any) {
     console.error('Error fetching activities:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch activities' },
+      { 
+        error: error.message || 'Failed to fetch activities'
+      },
       { status: 500 }
     );
   }
 }
 
-// POST /api/activities - Create new activity
+// POST /api/activities - Create a new activity
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session || !['admin', 'business_owner'].includes(session.user.role)) {
+    if (!session || session.user.role !== 'admin') {
       return NextResponse.json(
-        { error: 'Unauthorized - Admin or business owner access required' },
+        { error: 'Unauthorized - Admin access required' },
         { status: 401 }
       );
     }
 
     const body: CreateActivityData = await request.json();
-    
-    // Validate required fields
-    if (!body.type || !body.title || !body.description) {
-      return NextResponse.json(
-        { error: 'Missing required fields: type, title, description' },
-        { status: 400 }
-      );
-    }
+    const activityService = new ActivityService();
 
+    // Convert CreateActivityData to Omit<Activity, 'id'>
     const activityData: Omit<Activity, 'id'> = {
-      type: body.type,
-      title: body.title,
-      description: body.description,
-      priority: body.priority || 'medium',
+      ...body,
+      priority: body.priority || 'low',
       status: 'active',
-      actorId: body.actorId || session.user.id,
-      targetId: body.targetId,
-      targetType: body.targetType,
-      targetName: body.targetName,
-      metadata: body.metadata || {},
-      systemEvent: body.systemEvent,
       createdAt: new Date() as any,
       updatedAt: new Date() as any
     };
 
-    const activity = await FirebaseAdminService.createDocument(
-      Collections.ACTIVITIES,
-      activityData
-    );
+    const activity = await activityService.createActivity(activityData);
 
     return NextResponse.json({ activity }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating activity:', error);
     return NextResponse.json(
-      { error: 'Failed to create activity' },
+      { 
+        error: error.message || 'Failed to create activity'
+      },
       { status: 500 }
     );
   }

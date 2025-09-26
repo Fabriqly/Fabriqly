@@ -36,6 +36,8 @@ export default function TestProductCatalogPage() {
     categoryId: '',
     price: 29.99,
     stockQuantity: 10,
+    sku: 'TEST-001',
+    status: 'draft',
     isCustomizable: true,
     isDigital: false,
     tags: ['test', 'catalog'],

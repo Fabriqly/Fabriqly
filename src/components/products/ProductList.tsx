@@ -6,7 +6,7 @@ import { ProductCard } from './ProductCard';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { 
-  ProductWithDetails, 
+  Product, 
   ProductFilters, 
   ProductSearchResult,
   Category 
@@ -33,7 +33,7 @@ interface ProductListProps {
 
 // State management with useReducer for better performance
 interface ProductListState {
-  products: ProductWithDetails[];
+  products: Product[];
   categories: Category[];
   loading: boolean;
   error: string | null;
@@ -43,7 +43,7 @@ interface ProductListState {
 }
 
 type ProductListAction = 
-  | { type: 'SET_PRODUCTS'; payload: ProductWithDetails[] }
+  | { type: 'SET_PRODUCTS'; payload: Product[] }
   | { type: 'SET_CATEGORIES'; payload: Category[] }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
@@ -192,7 +192,7 @@ const ProductGrid = ({ products, viewMode, onEditProduct, onDeleteProduct, onPub
       ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
       : 'space-y-4'
   }>
-    {products.map((product: ProductWithDetails) => (
+    {products.map((product: Product) => (
       <ProductCard
         key={product.id}
         product={product}
@@ -273,7 +273,7 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
         params.append('businessOwnerId', businessOwnerId);
       }
       
-      // Add other filters
+      // Add all filters including status
       Object.entries(state.filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
           if (Array.isArray(value)) {
@@ -283,6 +283,11 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
           }
         }
       });
+      
+      // If no status filter is provided, show all products for business owners
+      if (!state.filters.status) {
+        params.append('status', 'all');
+      }
 
       const response = await fetch(`/api/products?${params.toString()}`);
       
@@ -306,11 +311,11 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
     dispatch({ type: 'SET_FILTERS', payload: { [key]: value } });
   }, []);
 
-  const handleEditProduct = useCallback((product: ProductWithDetails) => {
+  const handleEditProduct = useCallback((product: Product) => {
     router.push(`/dashboard/products/edit/${product.id}`);
   }, [router]);
 
-  const handleDeleteProduct = useCallback(async (product: ProductWithDetails) => {
+  const handleDeleteProduct = useCallback(async (product: Product) => {
     if (!confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`)) {
       return;
     }
@@ -335,7 +340,7 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
     }
   }, [state.products]);
 
-  const handlePublishProduct = useCallback(async (product: ProductWithDetails) => {
+  const handlePublishProduct = useCallback(async (product: Product) => {
     if (!confirm(`Are you sure you want to publish "${product.name}"? This will make it visible to customers.`)) {
       return;
     }

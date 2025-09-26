@@ -36,9 +36,35 @@ export function CategorySelector({
 
   const loadCategories = async () => {
     try {
-      const response = await fetch('/api/categories?format=tree&includeChildren=true');
+      const response = await fetch('/api/categories?includeInactive=true');
       const data = await response.json();
-      setCategories(data.categories || []);
+      
+      // Build tree structure from flat categories
+      const buildCategoryTree = (categories: Category[]): CategoryNode[] => {
+        const categoryMap = new Map<string, CategoryNode>();
+        const rootCategories: CategoryNode[] = [];
+
+        // First pass: create a map of all categories
+        categories.forEach(category => {
+          categoryMap.set(category.id, { ...category, children: [] });
+        });
+
+        // Second pass: build the tree structure
+        categories.forEach(category => {
+          const parentId = category.parentCategoryId || category.parentId;
+          if (parentId && categoryMap.has(parentId)) {
+            const parent = categoryMap.get(parentId)!;
+            if (!parent.children) parent.children = [];
+            parent.children.push(categoryMap.get(category.id)!);
+          } else {
+            rootCategories.push(categoryMap.get(category.id)!);
+          }
+        });
+
+        return rootCategories;
+      };
+      
+      setCategories(buildCategoryTree(data.categories || []));
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Error loading categories:', error);
@@ -73,10 +99,12 @@ export function CategorySelector({
   };
 
   const filteredCategories = searchTerm 
-    ? flattenCategories(categories).filter(category =>
-        category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (category.description && category.description.toLowerCase().includes(searchTerm.toLowerCase()))
-      )
+    ? flattenCategories(categories).filter(category => {
+        const name = category.categoryName || category.name || '';
+        const description = category.description || '';
+        return name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               description.toLowerCase().includes(searchTerm.toLowerCase());
+      })
     : categories;
 
   const handleSelect = (categoryId: string) => {
@@ -142,7 +170,7 @@ export function CategorySelector({
             )}
             
             <div className="flex-1">
-              <div className="font-medium">{node.name}</div>
+              <div className="font-medium">{node.categoryName || node.name || 'Unnamed Category'}</div>
               {node.description && (
                 <div className="text-sm text-gray-500">{node.description}</div>
               )}
@@ -199,7 +227,7 @@ export function CategorySelector({
       >
         <div className="flex items-center justify-between">
           <span className={selectedCategory || value === '' ? 'text-gray-900' : 'text-gray-500'}>
-            {selectedCategory ? selectedCategory.name : value === '' ? 'All Categories' : placeholder}
+            {selectedCategory ? (selectedCategory.categoryName || selectedCategory.name) : value === '' ? 'All Categories' : placeholder}
           </span>
           <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </div>
@@ -253,7 +281,7 @@ export function CategorySelector({
                     }`}
                   >
                     <div>
-                      <div className="font-medium">{category.name}</div>
+                      <div className="font-medium">{category.categoryName || category.name || 'Unnamed Category'}</div>
                       {category.description && (
                         <div className="text-sm text-gray-500">{category.description}</div>
                       )}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ActivityService } from '@/services/ActivityService';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
 import { 
@@ -58,7 +59,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const activity = await FirebaseAdminService.getDocument(Collections.ACTIVITIES, params.id);
+    const activityService = new ActivityService();
+    const activity = await activityService.getActivity(params.id);
     
     if (!activity) {
       return NextResponse.json(
@@ -67,7 +69,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const convertedActivity = convertTimestamps(activity) as Activity;
+    const convertedActivity = activity;
     
     // Get related data
     const activityWithDetails: ActivityWithDetails = { ...convertedActivity };
@@ -161,14 +163,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const body: UpdateActivityData = await request.json();
     
-    const activity = await FirebaseAdminService.updateDocument(
-      Collections.ACTIVITIES,
-      params.id,
-      {
-        ...body,
-        updatedAt: new Date()
-      }
-    );
+    const activityService = new ActivityService();
+    const activity = await activityService.updateActivity(params.id, body);
 
     return NextResponse.json({ activity });
   } catch (error: any) {
@@ -192,7 +188,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    await FirebaseAdminService.deleteDocument(Collections.ACTIVITIES, params.id);
+    const activityService = new ActivityService();
+    await activityService.deleteActivity(params.id);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
