@@ -22,10 +22,10 @@ export default function TestDebugPage() {
       const mockData = { id: 1, name: 'Test Data', timestamp: new Date() };
       setData(mockData);
       
-      debug.api('/api/test', 'GET', undefined, mockData);
+      debug.api('/api/test', 'GET', mockData);
       debug.log.log('Data loaded successfully:', mockData);
     } catch (error) {
-      debug.api('/api/test', 'GET', undefined, undefined, error);
+      debug.api('/api/test', 'GET', undefined, error);
       debug.log.error('Failed to load data:', error);
     } finally {
       debug.timer.end('load-data');

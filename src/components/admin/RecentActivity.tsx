@@ -110,6 +110,9 @@ export function RecentActivity({
       
       const params = new URLSearchParams({
         limit: limit.toString(),
+        offset: '0',
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
         status: 'active'
       });
       
@@ -125,7 +128,8 @@ export function RecentActivity({
       const data = await response.json();
       
       if (response.ok) {
-        setActivities(data.activities || []);
+        // Use the new paginated response structure
+        setActivities(data.data || data.activities || []);
       } else {
         setError(data.error || 'Failed to load activities');
       }

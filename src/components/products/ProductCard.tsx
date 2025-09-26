@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ProductWithDetails } from '@/types/products';
+import { Product } from '@/types/products';
 import { Button } from '@/components/ui/Button';
 import { 
   Eye, 
@@ -17,10 +17,10 @@ import {
 } from 'lucide-react';
 
 interface ProductCardProps {
-  product: ProductWithDetails;
-  onEdit?: (product: ProductWithDetails) => void;
-  onDelete?: (product: ProductWithDetails) => void;
-  onPublish?: (product: ProductWithDetails) => void;
+  product: Product & { category?: any; images?: any[] };
+  onEdit?: (product: Product) => void;
+  onDelete?: (product: Product) => void;
+  onPublish?: (product: Product) => void;
   showActions?: boolean;
   variant?: 'management' | 'catalog';
 }
@@ -33,7 +33,6 @@ export function ProductCard({
   showActions = true,
   variant = 'management'
 }: ProductCardProps) {
-  const primaryImage = product.images?.find(img => img.isPrimary) || product.images?.[0];
   const statusColor = {
     draft: 'bg-orange-100 text-orange-800',
     active: 'bg-green-100 text-green-800',
@@ -70,6 +69,20 @@ export function ProductCard({
     }
   };
 
+  // Get the primary image or first image
+  const getPrimaryImage = () => {
+    if (!product.images || product.images.length === 0) return null;
+    
+    // Find primary image first
+    const primaryImg = product.images.find((img: any) => img.isPrimary);
+    if (primaryImg) return primaryImg;
+    
+    // Fall back to first image
+    return product.images[0];
+  };
+
+  const primaryImage = getPrimaryImage();
+
   if (variant === 'catalog') {
     return (
       <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden">
@@ -77,15 +90,19 @@ export function ProductCard({
           <div className="aspect-w-16 aspect-h-12 bg-gray-200">
             {primaryImage ? (
               <img
-                src={primaryImage.imageUrl}
+                src={primaryImage.thumbnailUrl || primaryImage.imageUrl}
                 alt={primaryImage.altText || product.name}
                 className="w-full h-48 object-cover"
+                onError={(e) => {
+                  // Fallback to placeholder if image fails to load
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
               />
-            ) : (
-              <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-                <ImageIcon className="w-12 h-12 text-gray-400" />
-              </div>
-            )}
+            ) : null}
+            <div className={`w-full h-48 bg-gray-200 flex items-center justify-center ${primaryImage ? 'hidden' : ''}`}>
+              <ImageIcon className="w-12 h-12 text-gray-400" />
+            </div>
           </div>
         </Link>
         
@@ -126,15 +143,19 @@ export function ProductCard({
             <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
               {primaryImage ? (
                 <img
-                  src={primaryImage.imageUrl}
+                  src={primaryImage.thumbnailUrl || primaryImage.imageUrl}
                   alt={primaryImage.altText || product.name}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback to placeholder if image fails to load
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
                 />
-              ) : (
-                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                  <ImageIcon className="w-6 h-6 text-gray-400" />
-                </div>
-              )}
+              ) : null}
+              <div className={`w-full h-full bg-gray-200 flex items-center justify-center ${primaryImage ? 'hidden' : ''}`}>
+                <ImageIcon className="w-6 h-6 text-gray-400" />
+              </div>
             </div>
             
             {/* Product Info */}
@@ -232,7 +253,9 @@ export function ProductCard({
 
         <div className="flex items-center justify-between text-sm text-gray-500">
           <div className="flex items-center space-x-4">
-            <span>Category: {product.category?.name || 'No Category'}</span>
+            <span>
+              Category: {product.category ? (product.category.categoryName || product.category.name || 'Unknown') : 'No Category'}
+            </span>
             {product.isCustomizable && (
               <span className="text-blue-600 font-medium">Customizable</span>
             )}

@@ -154,7 +154,8 @@ export default function AdminActivitiesPage() {
       const data = await response.json();
       
       if (response.ok) {
-        setActivities(data.activities || []);
+        // Use the new paginated response structure
+        setActivities(data.data || data.activities || []);
         const paginationData = data.pagination || {
           limit: 20,
           offset: 0,

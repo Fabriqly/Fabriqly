@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { formatRelativeTime } from '@/utils/timestamp';
+import { Activity } from '@/types/activity';
 
 export default function TestActivityPage() {
-  const [activities, setActivities] = useState([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -45,7 +46,7 @@ export default function TestActivityPage() {
         setMessage(`❌ Failed to create activity: ${data.error}`);
       }
     } catch (error) {
-      setMessage(`❌ Error: ${error.message}`);
+      setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -66,13 +67,13 @@ export default function TestActivityPage() {
         setMessage(`❌ Failed to fetch activities: ${data.error}`);
       }
     } catch (error) {
-      setMessage(`❌ Error: ${error.message}`);
+      setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteActivity = async (id) => {
+  const deleteActivity = async (id: string) => {
     setLoading(true);
     setMessage('');
     
@@ -89,7 +90,7 @@ export default function TestActivityPage() {
         setMessage(`❌ Failed to delete activity: ${data.error}`);
       }
     } catch (error) {
-      setMessage(`❌ Error: ${error.message}`);
+      setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }

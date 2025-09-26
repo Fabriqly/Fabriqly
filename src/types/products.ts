@@ -6,11 +6,16 @@ export type ProductStatus = 'draft' | 'active' | 'inactive' | 'out_of_stock';
 // Product Categories
 export interface Category {
   id: string;
-  name: string;
+  categoryName: string; // Database field name
+  name?: string; // Alias for backward compatibility
   description?: string;
-  parentId?: string; // For subcategories
+  parentCategoryId?: string; // Database field name for subcategories
+  parentId?: string; // Alias for backward compatibility
   slug: string; // URL-friendly name
   isActive: boolean;
+  level?: number; // Hierarchy level (0 for root categories)
+  path?: string[]; // Breadcrumb path for hierarchy
+  sortOrder?: number; // For ordering categories
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -130,7 +135,7 @@ export interface ProductFilters {
 
 // Product Search Results
 export interface ProductSearchResult {
-  products: ProductWithDetails[];
+  products: Product[];
   total: number;
   hasMore: boolean;
   filters: ProductFilters;

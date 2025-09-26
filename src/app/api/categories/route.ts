@@ -1,141 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { FirebaseAdminService } from '@/services/firebase-admin';
-import { Collections } from '@/services/firebase';
+import { CategoryService } from '@/services/CategoryService';
 import { 
   Category, 
   CreateCategoryData, 
   UpdateCategoryData 
 } from '@/types/products';
 
-// GET /api/categories - List all categories with hierarchical support
+// GET /api/categories - List all categories
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get('includeInactive') === 'true';
     const parentId = searchParams.get('parentId');
     const level = searchParams.get('level');
-    const includeChildren = searchParams.get('includeChildren') === 'true';
     const format = searchParams.get('format') || 'flat'; // 'flat' or 'tree'
 
-    // Build query constraints
-    const constraints = [];
-    
-    // Temporarily remove isActive filter to avoid index requirement
-    // TODO: Create Firestore index for isActive + sortOrder
-    // if (!includeInactive) {
-    //   constraints.push({ field: 'isActive', operator: '==' as const, value: true });
-    // }
-    
-    if (parentId !== null) {
+    const categoryService = new CategoryService();
+
+    let categories: Category[] = [];
+
+    if (format === 'tree') {
+      const hierarchy = await categoryService.getCategoryHierarchy();
+      categories = hierarchy.map(item => item.category);
+    } else if (parentId !== null) {
       if (parentId === '') {
-        // Get only root categories (no parent)
-        constraints.push({ field: 'parentCategoryId', operator: '==' as const, value: null });
+        categories = await categoryService.getRootCategories();
       } else {
-        constraints.push({ field: 'parentCategoryId', operator: '==' as const, value: parentId });
+        categories = await categoryService.getSubcategories(parentId);
       }
-    }
-    
-    if (level !== null) {
-      constraints.push({ field: 'level', operator: '==' as const, value: parseInt(level) });
-    }
-
-    const categories = await FirebaseAdminService.queryDocuments(
-      Collections.PRODUCT_CATEGORIES,
-      constraints,
-      { field: 'sortOrder', direction: 'asc' }
-    );
-
-    // Transform categories from old format to new format
-    const transformedCategories = categories.map(cat => ({
-      id: cat.id,
-      name: cat.name || cat.categoryName, // Handle both old and new formats
-      description: cat.description,
-      slug: cat.slug,
-      parentId: cat.parentId || cat.parentCategoryId, // Handle both old and new formats
-      isActive: cat.isActive !== false,
-      createdAt: cat.createdAt,
-      updatedAt: cat.updatedAt,
-      // Keep additional fields for backward compatibility
-      ...(cat.level !== undefined && { level: cat.level }),
-      ...(cat.path && { path: cat.path }),
-      ...(cat.sortOrder !== undefined && { sortOrder: cat.sortOrder }),
-      ...(cat.iconUrl && { iconUrl: cat.iconUrl })
-    }));
-
-    // Filter by isActive in memory to avoid index requirement
-    const filteredCategories = !includeInactive 
-      ? transformedCategories.filter(cat => cat.isActive !== false)
-      : transformedCategories;
-
-    if (format === 'tree' || includeChildren) {
-      // Build hierarchical tree structure
-      console.log('Building tree with categories:', filteredCategories.map(c => ({ id: c.id, name: c.name, parentId: c.parentId })));
-      const categoryTree = await buildCategoryTree(filteredCategories, includeChildren);
-      console.log('Built tree:', categoryTree.map(c => ({ id: c.id, name: c.name, childrenCount: c.children?.length || 0 })));
-      return NextResponse.json({ categories: categoryTree });
+    } else if (level !== null) {
+      // Get categories by level
+      const allCategories = await categoryService.getCategories();
+      categories = allCategories.filter(cat => cat.level === parseInt(level));
+    } else {
+      categories = await categoryService.getCategories();
     }
 
-    return NextResponse.json({ categories: filteredCategories });
-  } catch (error) {
+    // Filter out inactive categories if not requested
+    if (!includeInactive) {
+      categories = categories.filter(cat => cat.isActive);
+    }
+
+    return NextResponse.json({ categories });
+  } catch (error: any) {
     console.error('Error fetching categories:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: error.message || 'Failed to fetch categories'
+      },
       { status: 500 }
     );
   }
-}
-
-// Helper function to build category tree
-async function buildCategoryTree(categories: any[], includeChildren: boolean = false) {
-  const categoryMap = new Map();
-  const rootCategories: any[] = [];
-
-  // First pass: create map of all categories
-  categories.forEach(category => {
-    categoryMap.set(category.id, {
-      ...category,
-      children: []
-    });
-  });
-
-  // Second pass: build tree structure
-  categories.forEach(category => {
-    const categoryNode = categoryMap.get(category.id);
-    
-    console.log(`Processing category ${category.name} (${category.id}) with parentId: ${category.parentId}`);
-    
-    if (category.parentId) {
-      const parent = categoryMap.get(category.parentId);
-      if (parent) {
-        console.log(`  Adding ${category.name} as child of ${parent.name}`);
-        parent.children.push(categoryNode);
-      } else {
-        console.log(`  Parent not found for ${category.name}, adding as root`);
-        rootCategories.push(categoryNode);
-      }
-    } else {
-      console.log(`  Adding ${category.name} as root category`);
-      rootCategories.push(categoryNode);
-    }
-  });
-
-  // If includeChildren is false, remove children from non-root categories
-  if (!includeChildren) {
-    const removeChildren = (node: any) => {
-      if (node.children && node.children.length > 0) {
-        node.children = node.children.map((child: any) => {
-          const { children, ...childWithoutChildren } = child;
-          return childWithoutChildren;
-        });
-      }
-    };
-    
-    rootCategories.forEach(removeChildren);
-  }
-
-  return rootCategories;
 }
 
 // POST /api/categories - Create a new category (admin only)
@@ -151,129 +68,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateCategoryData = await request.json();
-    
-    // Validate required fields
-    if (!body.name || !body.slug) {
-      return NextResponse.json(
-        { error: 'Missing required fields: name, slug' },
-        { status: 400 }
-      );
-    }
+    const categoryService = new CategoryService();
 
-    // Check if slug already exists
-    const existingCategory = await FirebaseAdminService.queryDocuments(
-      Collections.PRODUCT_CATEGORIES,
-      [{ field: 'slug', operator: '==' as const, value: body.slug }]
-    );
-
-    if (existingCategory.length > 0) {
-      return NextResponse.json(
-        { error: 'Category with this slug already exists' },
-        { status: 400 }
-      );
-    }
-
-    // Calculate level and path based on parent
-    let level = 0;
-    let path: string[] = [body.name];
-    
-    if (body.parentId) {
-      const parentCategory = await FirebaseAdminService.getDocument(
-        Collections.PRODUCT_CATEGORIES,
-        body.parentId
-      );
-      
-      if (!parentCategory) {
-        return NextResponse.json(
-          { error: 'Parent category not found' },
-          { status: 400 }
-        );
-      }
-      
-      level = parentCategory.level + 1;
-      path = [...(parentCategory.path || []), body.name];
-      
-      // Prevent too deep nesting (max 5 levels)
-      if (level > 5) {
-        return NextResponse.json(
-          { error: 'Maximum category depth exceeded (5 levels max)' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Get next sort order
-    const siblings = await FirebaseAdminService.queryDocuments(
-      Collections.PRODUCT_CATEGORIES,
-      [{ field: 'parentCategoryId', operator: '==' as const, value: body.parentId || null }]
-    );
-    const sortOrder = siblings.length;
-
-    const categoryData = {
-      categoryName: body.name, // Store as categoryName for backward compatibility
-      description: body.description,
-      slug: body.slug,
-      ...(body.parentId && { parentCategoryId: body.parentId }), // Store as parentCategoryId
-      ...(body.iconUrl && { iconUrl: body.iconUrl }), // Add iconUrl support
-      level: level, // Add level for hierarchy
-      path: path, // Add path for hierarchy
-      isActive: body.isActive !== false, // Default to true
-      sortOrder: sortOrder, // Add sortOrder for backward compatibility
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    const category = await FirebaseAdminService.createDocument(
-      Collections.PRODUCT_CATEGORIES,
-      categoryData
-    );
-
-    // Log activity
-    try {
-      // Helper function to filter out undefined values
-      const filterUndefined = (obj: any) => {
-        const filtered: any = {};
-        for (const [key, value] of Object.entries(obj)) {
-          if (value !== undefined) {
-            filtered[key] = value;
-          }
-        }
-        return filtered;
-      };
-
-      const metadata = filterUndefined({
-        categoryName: body.name,
-        slug: body.slug,
-        parentId: body.parentId,
-        level: level,
-        path: path,
-        createdBy: session.user.role
-      });
-
-      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
-        type: 'category_created',
-        title: 'Category Created',
-        description: `New category "${body.name}" has been created`,
-        priority: 'medium',
-        status: 'active',
-        actorId: session.user.id,
-        targetId: category.id,
-        targetType: 'category',
-        targetName: body.name,
-        metadata
-      });
-    } catch (activityError) {
-      console.error('Error logging category creation activity:', activityError);
-      // Don't fail the creation if activity logging fails
-    }
+    const category = await categoryService.createCategory(body, session.user.id);
 
     return NextResponse.json({ category }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating category:', error);
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { 
+        error: error.message || 'Failed to create category'
+      },
       { status: 500 }
     );
   }
 }
-
