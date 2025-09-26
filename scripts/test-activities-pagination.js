@@ -65,3 +65,4 @@ console.log('- testActivitiesPagination() - Test pagination functionality');
 
 // Auto-run the test
 testActivitiesPagination();
+

@@ -123,3 +123,4 @@ console.log('- cleanupTestActivities() - Clean up test activities');
 
 // Auto-run the test
 createTestActivities();
+

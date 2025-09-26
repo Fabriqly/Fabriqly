@@ -37,3 +37,4 @@ await ActivityLogger.logCategoryCreation(
   category.categoryName, 
   session.user.id
 );
+

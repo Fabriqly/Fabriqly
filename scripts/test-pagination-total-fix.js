@@ -79,3 +79,4 @@ console.log('- testPaginationTotalFix() - Test pagination total count fix');
 
 // Auto-run the test
 testPaginationTotalFix();
+
