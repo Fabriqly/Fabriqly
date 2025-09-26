@@ -102,7 +102,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             targetCollection = Collections.PRODUCTS;
             break;
           case 'category':
-            targetCollection = Collections.CATEGORIES;
+            targetCollection = Collections.PRODUCT_CATEGORIES;
             break;
           case 'color':
             targetCollection = Collections.COLORS;

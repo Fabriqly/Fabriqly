@@ -4,7 +4,7 @@ This directory contains testing and utility scripts for the Fabriqly application
 
 ## Dashboard Testing
 
-### `test-dashboard-browser.md`
+### `../docs/test-dashboard-browser.md`
 Browser-based testing guide for the dashboard functionality. Use this for manual testing.
 
 ### `init-dashboard-snapshots.js`
@@ -45,7 +45,7 @@ node scripts/test-color-management.js
 
 ## Usage Guidelines
 
-1. **Dashboard Testing**: Use `test-dashboard-browser.md` for manual testing.
+1. **Dashboard Testing**: Use `../docs/test-dashboard-browser.md` for manual testing.
 
 2. **Analytics Testing**: Use `test-analytics-browser.js` for manual testing.
 

@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
       
       const activity = await FirebaseAdminService.createDocument(Collections.ACTIVITIES, activityData);
       console.log('✅ Color creation activity logged successfully:', activity.id);
-    } catch (activityError) {
+    } catch (activityError: any) {
       console.error('❌ Error logging color creation activity:', activityError);
       console.error('Activity error details:', activityError.message);
       console.error('Activity error stack:', activityError.stack);

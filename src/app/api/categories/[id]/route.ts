@@ -148,7 +148,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // Prepare update data - transform to old field format for database compatibility
-    const updateData = {
+    const updateData: any = {
       ...(body.name && { categoryName: body.name }),
       ...(body.description !== undefined && { description: body.description }),
       ...(body.slug && { slug: body.slug }),
@@ -204,7 +204,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // If parent changed, update all children's paths
-    if (body.parentCategoryId !== undefined && body.parentCategoryId !== existingCategory.parentCategoryId) {
+    if (body.parentId !== undefined && body.parentId !== (existingCategory.parentId || existingCategory.parentCategoryId)) {
       await updateChildrenPaths(categoryId, path);
     }
 

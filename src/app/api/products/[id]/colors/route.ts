@@ -9,6 +9,7 @@ import {
   UpdateProductColorData,
   Color
 } from '@/types/enhanced-products';
+import { Timestamp } from 'firebase/firestore';
 
 interface RouteParams {
   params: {
@@ -190,7 +191,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       priceAdjustment: body.priceAdjustment || 0,
       isAvailable: body.isAvailable !== undefined ? body.isAvailable : true,
       stockQuantity: body.stockQuantity,
-      createdAt: new Date()
+      createdAt: Timestamp.now()
     };
 
     const productColor = await FirebaseAdminService.createDocument(

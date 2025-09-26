@@ -6,8 +6,10 @@ import { Collections } from '@/services/firebase';
 import { 
   Product, 
   UpdateProductData, 
-  ProductWithDetails 
+  ProductWithDetails,
+  ProductImage
 } from '@/types/products';
+import { Timestamp } from 'firebase/firestore';
 
 interface RouteParams {
   params: {
@@ -224,7 +226,7 @@ export async function PUT(
 
     // Prepare update data - only include fields that are being updated
     const updateData: Partial<Product> = {
-      updatedAt: new Date()
+      updatedAt: Timestamp.now()
     };
 
     // Update fields only if they're provided
@@ -245,7 +247,7 @@ export async function PUT(
       if (body.weight > 0) {
         updateData.weight = Number(body.weight);
       } else {
-        updateData.weight = null; // Remove weight if set to 0 or negative
+        updateData.weight = undefined; // Remove weight if set to 0 or negative
       }
     }
     
@@ -439,7 +441,7 @@ export async function DELETE(
       
       const activity = await FirebaseAdminService.createDocument(Collections.ACTIVITIES, activityData);
       console.log('✅ Activity logged successfully:', activity.id);
-    } catch (activityError) {
+    } catch (activityError: any) {
       console.error('❌ Error logging product deletion activity:', activityError);
       console.error('Activity error details:', activityError.message);
       console.error('Activity error stack:', activityError.stack);
@@ -580,7 +582,7 @@ async function deleteProductImages(productId: string) {
   try {
     const images = await fetchProductImages(productId);
     await Promise.all(
-      images.map(image => 
+      images.map((image: ProductImage) => 
         FirebaseAdminService.deleteDocument(Collections.PRODUCT_IMAGES, image.id)
       )
     );

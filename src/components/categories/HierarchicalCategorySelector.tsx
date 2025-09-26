@@ -41,7 +41,9 @@ export function HierarchicalCategorySelector({
       const data = await response.json();
       setCategories(data.categories || []);
     } catch (error) {
-      console.error('Error loading categories:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading categories:', error);
+      }
     } finally {
       setLoading(false);
     }
@@ -133,7 +135,7 @@ export function HierarchicalCategorySelector({
             )}
             
             <div className="flex-1">
-              <div className="font-medium">{node.name}</div>
+              <div className="font-medium">{node.categoryName}</div>
               {showPath && node.path && node.path.length > 1 && (
                 <div className="text-xs text-gray-500">
                   {node.path.join(' > ')}
@@ -176,7 +178,7 @@ export function HierarchicalCategorySelector({
           <span className={selectedCategory || value === '' ? 'text-gray-900' : 'text-gray-500'}>
             {selectedCategory ? (
               <div>
-                <div>{selectedCategory.name}</div>
+                <div>{selectedCategory.categoryName}</div>
                 {showPath && selectedCategory.path && selectedCategory.path.length > 1 && (
                   <div className="text-xs text-gray-500">
                     {selectedCategory.path.join(' > ')}

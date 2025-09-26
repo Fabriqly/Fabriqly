@@ -361,3 +361,21 @@ export interface UpdateProductColorData {
   isAvailable?: boolean;
   stockQuantity?: number;
 }
+
+// Category Creation/Update DTOs
+export interface CreateCategoryData {
+  categoryName: string;
+  description?: string;
+  slug: string;
+  iconUrl?: string;
+  parentCategoryId?: string;
+  isActive: boolean;
+}
+
+export interface UpdateCategoryData extends Partial<CreateCategoryData> {
+  id: string;
+}
+
+export interface UpdateSizeChartData extends Partial<CreateSizeChartData> {
+  id: string;
+}

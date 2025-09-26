@@ -224,7 +224,7 @@ const EmptyState = ({ hasActiveFilters, onClearFilters, onCreateProduct }: any) 
           Clear Filters
         </Button>
       ) : (
-        <Button onClick={onCreateProduct} className="flex items-center space-x-2">
+        <Button onClick={onCreateProduct} variant="primary" className="flex items-center space-x-2">
           <Plus className="w-4 h-4" />
           <span>Create Product</span>
         </Button>
@@ -255,7 +255,9 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
         dispatch({ type: 'SET_CATEGORIES', payload: data.categories || [] });
       }
     } catch (error) {
-      console.error('Error loading categories:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading categories:', error);
+      }
     }
   }, []);
 
@@ -291,7 +293,9 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
       const data: ProductSearchResult = await response.json();
       dispatch({ type: 'SET_SEARCH_RESULT', payload: data });
     } catch (error: any) {
-      console.error('Error loading products:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading products:', error);
+      }
       dispatch({ type: 'SET_ERROR', payload: error.message || 'Failed to load products' });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -324,7 +328,9 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
         alert(error.error || 'Failed to delete product');
       }
     } catch (error) {
-      console.error('Error deleting product:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error deleting product:', error);
+      }
       alert('Failed to delete product');
     }
   }, [state.products]);
@@ -353,7 +359,9 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
         alert(error.error || 'Failed to publish product');
       }
     } catch (error) {
-      console.error('Error publishing product:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error publishing product:', error);
+      }
       alert('Failed to publish product');
     }
   }, [state.products]);
@@ -364,7 +372,9 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
 
   const handleExport = useCallback(() => {
     // TODO: Implement CSV export
-    console.log('Export functionality to be implemented');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Export functionality to be implemented');
+    }
   }, []);
 
   const handleLoadMore = useCallback(() => {
@@ -426,7 +436,7 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
           {/* View Mode Toggle */}
           <div className="flex items-center border border-gray-300 rounded-md">
             <Button
-              variant={state.viewMode === 'grid' ? 'default' : 'outline'}
+              variant={state.viewMode === 'grid' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'grid' })}
               className="rounded-r-none border-r-0"
@@ -434,7 +444,7 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
               <Grid className="w-4 h-4" />
             </Button>
             <Button
-              variant={state.viewMode === 'list' ? 'default' : 'outline'}
+              variant={state.viewMode === 'list' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'list' })}
               className="rounded-l-none"

@@ -138,12 +138,12 @@ export function CategoryManagement({ onCategoryChange }: CategoryManagementProps
                 {node.iconUrl && (
                   <img
                     src={node.iconUrl}
-                    alt={node.name}
+                    alt={node.categoryName}
                     className="w-6 h-6 object-cover rounded"
                   />
                 )}
                 <div>
-                  <div className="font-medium text-gray-900">{node.name}</div>
+                  <div className="font-medium text-gray-900">{node.categoryName}</div>
                   <div className="text-sm text-gray-500">
                     {node.description || 'No description'}
                   </div>
@@ -263,11 +263,11 @@ interface CategoryFormProps {
 function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateCategoryData>({
-    name: '',
+    categoryName: '',
     description: '',
     slug: '',
     iconUrl: '',
-    parentId: undefined,
+    parentCategoryId: undefined,
     isActive: true
   });
 
@@ -278,11 +278,11 @@ function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) {
     
     if (category) {
       setFormData({
-        name: category.name,
+        categoryName: category.categoryName,
         description: category.description || '',
         slug: category.slug,
         iconUrl: category.iconUrl || '',
-        parentId: category.parentId,
+        parentCategoryId: category.parentCategoryId,
         isActive: category.isActive
       });
     }
@@ -299,7 +299,7 @@ function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) {
   };
 
   const handleInputChange = (field: keyof CreateCategoryData, value: any) => {
-    setFormData(prev => ({
+    setFormData((prev: CreateCategoryData) => ({
       ...prev,
       [field]: value
     }));
@@ -360,9 +360,9 @@ function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) {
               Category Name *
             </label>
             <Input
-              value={formData.name}
+              value={formData.categoryName}
               onChange={(e) => {
-                handleInputChange('name', e.target.value);
+                handleInputChange('categoryName', e.target.value);
                 if (!category) {
                   handleInputChange('slug', generateSlug(e.target.value));
                 }
@@ -403,8 +403,8 @@ function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) {
             Parent Category
           </label>
           <HierarchicalCategorySelector
-            value={formData.parentId || ''}
-            onChange={(categoryId) => handleInputChange('parentId', categoryId || undefined)}
+            value={formData.parentCategoryId || ''}
+            onChange={(categoryId) => handleInputChange('parentCategoryId', categoryId || undefined)}
             placeholder="Select parent category (optional)"
             showPath={true}
           />

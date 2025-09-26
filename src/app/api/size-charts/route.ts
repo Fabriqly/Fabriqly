@@ -8,6 +8,7 @@ import {
   CreateSizeChartData, 
   UpdateSizeChartData 
 } from '@/types/enhanced-products';
+import { Timestamp } from 'firebase/firestore';
 
 // GET /api/size-charts - List size charts
 export async function GET(request: NextRequest) {
@@ -86,8 +87,8 @@ export async function POST(request: NextRequest) {
       sizeData: body.sizeData,
       categoryId: body.categoryId,
       isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
     };
 
     const sizeChart = await FirebaseAdminService.createDocument(
