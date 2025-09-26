@@ -22,7 +22,7 @@ interface ProductCardProps {
   onDelete?: (product: ProductWithDetails) => void;
   onPublish?: (product: ProductWithDetails) => void;
   showActions?: boolean;
-  variant?: 'management' | 'catalog';
+  variant?: 'management' | 'catalog' | 'customer';
 }
 
 export function ProductCard({ 
@@ -69,6 +69,97 @@ export function ProductCard({
       return 'No date available';
     }
   };
+
+  if (variant === 'customer') {
+    return (
+      <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden group">
+        <Link href={`/products/${product.id}`}>
+          <div className="aspect-square bg-gray-100 relative overflow-hidden">
+            {primaryImage ? (
+              <img
+                src={primaryImage.imageUrl}
+                alt={primaryImage.altText || product.name}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400">
+                <ImageIcon className="w-12 h-12" />
+              </div>
+            )}
+            
+            {/* Discount badge - if applicable */}
+            {product.compareAtPrice && product.compareAtPrice > product.price && (
+              <div className="absolute top-2 left-2">
+                <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                  -{Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)}%
+                </span>
+              </div>
+            )}
+          </div>
+        </Link>
+
+        <div className="p-3">
+          {/* Product Name */}
+          <Link href={`/products/${product.id}`}>
+            <h3 className="text-sm font-medium text-gray-900 hover:text-indigo-600 transition-colors mb-2 line-clamp-2 leading-tight">
+              {product.name}
+            </h3>
+          </Link>
+
+          {/* Tags */}
+          {product.tags?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-3">
+              {product.tags.slice(0, 2).map((tag, index) => (
+                <span
+                  key={index}
+                  className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full"
+                >
+                  {tag}
+                </span>
+              ))}
+              {product.tags.length > 2 && (
+                <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-full">
+                  +{product.tags.length - 2}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Price */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="text-lg font-bold text-indigo-600">
+                {formatPrice(product.price)}
+              </span>
+              {product.compareAtPrice && product.compareAtPrice > product.price && (
+                <span className="text-sm text-gray-500 line-through">
+                  {formatPrice(product.compareAtPrice)}
+                </span>
+              )}
+            </div>
+            
+            {/* Special badges */}
+            <div className="flex items-center space-x-1">
+              {product.isCustomizable && (
+                <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
+                  Custom
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Special offers */}
+          {product.tags?.some(tag => tag.toLowerCase().includes('new')) && (
+            <div className="mt-2">
+              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
+                New User Exclusive
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (variant === 'catalog') {
     return (
