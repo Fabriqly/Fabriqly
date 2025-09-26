@@ -24,50 +24,47 @@ interface DashboardStats {
   pendingOrders: number;
 }
 
+interface PercentageChange {
+  value: number;
+  type: 'positive' | 'negative' | 'neutral';
+}
+
+interface DashboardData {
+  current: DashboardStats;
+  changes: {
+    totalUsers: PercentageChange;
+    totalProducts: PercentageChange;
+    totalCategories: PercentageChange;
+    totalOrders: PercentageChange;
+    totalRevenue: PercentageChange;
+    activeProducts: PercentageChange;
+    pendingOrders: PercentageChange;
+  };
+  period: string;
+  comparisonDate: string;
+}
+
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalUsers: 0,
-    totalProducts: 0,
-    totalCategories: 0,
-    totalOrders: 0,
-    totalRevenue: 0,
-    activeProducts: 0,
-    pendingOrders: 0
-  });
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState('7d');
 
   useEffect(() => {
     loadDashboardStats();
-  }, []);
+  }, [period]);
 
   const loadDashboardStats = async () => {
     try {
       setLoading(true);
       
-      // Load all stats in parallel
-      const [usersRes, productsRes, categoriesRes, ordersRes] = await Promise.all([
-        fetch('/api/users'),
-        fetch('/api/products'),
-        fetch('/api/categories'),
-        fetch('/api/orders')
-      ]);
-
-      const [users, products, categories, orders] = await Promise.all([
-        usersRes.json(),
-        productsRes.json(),
-        ordersRes.json(),
-        categoriesRes.json()
-      ]);
-
-      setStats({
-        totalUsers: users.users?.length || 0,
-        totalProducts: products.products?.length || 0,
-        totalCategories: categories.categories?.length || 0,
-        totalOrders: orders.orders?.length || 0,
-        totalRevenue: orders.totalRevenue || 0,
-        activeProducts: products.products?.filter((p: any) => p.status === 'active').length || 0,
-        pendingOrders: orders.orders?.filter((o: any) => o.status === 'pending').length || 0
-      });
+      const response = await fetch(`/api/dashboard-stats?period=${period}`);
+      const data = await response.json();
+      
+      if (response.ok) {
+        setDashboardData(data);
+      } else {
+        console.error('Error loading dashboard stats:', data.error);
+      }
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
     } finally {
@@ -75,56 +72,68 @@ export default function AdminDashboard() {
     }
   };
 
-  const statCards = [
-    {
-      name: 'Total Users',
-      value: stats.totalUsers,
-      icon: Users,
-      color: 'bg-blue-500',
-      change: '+12%',
-      changeType: 'positive'
-    },
-    {
-      name: 'Total Products',
-      value: stats.totalProducts,
-      icon: Package,
-      color: 'bg-green-500',
-      change: '+8%',
-      changeType: 'positive'
-    },
-    {
-      name: 'Categories',
-      value: stats.totalCategories,
-      icon: FolderOpen,
-      color: 'bg-purple-500',
-      change: '+2',
-      changeType: 'positive'
-    },
-    {
-      name: 'Total Orders',
-      value: stats.totalOrders,
-      icon: ShoppingCart,
-      color: 'bg-orange-500',
-      change: '+15%',
-      changeType: 'positive'
-    },
-    {
-      name: 'Revenue',
-      value: `$${stats.totalRevenue.toLocaleString()}`,
-      icon: DollarSign,
-      color: 'bg-emerald-500',
-      change: '+23%',
-      changeType: 'positive'
-    },
-    {
-      name: 'Active Products',
-      value: stats.activeProducts,
-      icon: CheckCircle,
-      color: 'bg-green-500',
-      change: `${Math.round((stats.activeProducts / Math.max(stats.totalProducts, 1)) * 100)}%`,
-      changeType: 'positive'
-    }
-  ];
+  const getStatCards = () => {
+    if (!dashboardData) return [];
+
+    const { current, changes } = dashboardData;
+
+    const formatChange = (change: PercentageChange) => {
+      if (change.value === 0) return '0%';
+      const sign = change.type === 'positive' ? '+' : change.type === 'negative' ? '-' : '';
+      return `${sign}${change.value}%`;
+    };
+
+    return [
+      {
+        name: 'Total Users',
+        value: current.totalUsers,
+        icon: Users,
+        color: 'bg-blue-500',
+        change: formatChange(changes.totalUsers),
+        changeType: changes.totalUsers.type
+      },
+      {
+        name: 'Total Products',
+        value: current.totalProducts,
+        icon: Package,
+        color: 'bg-green-500',
+        change: formatChange(changes.totalProducts),
+        changeType: changes.totalProducts.type
+      },
+      {
+        name: 'Categories',
+        value: current.totalCategories,
+        icon: FolderOpen,
+        color: 'bg-purple-500',
+        change: formatChange(changes.totalCategories),
+        changeType: changes.totalCategories.type
+      },
+      {
+        name: 'Total Orders',
+        value: current.totalOrders,
+        icon: ShoppingCart,
+        color: 'bg-orange-500',
+        change: formatChange(changes.totalOrders),
+        changeType: changes.totalOrders.type
+      },
+      {
+        name: 'Revenue',
+        value: `$${current.totalRevenue.toLocaleString()}`,
+        icon: DollarSign,
+        color: 'bg-emerald-500',
+        change: formatChange(changes.totalRevenue),
+        changeType: changes.totalRevenue.type
+      },
+      {
+        name: 'Active Products',
+        value: current.activeProducts,
+        icon: CheckCircle,
+        color: 'bg-green-500',
+        change: `${Math.round((current.activeProducts / Math.max(current.totalProducts, 1)) * 100)}%`,
+        changeType: 'positive'
+      }
+    ];
+  };
 
   if (loading) {
     return (
@@ -140,16 +149,34 @@ export default function AdminDashboard() {
     <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Welcome to the Fabriqly admin panel. Here's an overview of your platform.
-          </p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Welcome to the Fabriqly admin panel. Here's an overview of your platform.
+            </p>
+            {dashboardData && (
+              <p className="mt-1 text-xs text-gray-400">
+                Changes compared to {dashboardData.comparisonDate} ({dashboardData.period})
+              </p>
+            )}
+          </div>
+          <div className="flex space-x-2">
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+            </select>
+          </div>
         </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {statCards.map((stat) => {
+          {getStatCards().map((stat) => {
             const Icon = stat.icon;
             return (
               <div
@@ -169,7 +196,8 @@ export default function AdminDashboard() {
                     {stat.value}
                   </p>
                   <p className={`ml-2 flex items-baseline text-sm font-semibold ${
-                    stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                    stat.changeType === 'positive' ? 'text-green-600' : 
+                    stat.changeType === 'negative' ? 'text-red-600' : 'text-gray-500'
                   }`}>
                     {stat.change}
                   </p>
