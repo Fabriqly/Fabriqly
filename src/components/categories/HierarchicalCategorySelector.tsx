@@ -100,16 +100,11 @@ export function HierarchicalCategorySelector({
             isSelected ? 'bg-blue-50 text-blue-700' : 'text-gray-900'
           }`}
           style={{ paddingLeft: `${depth * 20 + 12}px` }}
-          onClick={() => {
-            if (hasChildren) {
-              toggleExpanded(node.id);
-            } else {
-              handleSelect(node.id);
-            }
-          }}
+          onClick={() => handleSelect(node.id)}
         >
           {hasChildren ? (
             <button
+              type="button"
               className="mr-2 p-1 hover:bg-gray-200 rounded"
               onClick={(e) => {
                 e.stopPropagation();
@@ -190,8 +185,8 @@ export function HierarchicalCategorySelector({
               </div>
             ) : value === '' ? (
               <div>
-                <div>None (Parent Category)</div>
-                <div className="text-xs text-gray-500">Top-level category</div>
+                <div>All Categories</div>
+                <div className="text-xs text-gray-500">Show products from all categories</div>
               </div>
             ) : (
               placeholder
@@ -204,7 +199,7 @@ export function HierarchicalCategorySelector({
       {isOpen && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-y-auto">
           <div className="py-2">
-            {/* None option for parent category */}
+            {/* All Categories option */}
             <div
               className={`flex items-center py-2 px-3 hover:bg-gray-50 cursor-pointer ${
                 value === '' ? 'bg-blue-50 text-blue-700' : 'text-gray-900'
@@ -213,8 +208,8 @@ export function HierarchicalCategorySelector({
             >
               <div className="w-6 mr-2" />
               <div className="flex-1">
-                <div className="font-medium">None (Parent Category)</div>
-                <div className="text-xs text-gray-500">Create as a top-level category</div>
+                <div className="font-medium">All Categories</div>
+                <div className="text-xs text-gray-500">Show products from all categories</div>
               </div>
             </div>
             

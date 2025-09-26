@@ -71,7 +71,9 @@ export async function GET(request: NextRequest) {
 
     if (format === 'tree' || includeChildren) {
       // Build hierarchical tree structure
+      console.log('Building tree with categories:', filteredCategories.map(c => ({ id: c.id, name: c.name, parentId: c.parentId })));
       const categoryTree = await buildCategoryTree(filteredCategories, includeChildren);
+      console.log('Built tree:', categoryTree.map(c => ({ id: c.id, name: c.name, childrenCount: c.children?.length || 0 })));
       return NextResponse.json({ categories: categoryTree });
     }
 
@@ -102,12 +104,19 @@ async function buildCategoryTree(categories: any[], includeChildren: boolean = f
   categories.forEach(category => {
     const categoryNode = categoryMap.get(category.id);
     
-    if (category.parentCategoryId) {
-      const parent = categoryMap.get(category.parentCategoryId);
+    console.log(`Processing category ${category.name} (${category.id}) with parentId: ${category.parentId}`);
+    
+    if (category.parentId) {
+      const parent = categoryMap.get(category.parentId);
       if (parent) {
+        console.log(`  Adding ${category.name} as child of ${parent.name}`);
         parent.children.push(categoryNode);
+      } else {
+        console.log(`  Parent not found for ${category.name}, adding as root`);
+        rootCategories.push(categoryNode);
       }
     } else {
+      console.log(`  Adding ${category.name} as root category`);
       rootCategories.push(categoryNode);
     }
   });
