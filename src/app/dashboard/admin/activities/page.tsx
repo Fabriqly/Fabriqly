@@ -154,14 +154,32 @@ export default function AdminActivitiesPage() {
       const data = await response.json();
       
       if (response.ok) {
-        // Use the new paginated response structure
-        setActivities(data.data || data.activities || []);
-        const paginationData = data.pagination || {
+        // Handle the new standardized response structure
+        let activitiesData = [];
+        let paginationData = {
           limit: 20,
           offset: 0,
           total: 0,
           hasMore: false
         };
+
+        if (data.success && data.data) {
+          // New ResponseBuilder format: { success: true, data: { data: [...], pagination: {...} } }
+          activitiesData = data.data.data || [];
+          paginationData = data.data.pagination || paginationData;
+        } else if (data.data) {
+          // Direct paginated result: { data: [...], pagination: {...} }
+          activitiesData = data.data || [];
+          paginationData = data.pagination || paginationData;
+        } else if (data.activities) {
+          // Legacy format: { activities: [...] }
+          activitiesData = data.activities || [];
+        } else if (Array.isArray(data)) {
+          // Direct array response
+          activitiesData = data;
+        }
+
+        setActivities(activitiesData);
         
         // Calculate pagination info
         const currentPage = Math.floor(paginationData.offset / paginationData.limit) + 1;
@@ -173,7 +191,7 @@ export default function AdminActivitiesPage() {
           totalPages
         });
       } else {
-        setError(data.error || 'Failed to load activities');
+        setError(data.error?.message || data.error || 'Failed to load activities');
       }
     } catch (err) {
       setError('Failed to load activities');
@@ -247,6 +265,10 @@ export default function AdminActivitiesPage() {
   };
 
   const exportActivities = () => {
+    if (!Array.isArray(activities) || activities.length === 0) {
+      return;
+    }
+
     const csvContent = [
       ['Type', 'Title', 'Description', 'Priority', 'Actor', 'Target', 'Created At'].join(','),
       ...activities.map(activity => [
@@ -269,19 +291,19 @@ export default function AdminActivitiesPage() {
     window.URL.revokeObjectURL(url);
   };
 
-  const filteredActivities = activities.filter(activity => {
+  const filteredActivities = Array.isArray(activities) ? activities.filter(activity => {
     if (!searchTerm) return true;
     
     const searchLower = searchTerm.toLowerCase();
     return (
       activity.title.toLowerCase().includes(searchLower) ||
       activity.description.toLowerCase().includes(searchLower) ||
-      activity.actor?.name.toLowerCase().includes(searchLower) ||
-      activity.target?.name.toLowerCase().includes(searchLower)
+      activity.actor?.name?.toLowerCase().includes(searchLower) ||
+      activity.target?.name?.toLowerCase().includes(searchLower)
     );
-  });
+  }) : [];
 
-  if (loading && activities.length === 0) {
+  if (loading && (!Array.isArray(activities) || activities.length === 0)) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">

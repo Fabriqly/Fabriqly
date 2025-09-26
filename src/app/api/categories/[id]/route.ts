@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ServiceContainer } from '@/container/ServiceContainer';
 import { CategoryService } from '@/services/CategoryService';
 import { UpdateCategoryData } from '@/types/products';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
 interface RouteParams {
   params: {
@@ -17,29 +20,27 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (!categoryId) {
       return NextResponse.json(
-        { error: 'Category ID is required' },
+        ResponseBuilder.error(ErrorHandler.handle(new Error('Category ID is required'))),
         { status: 400 }
       );
     }
 
-    const categoryService = new CategoryService();
+    const categoryService = ServiceContainer.getInstance().get<CategoryService>('categoryService');
     const category = await categoryService.getCategory(categoryId);
 
     if (!category) {
       return NextResponse.json(
-        { error: 'Category not found' },
+        ResponseBuilder.error(ErrorHandler.handle(new Error('Category not found'))),
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ category });
-  } catch (error: any) {
-    console.error('Error fetching category:', error);
+    return NextResponse.json(ResponseBuilder.success(category));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Internal server error'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -61,22 +62,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     if (!categoryId) {
       return NextResponse.json(
-        { error: 'Category ID is required' },
+        ResponseBuilder.error(ErrorHandler.handle(new Error('Category ID is required'))),
         { status: 400 }
       );
     }
 
-    const categoryService = new CategoryService();
+    const categoryService = ServiceContainer.getInstance().get<CategoryService>('categoryService');
     const updatedCategory = await categoryService.updateCategory(categoryId, body, session.user.id);
 
-    return NextResponse.json({ category: updatedCategory });
-  } catch (error: any) {
-    console.error('Error updating category:', error);
+    return NextResponse.json(ResponseBuilder.success(updatedCategory));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Internal server error'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -97,22 +96,20 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     if (!categoryId) {
       return NextResponse.json(
-        { error: 'Category ID is required' },
+        ResponseBuilder.error(ErrorHandler.handle(new Error('Category ID is required'))),
         { status: 400 }
       );
     }
 
-    const categoryService = new CategoryService();
+    const categoryService = ServiceContainer.getInstance().get<CategoryService>('categoryService');
     await categoryService.deleteCategory(categoryId, session.user.id);
 
-    return NextResponse.json({ message: 'Category deleted successfully' });
-  } catch (error: any) {
-    console.error('Error deleting category:', error);
+    return NextResponse.json(ResponseBuilder.success({ message: 'Category deleted successfully' }));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Internal server error'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }

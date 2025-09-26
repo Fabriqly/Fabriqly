@@ -28,10 +28,24 @@ export default function TestCategoriesPage() {
       const data = await response.json();
       
       if (response.ok) {
-        setCategories(data.categories || []);
-        console.log('Categories loaded:', data.categories);
+        // Handle the new standardized response structure
+        if (data.success && data.data) {
+          // New ResponseBuilder format: { success: true, data: { categories: [...] } }
+          setCategories(data.data.categories || []);
+          console.log('Categories loaded:', data.data.categories);
+        } else if (data.categories) {
+          // Legacy format: { categories: [...] }
+          setCategories(data.categories || []);
+          console.log('Categories loaded:', data.categories);
+        } else if (Array.isArray(data)) {
+          // Direct array response
+          setCategories(data);
+          console.log('Categories loaded:', data);
+        } else {
+          setCategories([]);
+        }
       } else {
-        setError(data.error || 'Failed to load categories');
+        setError(data.error?.message || data.error || 'Failed to load categories');
       }
     } catch (error) {
       console.error('Error loading categories:', error);

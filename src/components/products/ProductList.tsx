@@ -295,8 +295,22 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
         throw new Error('Failed to fetch products');
       }
 
-      const data: ProductSearchResult = await response.json();
-      dispatch({ type: 'SET_SEARCH_RESULT', payload: data });
+      const data = await response.json();
+      
+      // Handle the new standardized response structure
+      let searchResult: ProductSearchResult;
+      if (data.success && data.data) {
+        // New ResponseBuilder format: { success: true, data: { products: [...], total: ..., hasMore: ..., filters: {...} } }
+        searchResult = data.data;
+      } else if (data.products) {
+        // Legacy format: { products: [...] }
+        searchResult = data;
+      } else {
+        // Fallback
+        searchResult = { products: [], total: 0, hasMore: false, filters: {} };
+      }
+      
+      dispatch({ type: 'SET_SEARCH_RESULT', payload: searchResult });
     } catch (error: any) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Error loading products:', error);

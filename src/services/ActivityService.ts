@@ -1,5 +1,9 @@
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { Activity } from '@/types/activity';
+import { IActivityService, CreateActivityData, UpdateActivityData } from '@/services/interfaces/IActivityService';
+import { AppError } from '@/errors/AppError';
+import { CacheService } from '@/services/CacheService';
+import { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
 
 export interface ActivityFilters {
   actorId?: string;
@@ -38,22 +42,48 @@ export interface ActivityStats {
   recentCount: number;
 }
 
-export class ActivityService {
-  private activityRepository: ActivityRepository;
+export class ActivityService implements IActivityService {
+  constructor(
+    private activityRepository: ActivityRepository
+  ) {}
 
-  constructor() {
-    this.activityRepository = new ActivityRepository();
-  }
-
-  async createActivity(activityData: Omit<Activity, 'id'>): Promise<Activity> {
-    return this.activityRepository.create(activityData);
+  async createActivity(activityData: CreateActivityData): Promise<Activity> {
+    const now = FirebaseTimestamp.now();
+    const activityToCreate: Omit<Activity, 'id'> = {
+      ...activityData,
+      type: activityData.type as any,
+      priority: (activityData.priority || 'low') as any,
+      status: (activityData.status || 'active') as any,
+      createdAt: now,
+      updatedAt: now,
+    };
+    
+    const activity = await this.activityRepository.create(activityToCreate);
+    
+    // Invalidate cache
+    CacheService.invalidate('activities');
+    
+    return activity;
   }
 
   async getActivity(activityId: string): Promise<Activity | null> {
-    return this.activityRepository.findById(activityId);
+    const cacheKey = CacheService.generateKey('activity', activityId);
+    const cached = await CacheService.get<Activity>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    const activity = await this.activityRepository.findById(activityId);
+    
+    if (activity) {
+      CacheService.set(cacheKey, activity);
+    }
+
+    return activity;
   }
 
-  async getActivities(filters?: ActivityFilters, limit?: number): Promise<Activity[]> {
+  async getActivities(filters?: any, limit?: number): Promise<Activity[]> {
     if (filters) {
       return this.getFilteredActivities(filters, limit);
     }
@@ -102,6 +132,20 @@ export class ActivityService {
 
   async getActivityStats(): Promise<ActivityStats> {
     return this.activityRepository.getActivityStats();
+  }
+
+  async logActivity(type: string, targetId: string, actorId: string, metadata?: any): Promise<Activity> {
+    return this.createActivity({
+      type: type as any,
+      title: `Activity: ${type}`,
+      description: `Activity of type ${type} performed on target ${targetId}`,
+      priority: 'low',
+      status: 'active',
+      actorId,
+      targetId,
+      targetType: 'unknown',
+      metadata,
+    });
   }
 
   async updateActivity(activityId: string, updateData: Partial<Activity>): Promise<Activity> {
@@ -170,8 +214,6 @@ export class ActivityService {
       targetType: 'product',
       targetName: metadata.productName || 'Unknown Product',
       metadata,
-      createdAt: new Date() as any,
-      updatedAt: new Date() as any
     });
   }
 
@@ -192,8 +234,6 @@ export class ActivityService {
       targetType: 'category',
       targetName: metadata.categoryName || 'Unknown Category',
       metadata,
-      createdAt: new Date() as any,
-      updatedAt: new Date() as any
     });
   }
 
@@ -214,8 +254,6 @@ export class ActivityService {
       targetType: 'user',
       targetName: metadata.email || 'Unknown User',
       metadata,
-      createdAt: new Date() as any,
-      updatedAt: new Date() as any
     });
   }
 

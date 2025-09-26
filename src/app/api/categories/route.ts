@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ServiceContainer } from '@/container/ServiceContainer';
 import { CategoryService } from '@/services/CategoryService';
 import { 
   Category, 
   CreateCategoryData, 
   UpdateCategoryData 
 } from '@/types/products';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
 // GET /api/categories - List all categories
 export async function GET(request: NextRequest) {
@@ -17,7 +20,7 @@ export async function GET(request: NextRequest) {
     const level = searchParams.get('level');
     const format = searchParams.get('format') || 'flat'; // 'flat' or 'tree'
 
-    const categoryService = new CategoryService();
+    const categoryService = ServiceContainer.getInstance().get<CategoryService>('categoryService');
 
     let categories: Category[] = [];
 
@@ -43,14 +46,12 @@ export async function GET(request: NextRequest) {
       categories = categories.filter(cat => cat.isActive);
     }
 
-    return NextResponse.json({ categories });
-  } catch (error: any) {
-    console.error('Error fetching categories:', error);
+    return NextResponse.json(ResponseBuilder.success({ categories }));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to fetch categories'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -68,18 +69,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateCategoryData = await request.json();
-    const categoryService = new CategoryService();
+    const categoryService = ServiceContainer.getInstance().get<CategoryService>('categoryService');
 
     const category = await categoryService.createCategory(body, session.user.id);
 
-    return NextResponse.json({ category }, { status: 201 });
-  } catch (error: any) {
-    console.error('Error creating category:', error);
+    return NextResponse.json(ResponseBuilder.created(category), { status: 201 });
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to create category'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }

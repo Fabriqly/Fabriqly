@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ServiceContainer } from '@/container/ServiceContainer';
 import { UserService } from '@/services/UserService';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
 interface RouteParams {
   params: {
@@ -31,24 +34,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const userService = new UserService();
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
     const user = await userService.getUser(id);
 
     if (!user) {
       return NextResponse.json(
-        { error: 'User not found' },
+        ResponseBuilder.error(ErrorHandler.handle(new Error('User not found'))),
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ user });
-  } catch (error: any) {
-    console.error('Error fetching user:', error);
+    return NextResponse.json(ResponseBuilder.success(user));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to fetch user'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -76,17 +77,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const userService = new UserService();
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
     const updatedUser = await userService.updateUser(id, body, session.user.id);
 
-    return NextResponse.json({ user: updatedUser });
-  } catch (error: any) {
-    console.error('Error updating user:', error);
+    return NextResponse.json(ResponseBuilder.success(updatedUser));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to update user'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -105,17 +104,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     const { id } = params;
 
-    const userService = new UserService();
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
     await userService.deleteUser(id, session.user.id);
 
-    return NextResponse.json({ message: 'User deleted successfully' });
-  } catch (error: any) {
-    console.error('Error deleting user:', error);
+    return NextResponse.json(ResponseBuilder.success({ message: 'User deleted successfully' }));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to delete user'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }

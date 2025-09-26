@@ -81,9 +81,21 @@ export default function AdminProductsPage() {
       const data = await response.json();
       
       if (response.ok) {
-        setProducts(data.products || []);
+        // Handle the new standardized response structure
+        if (data.success && data.data) {
+          // New ResponseBuilder format: { success: true, data: { products: [...] } }
+          setProducts(data.data.products || []);
+        } else if (data.products) {
+          // Legacy format: { products: [...] }
+          setProducts(data.products || []);
+        } else if (Array.isArray(data)) {
+          // Direct array response
+          setProducts(data);
+        } else {
+          setProducts([]);
+        }
       } else {
-        console.error('Error loading products:', data.error);
+        console.error('Error loading products:', data.error?.message || data.error);
       }
     } catch (error) {
       console.error('Error loading products:', error);

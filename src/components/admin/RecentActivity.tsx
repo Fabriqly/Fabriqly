@@ -128,10 +128,24 @@ export function RecentActivity({
       const data = await response.json();
       
       if (response.ok) {
-        // Use the new paginated response structure
-        setActivities(data.data || data.activities || []);
+        // Handle the new standardized response structure
+        if (data.success && data.data) {
+          // New ResponseBuilder format: { success: true, data: { data: [...], pagination: {...} } }
+          setActivities(data.data.data || []);
+        } else if (data.data) {
+          // Direct paginated result: { data: [...], pagination: {...} }
+          setActivities(data.data || []);
+        } else if (data.activities) {
+          // Legacy format: { activities: [...] }
+          setActivities(data.activities || []);
+        } else if (Array.isArray(data)) {
+          // Direct array response
+          setActivities(data);
+        } else {
+          setActivities([]);
+        }
       } else {
-        setError(data.error || 'Failed to load activities');
+        setError(data.error?.message || data.error || 'Failed to load activities');
       }
     } catch (err) {
       setError('Failed to load activities');
@@ -231,7 +245,7 @@ export function RecentActivity({
           </div>
         </div>
 
-        {activities.length === 0 ? (
+        {!Array.isArray(activities) || activities.length === 0 ? (
           <div className="text-center py-8">
             <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500">No recent activity</p>
@@ -291,7 +305,7 @@ export function RecentActivity({
           </div>
         )}
 
-        {activities.length > 0 && (
+        {Array.isArray(activities) && activities.length > 0 && (
           <div className="mt-4 text-center">
             <Button 
               variant="outline" 

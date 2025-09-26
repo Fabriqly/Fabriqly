@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ServiceContainer } from '@/container/ServiceContainer';
 import { ActivityService } from '@/services/ActivityService';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
@@ -9,6 +10,8 @@ import {
   ActivityWithDetails, 
   UpdateActivityData 
 } from '@/types/activity';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
 // Helper function to convert Firestore Timestamps to JavaScript Dates
 const convertTimestamps = (data: any): any => {
@@ -59,12 +62,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const activityService = new ActivityService();
+    const activityService = ServiceContainer.getInstance().get<ActivityService>('activityService');
     const activity = await activityService.getActivity(params.id);
     
     if (!activity) {
       return NextResponse.json(
-        { error: 'Activity not found' },
+        ResponseBuilder.error(ErrorHandler.handle(new Error('Activity not found'))),
         { status: 404 }
       );
     }
@@ -139,12 +142,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    return NextResponse.json({ activity: activityWithDetails });
+    return NextResponse.json(ResponseBuilder.success(activityWithDetails));
   } catch (error) {
-    console.error('Error fetching activity:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: 'Failed to fetch activity' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -163,15 +166,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const body: UpdateActivityData = await request.json();
     
-    const activityService = new ActivityService();
+    const activityService = ServiceContainer.getInstance().get<ActivityService>('activityService');
     const activity = await activityService.updateActivity(params.id, body);
 
-    return NextResponse.json({ activity });
-  } catch (error: any) {
-    console.error('Error updating activity:', error);
+    return NextResponse.json(ResponseBuilder.success(activity));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: 'Failed to update activity' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -188,15 +191,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const activityService = new ActivityService();
+    const activityService = ServiceContainer.getInstance().get<ActivityService>('activityService');
     await activityService.deleteActivity(params.id);
 
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('Error deleting activity:', error);
+    return NextResponse.json(ResponseBuilder.success({ success: true }));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: 'Failed to delete activity' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }

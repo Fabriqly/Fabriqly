@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ServiceContainer } from '@/container/ServiceContainer';
 import { UserService } from '@/services/UserService';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
 // GET /api/users - List all users (admin only)
 export async function GET(request: NextRequest) {
@@ -19,7 +22,7 @@ export async function GET(request: NextRequest) {
     const role = searchParams.get('role');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    const userService = new UserService();
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
     
     let users;
     if (role) {
@@ -31,14 +34,12 @@ export async function GET(request: NextRequest) {
     // Apply limit
     const limitedUsers = users.slice(0, limit);
 
-    return NextResponse.json({ users: limitedUsers });
-  } catch (error: any) {
-    console.error('Error fetching users:', error);
+    return NextResponse.json(ResponseBuilder.success({ users: limitedUsers }));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to fetch users'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -56,18 +57,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const userService = new UserService();
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
 
     const user = await userService.createUser(body);
 
-    return NextResponse.json({ user }, { status: 201 });
-  } catch (error: any) {
-    console.error('Error creating user:', error);
+    return NextResponse.json(ResponseBuilder.created(user), { status: 201 });
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to create user'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }

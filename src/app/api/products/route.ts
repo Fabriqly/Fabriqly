@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ServiceContainer } from '@/container/ServiceContainer';
 import { ProductService } from '@/services/ProductService';
 import { 
   Product, 
@@ -9,6 +10,8 @@ import {
   ProductFilters,
   ProductSearchResult
 } from '@/types/products';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
 // GET /api/products - Get products with filters
 export async function GET(request: NextRequest) {
@@ -35,7 +38,7 @@ export async function GET(request: NextRequest) {
     const sortOrder = (searchParams.get('sortOrder') as any) || 'desc';
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    const productService = new ProductService();
+    const productService = ServiceContainer.getInstance().get<ProductService>('productService');
     const products = await productService.getProductsWithDetails({
       filters,
       sortBy,
@@ -50,14 +53,12 @@ export async function GET(request: NextRequest) {
       filters
     };
 
-    return NextResponse.json(result);
-  } catch (error: any) {
-    console.error('Error fetching products:', error);
+    return NextResponse.json(ResponseBuilder.success(result));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to fetch products'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -75,18 +76,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateProductData = await request.json();
-    const productService = new ProductService();
+    const productService = ServiceContainer.getInstance().get<ProductService>('productService');
 
     const product = await productService.createProduct(body, session.user.id);
 
-    return NextResponse.json({ product }, { status: 201 });
-  } catch (error: any) {
-    console.error('Error creating product:', error);
+    return NextResponse.json(ResponseBuilder.created(product), { status: 201 });
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to create product'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }

@@ -47,7 +47,20 @@ export function CategoryManagement({ onCategoryChange }: CategoryManagementProps
     try {
       const response = await fetch('/api/categories?format=tree&includeChildren=true');
       const data = await response.json();
-      setCategories(data.categories || []);
+      
+      // Handle the new standardized response structure
+      if (data.success && data.data) {
+        // New ResponseBuilder format: { success: true, data: { categories: [...] } }
+        setCategories(data.data.categories || []);
+      } else if (data.categories) {
+        // Legacy format: { categories: [...] }
+        setCategories(data.categories || []);
+      } else if (Array.isArray(data)) {
+        // Direct array response
+        setCategories(data);
+      } else {
+        setCategories([]);
+      }
     } catch (error) {
       console.error('Error loading categories:', error);
     } finally {
