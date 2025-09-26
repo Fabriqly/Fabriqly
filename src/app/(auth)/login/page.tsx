@@ -1,6 +1,6 @@
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Metadata } from 'next';
-import Header from '@/components/layout/Header';
+import { Header, Footer } from '@/components/layout';
 import Image from 'next/image';
 import BagIllustration from '@/../public/bag-1.png';
 
@@ -14,7 +14,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-white flex flex-col">
       <Header />
       <main className="flex-1">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div className="flex justify-center lg:justify-start">
               <div className="w-full max-w-xs lg:max-w-sm">
@@ -33,6 +33,7 @@ export default function LoginPage() {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }
