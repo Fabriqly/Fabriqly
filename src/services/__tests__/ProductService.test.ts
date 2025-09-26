@@ -1,10 +1,12 @@
+
 import { ProductService } from '../ProductService';
 import { ProductRepository } from '@/repositories/ProductRepository';
 import { CategoryRepository } from '@/repositories/CategoryRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { ServiceContainer } from '@/container/ServiceContainer';
 import { AppError } from '@/errors/AppError';
-import { CreateProductData } from '@/types/products';
+import { CreateProductData, UpdateProductData } from '@/types/products';
+import { createMockProduct, createMockCategory } from './setup';
 
 // Mock repositories
 jest.mock('@/repositories/ProductRepository');
@@ -13,9 +15,9 @@ jest.mock('@/repositories/ActivityRepository');
 
 describe('ProductService', () => {
   let productService: ProductService;
-  let mockProductRepository: jest.Mocked<ProductRepository>;
-  let mockCategoryRepository: jest.Mocked<CategoryRepository>;
-  let mockActivityRepository: jest.Mocked<ActivityRepository>;
+  let mockProductRepository: any;
+  let mockCategoryRepository: any;
+  let mockActivityRepository: any;
   let serviceContainer: ServiceContainer;
 
   beforeEach(() => {
@@ -23,9 +25,9 @@ describe('ProductService', () => {
     jest.clearAllMocks();
 
     // Create mock instances
-    mockProductRepository = new ProductRepository() as jest.Mocked<ProductRepository>;
-    mockCategoryRepository = new CategoryRepository() as jest.Mocked<CategoryRepository>;
-    mockActivityRepository = new ActivityRepository() as jest.Mocked<ActivityRepository>;
+    mockProductRepository = new ProductRepository() as any;
+    mockCategoryRepository = new CategoryRepository() as any;
+    mockActivityRepository = new ActivityRepository() as any;
 
     // Create service container and register mocks
     serviceContainer = new ServiceContainer();
@@ -49,27 +51,15 @@ describe('ProductService', () => {
       categoryId: 'category-1',
       price: 100,
       stockQuantity: 10,
-      sku: 'TEST-001'
-    };
-
-    const mockCategory = {
-      id: 'category-1',
-      name: 'Test Category',
-      slug: 'test-category',
-      isActive: true
-    };
-
-    const mockProduct = {
-      id: 'product-1',
-      ...validProductData,
-      businessOwnerId: 'owner-1',
+      sku: 'TEST-001',
       status: 'draft',
       isCustomizable: false,
       isDigital: false,
-      tags: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
+      tags: []
     };
+
+    const mockCategory = createMockCategory();
+    const mockProduct = createMockProduct();
 
     it('should create a product successfully', async () => {
       // Arrange
@@ -158,7 +148,8 @@ describe('ProductService', () => {
       businessOwnerId: 'owner-1'
     };
 
-    const updateData = {
+    const updateData: UpdateProductData = {
+      id: 'product-1',
       name: 'Updated Product',
       price: 150
     };
@@ -227,7 +218,12 @@ describe('ProductService', () => {
         description: 'A test product',
         categoryId: 'category-1',
         price: 100,
-        stockQuantity: 10
+        stockQuantity: 10,
+        sku: 'TEST-001',
+        status: 'draft',
+        isCustomizable: false,
+        isDigital: false,
+        tags: []
       };
 
       const result = await productService.validateProductData(validData);

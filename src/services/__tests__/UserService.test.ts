@@ -150,7 +150,7 @@ describe('UserService', () => {
     it('should delete user successfully', async () => {
       // Arrange
       mockUserRepository.findById.mockResolvedValue(existingUser as any);
-      mockFirebaseAdminService.deleteUser.mockResolvedValue();
+      mockFirebaseAdminService.deleteUser.mockResolvedValue({ uid: 'user-1' });
       mockActivityRepository.create.mockResolvedValue({} as any);
 
       // Act

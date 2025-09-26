@@ -53,11 +53,11 @@ export class CacheService {
   static invalidate(pattern: string): void {
     const keysToDelete: string[] = [];
     
-    for (const key of this.cache.keys()) {
+    this.cache.forEach((_, key) => {
       if (key.includes(pattern)) {
         keysToDelete.push(key);
       }
-    }
+    });
 
     keysToDelete.forEach(key => this.cache.delete(key));
   }

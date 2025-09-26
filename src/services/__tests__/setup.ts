@@ -1,5 +1,4 @@
 // Test setup file
-import 'jest';
 
 // Mock console methods to reduce noise in tests
 global.console = {
@@ -71,18 +70,10 @@ jest.mock('next-auth/react', () => ({
 }));
 
 // Global test utilities
-declare global {
-  namespace jest {
-    interface Matchers<R> {
-      toBeValidDate(): R;
-      toBeValidEmail(): R;
-    }
-  }
-}
 
 // Custom matchers
 expect.extend({
-  toBeValidDate(received) {
+  toBeValidDate(received: any) {
     const pass = received instanceof Date && !isNaN(received.getTime());
     if (pass) {
       return {
@@ -96,7 +87,7 @@ expect.extend({
       };
     }
   },
-  toBeValidEmail(received) {
+  toBeValidEmail(received: any) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const pass = typeof received === 'string' && emailRegex.test(received);
     if (pass) {
