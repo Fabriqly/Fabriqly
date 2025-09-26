@@ -35,7 +35,21 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       );
     }
 
-    return NextResponse.json({ user });
+    // Map user document to the expected frontend structure
+    const mappedUser = {
+      id: user.id,
+      email: user.email,
+      name: user.displayName || 
+            `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim() ||
+            'No name',
+      role: user.role,
+      isVerified: user.isVerified,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      profile: user.profile
+    };
+
+    return NextResponse.json({ user: mappedUser });
   } catch (error) {
     console.error('Error fetching user:', error);
     return NextResponse.json(
