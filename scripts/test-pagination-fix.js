@@ -58,3 +58,4 @@ console.log('- testPaginationFix() - Test pagination fix');
 
 // Auto-run the test
 testPaginationFix();
+

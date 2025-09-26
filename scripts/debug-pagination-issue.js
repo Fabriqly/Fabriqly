@@ -64,3 +64,4 @@ console.log('- debugPagination() - Debug pagination issue');
 
 // Auto-run the debug
 debugPagination();
+
