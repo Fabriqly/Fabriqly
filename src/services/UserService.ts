@@ -2,44 +2,32 @@ import { UserRepository, User } from '@/repositories/UserRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { ActivityType } from '@/types/activity';
+import { IUserService, CreateUserData, UpdateUserData, UserStats } from '@/services/interfaces/IUserService';
+import { AppError } from '@/errors/AppError';
+import { CacheService } from '@/services/CacheService';
 
 export interface UserValidationResult {
   isValid: boolean;
   errors: string[];
 }
 
-export interface UserStats {
-  total: number;
-  verified: number;
-  unverified: number;
-  byRole: Record<string, number>;
-}
+export class UserService implements IUserService {
+  constructor(
+    private userRepository: UserRepository,
+    private activityRepository: ActivityRepository
+  ) {}
 
-export class UserService {
-  private userRepository: UserRepository;
-  private activityRepository: ActivityRepository;
-
-  constructor() {
-    this.userRepository = new UserRepository();
-    this.activityRepository = new ActivityRepository();
-  }
-
-  async createUser(userData: {
-    email: string;
-    password: string;
-    displayName?: string;
-    role?: string;
-  }): Promise<User> {
+  async createUser(userData: CreateUserData): Promise<User> {
     // Validate user data
     const validation = this.validateUserData(userData);
     if (!validation.isValid) {
-      throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+      throw AppError.validation(`Validation failed: ${validation.errors.join(', ')}`, validation.errors);
     }
 
     // Check if user already exists
     const existingUser = await this.userRepository.findByEmail(userData.email);
     if (existingUser) {
-      throw new Error('User with this email already exists');
+      throw AppError.conflict('User with this email already exists');
     }
 
     // Create user using Firebase Admin Service
@@ -57,6 +45,9 @@ export class UserService {
       updatedAt: firebaseUser.updatedAt instanceof Date ? firebaseUser.updatedAt : firebaseUser.updatedAt.toDate()
     };
 
+    // Invalidate cache
+    CacheService.invalidate('users');
+
     // Log activity
     await this.logUserActivity('user_registered', user.id, 'system', {
       email: user.email,
@@ -66,19 +57,23 @@ export class UserService {
     return user;
   }
 
-  async updateUser(userId: string, updateData: Partial<User>, actorId: string): Promise<User> {
+  async updateUser(userId: string, updateData: UpdateUserData, actorId: string): Promise<User> {
     const existingUser = await this.userRepository.findById(userId);
     if (!existingUser) {
-      throw new Error('User not found');
+      throw AppError.notFound('User not found');
     }
 
     // Validate update data
     const validation = this.validateUserUpdate(updateData);
     if (!validation.isValid) {
-      throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+      throw AppError.validation(`Validation failed: ${validation.errors.join(', ')}`, validation.errors);
     }
 
     const updatedUser = await this.userRepository.update(userId, updateData);
+
+    // Invalidate cache
+    CacheService.invalidate('users');
+    CacheService.delete(CacheService.userKey(userId));
 
     // Log activity
     await this.logUserActivity('user_updated', userId, actorId, {
@@ -92,11 +87,15 @@ export class UserService {
   async deleteUser(userId: string, actorId: string): Promise<void> {
     const user = await this.userRepository.findById(userId);
     if (!user) {
-      throw new Error('User not found');
+      throw AppError.notFound('User not found');
     }
 
     // Delete user using Firebase Admin Service
     await FirebaseAdminService.deleteUser(userId);
+
+    // Invalidate cache
+    CacheService.invalidate('users');
+    CacheService.delete(CacheService.userKey(userId));
 
     // Log activity
     await this.logUserActivity('user_deleted', userId, actorId, {
@@ -106,7 +105,20 @@ export class UserService {
   }
 
   async getUser(userId: string): Promise<User | null> {
-    return this.userRepository.findById(userId);
+    const cacheKey = CacheService.userKey(userId);
+    const cached = await CacheService.get<User>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    const user = await this.userRepository.findById(userId);
+    
+    if (user) {
+      CacheService.set(cacheKey, user);
+    }
+
+    return user;
   }
 
   async getUserByEmail(email: string): Promise<User | null> {
@@ -220,12 +232,7 @@ export class UserService {
     return this.userRepository.searchUsers(searchTerm);
   }
 
-  private validateUserData(userData: {
-    email: string;
-    password: string;
-    displayName?: string;
-    role?: string;
-  }): UserValidationResult {
+  validateUserData(userData: CreateUserData): UserValidationResult {
     const errors: string[] = [];
 
     if (!userData.email || !this.isValidEmail(userData.email)) {
@@ -246,12 +253,10 @@ export class UserService {
     };
   }
 
-  private validateUserUpdate(updateData: Partial<User>): UserValidationResult {
+  private validateUserUpdate(updateData: UpdateUserData): UserValidationResult {
     const errors: string[] = [];
 
-    if (updateData.email && !this.isValidEmail(updateData.email)) {
-      errors.push('Valid email is required');
-    }
+    // Email validation removed as it's not part of UpdateUserData interface
 
     if (updateData.role && !['admin', 'business_owner', 'customer', 'designer'].includes(updateData.role)) {
       errors.push('Invalid role');

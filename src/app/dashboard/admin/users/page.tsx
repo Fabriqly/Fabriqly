@@ -19,7 +19,8 @@ import {
 interface User {
   id: string;
   email: string;
-  name: string;
+  displayName?: string;
+  name?: string; // Keep for backward compatibility
   role: string;
   isVerified: boolean;
   createdAt: string;
@@ -61,9 +62,21 @@ export default function AdminUsersPage() {
       const data = await response.json();
       
       if (response.ok) {
-        setUsers(data.users || []);
+        // Handle the new standardized response structure
+        if (data.success && data.data) {
+          // New ResponseBuilder format: { success: true, data: { users: [...] } }
+          setUsers(data.data.users || []);
+        } else if (data.users) {
+          // Legacy format: { users: [...] }
+          setUsers(data.users || []);
+        } else if (Array.isArray(data)) {
+          // Direct array response
+          setUsers(data);
+        } else {
+          setUsers([]);
+        }
       } else {
-        console.error('Error loading users:', data.error);
+        console.error('Error loading users:', data.error?.message || data.error);
       }
     } catch (error) {
       console.error('Error loading users:', error);
@@ -130,7 +143,7 @@ export default function AdminUsersPage() {
   const startEdit = (user: User) => {
     setEditingUser(user);
     setFormData({
-      name: user.name || '',
+      name: user.displayName || user.name || '',
       email: user.email,
       role: user.role,
       isVerified: user.isVerified
@@ -153,7 +166,8 @@ export default function AdminUsersPage() {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const userName = user.displayName || user.name || '';
+    const matchesSearch = userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     return matchesSearch && matchesRole;
@@ -325,13 +339,13 @@ export default function AdminUsersPage() {
                             <div className="flex-shrink-0 h-10 w-10">
                               <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
                                 <span className="text-sm font-medium text-gray-700">
-                                  {user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                                  {(user.displayName || user.name)?.charAt(0) || user.email.charAt(0).toUpperCase()}
                                 </span>
                               </div>
                             </div>
                             <div className="ml-4">
                               <div className="text-sm font-medium text-gray-900">
-                                {user.name || 'No name'}
+                                {user.displayName || user.name || 'No name'}
                               </div>
                               <div className="text-sm text-gray-500 flex items-center">
                                 <Mail className="h-3 w-3 mr-1" />

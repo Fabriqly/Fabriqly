@@ -64,7 +64,20 @@ export function CategorySelector({
         return rootCategories;
       };
       
-      setCategories(buildCategoryTree(data.categories || []));
+      // Handle the new standardized response structure
+      let categoriesData = [];
+      if (data.success && data.data) {
+        // New ResponseBuilder format: { success: true, data: { categories: [...] } }
+        categoriesData = data.data.categories || [];
+      } else if (data.categories) {
+        // Legacy format: { categories: [...] }
+        categoriesData = data.categories || [];
+      } else if (Array.isArray(data)) {
+        // Direct array response
+        categoriesData = data;
+      }
+      
+      setCategories(buildCategoryTree(categoriesData));
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Error loading categories:', error);

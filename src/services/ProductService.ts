@@ -1,56 +1,50 @@
 import { ProductRepository, ProductFilters } from '@/repositories/ProductRepository';
 import { CategoryRepository } from '@/repositories/CategoryRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
-import { Product, CreateProductData, UpdateProductData, ProductStatus } from '@/types/products';
+import { Product, CreateProductData, UpdateProductData, ProductStatus, ProductSearchResult } from '@/types/products';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
 import { ActivityType } from '@/types/activity';
-
-export interface ProductSearchOptions {
-  filters?: ProductFilters;
-  sortBy?: 'name' | 'price' | 'createdAt' | 'updatedAt';
-  sortOrder?: 'asc' | 'desc';
-  limit?: number;
-  offset?: number;
-}
+import { IProductService, ProductSearchOptions } from '@/services/interfaces/IProductService';
+import { AppError } from '@/errors/AppError';
+import { CacheService } from '@/services/CacheService';
+import { eventBus, EventTypes } from '@/events';
+import { PerformanceMonitor } from '@/monitoring/PerformanceMonitor';
 
 export interface ProductValidationResult {
   isValid: boolean;
   errors: string[];
 }
 
-export class ProductService {
-  private productRepository: ProductRepository;
-  private categoryRepository: CategoryRepository;
-  private activityRepository: ActivityRepository;
-
-  constructor() {
-    this.productRepository = new ProductRepository();
-    this.categoryRepository = new CategoryRepository();
-    this.activityRepository = new ActivityRepository();
-  }
+export class ProductService implements IProductService {
+  constructor(
+    private productRepository: ProductRepository,
+    private categoryRepository: CategoryRepository,
+    private activityRepository: ActivityRepository
+  ) {}
 
   async createProduct(data: CreateProductData, businessOwnerId: string): Promise<Product> {
-    // Validate product data
-    const validation = await this.validateProductData(data);
-    if (!validation.isValid) {
-      throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
-    }
+    return PerformanceMonitor.measure('ProductService.createProduct', async () => {
+      // Validate product data
+      const validation = await this.validateProductData(data);
+      if (!validation.isValid) {
+        throw AppError.validation(`Validation failed: ${validation.errors.join(', ')}`, validation.errors);
+      }
 
-    // Check if category exists
-    const category = await this.categoryRepository.findById(data.categoryId);
-    if (!category) {
-      throw new Error('Category not found');
-    }
+      // Check if category exists
+      const category = await this.categoryRepository.findById(data.categoryId);
+      if (!category) {
+        throw AppError.notFound('Category not found');
+      }
 
-    // Generate SKU if not provided
-    const sku = data.sku?.trim() || this.generateSKU(data.name);
+      // Generate SKU if not provided
+      const sku = data.sku?.trim() || this.generateSKU(data.name);
 
-    // Check for duplicate SKU
-    const existingProduct = await this.productRepository.findBySku(sku);
-    if (existingProduct) {
-      throw new Error('Product SKU already exists');
-    }
+      // Check for duplicate SKU
+      const existingProduct = await this.productRepository.findBySku(sku);
+      if (existingProduct) {
+        throw AppError.conflict('Product SKU already exists');
+      }
 
     // Create product
     const productData: Omit<Product, 'id'> = {
@@ -76,16 +70,20 @@ export class ProductService {
       ...(data.seoDescription && data.seoDescription.trim().length > 0 && { seoDescription: data.seoDescription.trim() })
     };
 
-    const product = await this.productRepository.create(productData);
+      const product = await this.productRepository.create(productData);
 
-    // Log activity
-    await this.logProductActivity('product_created', product.id, businessOwnerId, {
-      productName: product.name,
-      categoryId: product.categoryId,
-      sku: product.sku
+      // Emit event
+      await eventBus.emit(EventTypes.PRODUCT_CREATED, product, 'ProductService');
+
+      // Log activity
+      await this.logProductActivity('product_created', product.id, businessOwnerId, {
+        productName: product.name,
+        categoryId: product.categoryId,
+        sku: product.sku
+      });
+
+      return product;
     });
-
-    return product;
   }
 
   async updateProduct(productId: string, data: UpdateProductData, userId: string): Promise<Product> {
@@ -149,20 +147,42 @@ export class ProductService {
   }
 
   async getProduct(productId: string): Promise<Product | null> {
-    return this.productRepository.findById(productId);
-  }
-
-  async getProducts(options: ProductSearchOptions = {}): Promise<Product[]> {
-    const { filters, sortBy = 'createdAt', sortOrder = 'desc', limit = 50 } = options;
-
-    if (filters) {
-      return this.productRepository.findWithFilters(filters);
+    const cacheKey = CacheService.productKey(productId);
+    const cached = await CacheService.get<Product>(cacheKey);
+    
+    if (cached) {
+      return cached;
     }
 
-    return this.productRepository.findAll({
-      orderBy: { field: sortBy, direction: sortOrder },
-      limit
-    });
+    const product = await this.productRepository.findById(productId);
+    
+    if (product) {
+      CacheService.set(cacheKey, product);
+    }
+
+    return product;
+  }
+
+  async getProducts(options: ProductSearchOptions = {}): Promise<ProductSearchResult> {
+    const { filters, sortBy = 'createdAt', sortOrder = 'desc', limit = 50 } = options;
+
+    let products: Product[];
+    
+    if (filters) {
+      products = await this.productRepository.findWithFilters(filters);
+    } else {
+      products = await this.productRepository.findAll({
+        orderBy: { field: sortBy, direction: sortOrder },
+        limit
+      });
+    }
+
+    return {
+      products,
+      total: products.length,
+      hasMore: products.length === limit,
+      filters: filters || {}
+    };
   }
 
   async getProductsWithDetails(options: ProductSearchOptions = {}): Promise<any[]> {
@@ -190,17 +210,43 @@ export class ProductService {
       );
     }
 
-    // Populate category and image information for each product
+    // Populate category, image, and business owner information for each product
     const productsWithDetails = await Promise.all(
       filteredProducts.map(async (product) => {
         let category = null;
         let images: any[] = [];
+        let businessOwner = null;
         
         if (product.categoryId) {
           try {
             category = await this.categoryRepository.findById(product.categoryId);
           } catch (error) {
             console.error(`Error fetching category ${product.categoryId}:`, error);
+          }
+        }
+
+        // Fetch business owner information
+        if (product.businessOwnerId) {
+          try {
+            const { FirebaseAdminService } = await import('@/services/firebase-admin');
+            const { Collections } = await import('@/services/firebase');
+            
+            const ownerDoc = await FirebaseAdminService.getDocument(
+              Collections.USERS,
+              product.businessOwnerId
+            );
+            
+            if (ownerDoc) {
+              businessOwner = {
+                id: product.businessOwnerId,
+                name: ownerDoc.displayName || 
+                      `${ownerDoc.profile?.firstName || ''} ${ownerDoc.profile?.lastName || ''}`.trim() ||
+                      ownerDoc.email,
+                businessName: ownerDoc.profile?.businessName || ownerDoc.displayName
+              };
+            }
+          } catch (error) {
+            console.error(`Error fetching business owner ${product.businessOwnerId}:`, error);
           }
         }
 
@@ -230,7 +276,8 @@ export class ProductService {
         return {
           ...product,
           category,
-          images
+          images,
+          businessOwner
         };
       })
     );
@@ -242,8 +289,15 @@ export class ProductService {
     return this.productRepository.findByCategory(categoryId);
   }
 
-  async getProductsByBusinessOwner(businessOwnerId: string): Promise<Product[]> {
-    return this.productRepository.findByBusinessOwner(businessOwnerId);
+  async getProductsByBusinessOwner(businessOwnerId: string, options: ProductSearchOptions = {}): Promise<ProductSearchResult> {
+    const products = await this.productRepository.findByBusinessOwner(businessOwnerId);
+    
+    return {
+      products,
+      total: products.length,
+      hasMore: false,
+      filters: { businessOwnerId, ...options.filters }
+    };
   }
 
   async getActiveProducts(): Promise<Product[]> {
@@ -318,7 +372,7 @@ export class ProductService {
     return updatedProduct;
   }
 
-  private async validateProductData(data: CreateProductData): Promise<ProductValidationResult> {
+  async validateProductData(data: CreateProductData): Promise<ProductValidationResult> {
     const errors: string[] = [];
 
     if (!data.name || data.name.trim().length === 0) {

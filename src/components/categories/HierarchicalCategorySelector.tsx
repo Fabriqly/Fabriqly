@@ -39,7 +39,19 @@ export function HierarchicalCategorySelector({
     try {
       const response = await fetch('/api/categories?format=tree&includeChildren=true');
       const data = await response.json();
-      setCategories(data.categories || []);
+      // Handle the new standardized response structure
+      if (data.success && data.data) {
+        // New ResponseBuilder format: { success: true, data: { categories: [...] } }
+        setCategories(data.data.categories || []);
+      } else if (data.categories) {
+        // Legacy format: { categories: [...] }
+        setCategories(data.categories || []);
+      } else if (Array.isArray(data)) {
+        // Direct array response
+        setCategories(data);
+      } else {
+        setCategories([]);
+      }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Error loading categories:', error);

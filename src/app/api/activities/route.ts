@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ServiceContainer } from '@/container/ServiceContainer';
 import { ActivityService, ActivityFilters } from '@/services/ActivityService';
 import { 
   Activity, 
   CreateActivityData, 
   UpdateActivityData
 } from '@/types/activity';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
 // GET /api/activities - List activities with filters
 export async function GET(request: NextRequest) {
@@ -45,7 +48,7 @@ export async function GET(request: NextRequest) {
     const priority = searchParams.get('priority');
     const status = searchParams.get('status');
 
-    const activityService = new ActivityService();
+    const activityService = ServiceContainer.getInstance().get<ActivityService>('activityService');
     const result = await activityService.getActivitiesWithPagination({
       ...filters,
       types: types ? types.split(',') : undefined,
@@ -58,14 +61,12 @@ export async function GET(request: NextRequest) {
       sortOrder: sortOrder as 'asc' | 'desc'
     });
 
-    return NextResponse.json(result);
-  } catch (error: any) {
-    console.error('Error fetching activities:', error);
+    return NextResponse.json(ResponseBuilder.success(result));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to fetch activities'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -83,27 +84,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateActivityData = await request.json();
-    const activityService = new ActivityService();
+    const activityService = ServiceContainer.getInstance().get<ActivityService>('activityService');
 
-    // Convert CreateActivityData to Omit<Activity, 'id'>
-    const activityData: Omit<Activity, 'id'> = {
-      ...body,
-      priority: body.priority || 'low',
-      status: 'active',
-      createdAt: new Date() as any,
-      updatedAt: new Date() as any
-    };
+    const activity = await activityService.createActivity(body);
 
-    const activity = await activityService.createActivity(activityData);
-
-    return NextResponse.json({ activity }, { status: 201 });
-  } catch (error: any) {
-    console.error('Error creating activity:', error);
+    return NextResponse.json(ResponseBuilder.created(activity), { status: 201 });
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: error.message || 'Failed to create activity'
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }

@@ -3,40 +3,33 @@ import { ProductRepository } from '@/repositories/ProductRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { Category, CreateCategoryData, UpdateCategoryData } from '@/types/products';
 import { ActivityType } from '@/types/activity';
+import { ICategoryService, CategoryHierarchy } from '@/services/interfaces/ICategoryService';
+import { AppError } from '@/errors/AppError';
+import { CacheService } from '@/services/CacheService';
 
 export interface CategoryValidationResult {
   isValid: boolean;
   errors: string[];
 }
 
-export interface CategoryHierarchy {
-  category: Category;
-  children: CategoryHierarchy[];
-  productCount: number;
-}
-
-export class CategoryService {
-  private categoryRepository: CategoryRepository;
-  private productRepository: ProductRepository;
-  private activityRepository: ActivityRepository;
-
-  constructor() {
-    this.categoryRepository = new CategoryRepository();
-    this.productRepository = new ProductRepository();
-    this.activityRepository = new ActivityRepository();
-  }
+export class CategoryService implements ICategoryService {
+  constructor(
+    private categoryRepository: CategoryRepository,
+    private productRepository: ProductRepository,
+    private activityRepository: ActivityRepository
+  ) {}
 
   async createCategory(data: CreateCategoryData, userId: string): Promise<Category> {
     // Validate category data
     const validation = await this.validateCategoryData(data);
     if (!validation.isValid) {
-      throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+      throw AppError.validation(`Validation failed: ${validation.errors.join(', ')}`, validation.errors);
     }
 
     // Check if slug already exists
     const existingSlug = await this.categoryRepository.findBySlug(data.slug);
     if (existingSlug) {
-      throw new Error('Category with this slug already exists');
+      throw AppError.conflict('Category with this slug already exists');
     }
 
     // Handle parent category
@@ -46,7 +39,7 @@ export class CategoryService {
     if (data.parentId) {
       const parent = await this.categoryRepository.findById(data.parentId);
       if (!parent) {
-        throw new Error('Parent category not found');
+        throw AppError.notFound('Parent category not found');
       }
 
       level = (parent.level || 0) + 1;
@@ -54,7 +47,7 @@ export class CategoryService {
 
       // Check depth limit
       if (level > 5) {
-        throw new Error('Maximum category depth exceeded (5 levels max)');
+        throw AppError.badRequest('Maximum category depth exceeded (5 levels max)');
       }
     }
 
@@ -76,6 +69,9 @@ export class CategoryService {
 
     const category = await this.categoryRepository.create(categoryData);
 
+    // Invalidate cache
+    CacheService.invalidate('categories');
+
     // Log activity
     await this.logCategoryActivity('category_created', category.id, userId, {
       categoryName: category.categoryName || category.name,
@@ -89,20 +85,20 @@ export class CategoryService {
   async updateCategory(categoryId: string, data: UpdateCategoryData, userId: string): Promise<Category> {
     const existingCategory = await this.categoryRepository.findById(categoryId);
     if (!existingCategory) {
-      throw new Error('Category not found');
+      throw AppError.notFound('Category not found');
     }
 
     // Validate update data
     const validation = await this.validateCategoryUpdate(data, existingCategory);
     if (!validation.isValid) {
-      throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+      throw AppError.validation(`Validation failed: ${validation.errors.join(', ')}`, validation.errors);
     }
 
     // Check if slug is being changed and if it already exists
     if (data.slug && data.slug !== existingCategory.slug) {
       const existingSlug = await this.categoryRepository.findBySlug(data.slug);
       if (existingSlug) {
-        throw new Error('Category with this slug already exists');
+        throw AppError.conflict('Category with this slug already exists');
       }
     }
 
@@ -114,13 +110,13 @@ export class CategoryService {
       // Validate hierarchy
       const hierarchyValidation = await this.categoryRepository.validateCategoryHierarchy(categoryId, data.parentId);
       if (!hierarchyValidation.isValid) {
-        throw new Error(`Hierarchy validation failed: ${hierarchyValidation.errors.join(', ')}`);
+        throw AppError.badRequest(`Hierarchy validation failed: ${hierarchyValidation.errors.join(', ')}`);
       }
 
       if (data.parentId) {
         const newParent = await this.categoryRepository.findById(data.parentId);
         if (!newParent) {
-          throw new Error('Parent category not found');
+          throw AppError.notFound('Parent category not found');
         }
 
         level = (newParent.level || 0) + 1;
@@ -195,11 +191,34 @@ export class CategoryService {
   }
 
   async getCategory(categoryId: string): Promise<Category | null> {
-    return this.categoryRepository.findById(categoryId);
+    const cacheKey = CacheService.categoryKey(categoryId);
+    const cached = await CacheService.get<Category>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    const category = await this.categoryRepository.findById(categoryId);
+    
+    if (category) {
+      CacheService.set(cacheKey, category);
+    }
+
+    return category;
   }
 
   async getCategories(): Promise<Category[]> {
-    return this.categoryRepository.findActiveCategories();
+    const cacheKey = CacheService.categoriesListKey();
+    const cached = await CacheService.get<Category[]>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    const categories = await this.categoryRepository.findActiveCategories();
+    CacheService.set(cacheKey, categories);
+
+    return categories;
   }
 
   async getCategoryHierarchy(): Promise<CategoryHierarchy[]> {
@@ -282,7 +301,7 @@ export class CategoryService {
     }
   }
 
-  private async validateCategoryData(data: CreateCategoryData): Promise<CategoryValidationResult> {
+  async validateCategoryData(data: CreateCategoryData): Promise<CategoryValidationResult> {
     const errors: string[] = [];
 
     if (!data.name || data.name.trim().length === 0) {
@@ -375,5 +394,22 @@ export class CategoryService {
       default:
         return `Category "${categoryName}" activity`;
     }
+  }
+
+  async getCategoryBySlug(slug: string): Promise<Category | null> {
+    const cacheKey = CacheService.generateKey('category', 'slug', slug);
+    const cached = await CacheService.get<Category>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    const category = await this.categoryRepository.findBySlug(slug);
+    
+    if (category) {
+      CacheService.set(cacheKey, category);
+    }
+
+    return category;
   }
 }
