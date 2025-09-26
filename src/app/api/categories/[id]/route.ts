@@ -97,7 +97,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Handle parent category changes
     let level = existingCategory.level;
-    let path = existingCategory.path;
+    let path = existingCategory.path || [];
     
     if (body.parentId !== undefined && body.parentId !== (existingCategory.parentId || existingCategory.parentCategoryId)) {
       // Prevent self-parenting
@@ -123,7 +123,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         }
 
         // Check for circular reference
-        if (newParent.path.includes(existingCategory.name || existingCategory.categoryName)) {
+        if (newParent.path && newParent.path.includes(existingCategory.name || existingCategory.categoryName)) {
           return NextResponse.json(
             { error: 'Cannot create circular category reference' },
             { status: 400 }
@@ -131,7 +131,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         }
 
         level = newParent.level + 1;
-        path = [...newParent.path, body.name || existingCategory.name || existingCategory.categoryName];
+        path = [...(newParent.path || []), body.name || existingCategory.name || existingCategory.categoryName];
         
         // Prevent too deep nesting
         if (level > 5) {

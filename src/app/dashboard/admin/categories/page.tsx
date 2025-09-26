@@ -13,6 +13,8 @@ import {
   ChevronRight,
   ChevronDown
 } from 'lucide-react';
+import { HierarchicalCategorySelector } from '@/components/categories/HierarchicalCategorySelector';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 
 interface Category {
   id: string;
@@ -20,6 +22,7 @@ interface Category {
   description: string;
   slug: string;
   parentId?: string;
+  iconUrl?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -39,6 +42,7 @@ export default function AdminCategoriesPage() {
     description: '',
     slug: '',
     parentId: '',
+    iconUrl: '',
     isActive: true
   });
 
@@ -64,8 +68,44 @@ export default function AdminCategoriesPage() {
     }
   };
 
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  };
+
+  const validateForm = () => {
+    const errors: string[] = [];
+    
+    if (!formData.name.trim()) {
+      errors.push('Category name is required');
+    }
+    
+    if (!formData.slug.trim()) {
+      errors.push('Slug is required');
+    }
+    
+    if (formData.slug && !/^[a-z0-9-]+$/.test(formData.slug)) {
+      errors.push('Slug must contain only lowercase letters, numbers, and hyphens');
+    }
+    
+    if (formData.iconUrl && !formData.iconUrl.startsWith('data:image/') && !/^https?:\/\/.+/.test(formData.iconUrl)) {
+      errors.push('Icon must be a valid image file or HTTP/HTTPS URL');
+    }
+    
+    return errors;
+  };
+
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const validationErrors = validateForm();
+    if (validationErrors.length > 0) {
+      alert(validationErrors.join('\n'));
+      return;
+    }
+    
     try {
       const response = await fetch('/api/categories', {
         method: 'POST',
@@ -84,12 +124,14 @@ export default function AdminCategoriesPage() {
           description: '',
           slug: '',
           parentId: '',
+          iconUrl: '',
           isActive: true
         });
         loadCategories();
+        alert('Category created successfully!');
       } else {
         console.error('Error creating category:', data.error);
-        alert(data.error);
+        alert(data.error || 'Failed to create category');
       }
     } catch (error) {
       console.error('Error creating category:', error);
@@ -100,6 +142,12 @@ export default function AdminCategoriesPage() {
   const handleUpdateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCategory) return;
+
+    const validationErrors = validateForm();
+    if (validationErrors.length > 0) {
+      alert(validationErrors.join('\n'));
+      return;
+    }
 
     try {
       const response = await fetch(`/api/categories/${editingCategory.id}`, {
@@ -119,12 +167,14 @@ export default function AdminCategoriesPage() {
           description: '',
           slug: '',
           parentId: '',
+          iconUrl: '',
           isActive: true
         });
         loadCategories();
+        alert('Category updated successfully!');
       } else {
         console.error('Error updating category:', data.error);
-        alert(data.error);
+        alert(data.error || 'Failed to update category');
       }
     } catch (error) {
       console.error('Error updating category:', error);
@@ -160,6 +210,7 @@ export default function AdminCategoriesPage() {
       description: category.description,
       slug: category.slug,
       parentId: category.parentId || '',
+      iconUrl: category.iconUrl || '',
       isActive: category.isActive
     });
   };
@@ -198,14 +249,25 @@ export default function AdminCategoriesPage() {
             )}
             <FolderOpen className="h-5 w-5 text-gray-500" />
             <div>
-              <h3 className="font-medium text-gray-900">{category.name}</h3>
-              <p className="text-sm text-gray-500">{category.description}</p>
-              <div className="flex items-center space-x-4 text-xs text-gray-400">
-                <span className={`px-2 py-1 rounded ${
-                  category.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  {category.isActive ? 'Active' : 'Inactive'}
-                </span>
+              <div className="flex items-center space-x-3">
+                {category.iconUrl && (
+                  <img
+                    src={category.iconUrl}
+                    alt={category.name}
+                    className="w-8 h-8 object-cover rounded-md"
+                  />
+                )}
+                <div>
+                  <h3 className="font-medium text-gray-900">{category.name}</h3>
+                  <p className="text-sm text-gray-500">{category.description}</p>
+                  <div className="flex items-center space-x-4 text-xs text-gray-400">
+                    <span className={`px-2 py-1 rounded ${
+                      category.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {category.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -290,7 +352,13 @@ export default function AdminCategoriesPage() {
                 <Input
                   label="Category Name"
                   value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => {
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      name: e.target.value,
+                      slug: !editingCategory ? generateSlug(e.target.value) : prev.slug
+                    }));
+                  }}
                   required
                 />
                 <Input
@@ -309,6 +377,28 @@ export default function AdminCategoriesPage() {
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Parent Category
+                </label>
+                <HierarchicalCategorySelector
+                  value={formData.parentId}
+                  onChange={(categoryId) => setFormData(prev => ({ ...prev, parentId: categoryId }))}
+                  placeholder="Select parent category (optional)"
+                  showPath={true}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Category Image/Icon
+                </label>
+                <ImageUpload
+                  value={formData.iconUrl}
+                  onChange={(url) => setFormData(prev => ({ ...prev, iconUrl: url }))}
+                  placeholder="Upload category image"
+                  maxSize={5}
                 />
               </div>
               <div className="flex items-center space-x-4">

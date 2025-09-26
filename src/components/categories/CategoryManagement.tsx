@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { HierarchicalCategorySelector } from './HierarchicalCategorySelector';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 import { 
   Category, 
   CreateCategoryData, 
@@ -133,13 +134,21 @@ export function CategoryManagement({ onCategoryChange }: CategoryManagementProps
             )}
             
             <div className="flex-1">
-              <div className="font-medium text-gray-900">{node.name}</div>
-              <div className="text-sm text-gray-500">
-                {node.description || 'No description'}
+              <div className="flex items-center space-x-3">
+                {node.iconUrl && (
+                  <img
+                    src={node.iconUrl}
+                    alt={node.name}
+                    className="w-6 h-6 object-cover rounded"
+                  />
+                )}
+                <div>
+                  <div className="font-medium text-gray-900">{node.name}</div>
+                  <div className="text-sm text-gray-500">
+                    {node.description || 'No description'}
+                  </div>
+                </div>
               </div>
-              {node.description && (
-                <div className="text-sm text-gray-600 mt-1">{node.description}</div>
-              )}
             </div>
 
             <div className="flex items-center space-x-2">
@@ -403,12 +412,13 @@ function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Icon URL
+            Category Image/Icon
           </label>
-          <Input
+          <ImageUpload
             value={formData.iconUrl}
-            onChange={(e) => handleInputChange('iconUrl', e.target.value)}
-            placeholder="https://example.com/icon.png"
+            onChange={(url) => handleInputChange('iconUrl', url)}
+            placeholder="Upload category image"
+            maxSize={5}
           />
         </div>
 

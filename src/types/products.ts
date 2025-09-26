@@ -142,6 +142,7 @@ export interface CreateCategoryData {
   description?: string;
   parentId?: string;
   slug: string;
+  iconUrl?: string;
   isActive: boolean;
 }
 
