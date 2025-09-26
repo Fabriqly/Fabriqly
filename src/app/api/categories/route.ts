@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
       }
       
       level = parentCategory.level + 1;
-      path = [...parentCategory.path, body.name];
+      path = [...(parentCategory.path || []), body.name];
       
       // Prevent too deep nesting (max 5 levels)
       if (level > 5) {
@@ -205,6 +205,9 @@ export async function POST(request: NextRequest) {
       description: body.description,
       slug: body.slug,
       ...(body.parentId && { parentCategoryId: body.parentId }), // Store as parentCategoryId
+      ...(body.iconUrl && { iconUrl: body.iconUrl }), // Add iconUrl support
+      level: level, // Add level for hierarchy
+      path: path, // Add path for hierarchy
       isActive: body.isActive !== false, // Default to true
       sortOrder: sortOrder, // Add sortOrder for backward compatibility
       createdAt: new Date(),
