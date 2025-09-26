@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 import { Color } from '@/types/enhanced-products';
 import { Plus, Edit, Trash2, Palette } from 'lucide-react';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CreateColorData {
   colorName: string;
@@ -15,7 +16,7 @@ interface CreateColorData {
 }
 
 export default function BusinessColorsPage() {
-  const { data: session } = useSession();
+  const { user } = useAuth(true);
   const [colors, setColors] = useState<Color[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -28,10 +29,10 @@ export default function BusinessColorsPage() {
   });
 
   useEffect(() => {
-    if (session?.user?.id) {
+    if (user?.id) {
       loadColors();
     }
-  }, [session?.user?.id]);
+  }, [user?.id]);
 
   const loadColors = async () => {
     try {
@@ -39,12 +40,12 @@ export default function BusinessColorsPage() {
       if (response.ok) {
         const data = await response.json();
         console.log('All colors from API:', data.colors);
-        console.log('Current user ID:', session?.user?.id);
+        console.log('Current user ID:', user?.id);
         
         // Filter colors to show only those created by the current business owner
         const userColors = data.colors?.filter((color: Color) => {
-          console.log('Color businessOwnerId:', color.businessOwnerId, 'User ID:', session?.user?.id);
-          return color.businessOwnerId === session?.user?.id || !color.businessOwnerId;
+          console.log('Color businessOwnerId:', color.businessOwnerId, 'User ID:', user?.id);
+          return color.businessOwnerId === user?.id || !color.businessOwnerId;
         }) || [];
         
         console.log('Filtered colors:', userColors);
@@ -227,23 +228,32 @@ export default function BusinessColorsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">My Colors</h1>
-              <p className="mt-2 text-gray-600">Manage colors for your products</p>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Dashboard Header */}
+      <DashboardHeader user={user} />
+
+      <div className="flex flex-1">
+        {/* Dashboard Sidebar */}
+        <DashboardSidebar user={user} />
+
+        {/* Main Content */}
+        <div className="flex-1">
+          <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
+            <div className="mb-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">My Colors</h1>
+                  <p className="mt-2 text-gray-600">Manage colors for your products</p>
+                </div>
+                <Button
+                  onClick={() => setShowCreateForm(true)}
+                  className="flex items-center space-x-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Color</span>
+                </Button>
+              </div>
             </div>
-            <Button
-              onClick={() => setShowCreateForm(true)}
-              className="flex items-center space-x-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Color</span>
-            </Button>
-          </div>
-        </div>
 
         {/* Create/Edit Color Form */}
         {showCreateForm && (
@@ -395,6 +405,8 @@ export default function BusinessColorsPage() {
             </Button>
           </div>
         )}
+          </div>
+        </div>
       </div>
     </div>
   );

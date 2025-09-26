@@ -187,41 +187,6 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-600">
-            Manage your product catalog
-            {searchResult && ` (${searchResult.total} total)`}
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          <Button
-            variant="outline"
-            onClick={handleRefresh}
-            disabled={loading}
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={handleExport}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-
-          {showCreateButton && (
-            <Button onClick={() => setShowCreateForm(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Product
-            </Button>
-          )}
-        </div>
-      </div>
 
       {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow-md p-6">
