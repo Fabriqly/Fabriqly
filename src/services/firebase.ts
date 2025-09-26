@@ -152,6 +152,9 @@ export const Collections = {
   // Activity System
   ACTIVITIES: 'activities',
   
+  // Dashboard Analytics
+  DASHBOARD_SNAPSHOTS: 'dashboardSnapshots',
+  
   // Existing Collections
   ORDERS: 'orders',
   REVIEWS: 'reviews',
