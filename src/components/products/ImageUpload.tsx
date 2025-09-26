@@ -56,8 +56,20 @@ export function ImageUpload({ onImagesChange, maxImages = 5, className = '' }: I
     const files = Array.from(event.dataTransfer.files);
     
     if (files.length > 0) {
+      // Create a proper FileList-like object
+      const fileList = {
+        ...files,
+        length: files.length,
+        item: (index: number) => files[index] || null,
+        [Symbol.iterator]: function* () {
+          for (let i = 0; i < files.length; i++) {
+            yield files[i];
+          }
+        }
+      } as FileList;
+      
       const fakeEvent = {
-        target: { files }
+        target: { files: fileList }
       } as React.ChangeEvent<HTMLInputElement>;
       handleFileSelect(fakeEvent);
     }
@@ -143,3 +155,11 @@ export function ImageUpload({ onImagesChange, maxImages = 5, className = '' }: I
     </div>
   );
 }
+
+
+
+
+
+
+
+

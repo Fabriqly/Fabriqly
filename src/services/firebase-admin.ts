@@ -1,8 +1,29 @@
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
 import { Collections } from './firebase';
+import { Timestamp } from 'firebase-admin/firestore';
 
 // Server-side Firebase operations using Admin SDK
 export class FirebaseAdminService {
+  // Helper method to convert Firestore Timestamps to JavaScript Date objects
+  static convertTimestamps(data: any): any {
+    if (!data) return data;
+    
+    const converted = { ...data };
+    
+    for (const key in converted) {
+      if (converted[key] instanceof Timestamp) {
+        converted[key] = converted[key].toDate();
+      } else if (Array.isArray(converted[key])) {
+        converted[key] = converted[key].map(item => 
+          item instanceof Timestamp ? item.toDate() : item
+        );
+      } else if (typeof converted[key] === 'object' && converted[key] !== null) {
+        converted[key] = this.convertTimestamps(converted[key]);
+      }
+    }
+    
+    return converted;
+  }
   // User management operations
   static async createUser(userData: {
     email: string;
@@ -208,10 +229,14 @@ export class FirebaseAdminService {
       }
 
       const snapshot = await query.get();
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const convertedData = this.convertTimestamps(data);
+        return {
+          id: doc.id,
+          ...convertedData
+        };
+      });
     } catch (error) {
       console.error('Error querying documents:', error);
       throw error;
@@ -235,7 +260,10 @@ export class FirebaseAdminService {
       const docSnap = await docRef.get();
       
       if (docSnap.exists) {
-        return { id: docSnap.id, ...docSnap.data() };
+        const data = docSnap.data();
+        // Convert Firestore Timestamps to JavaScript Date objects
+        const convertedData = this.convertTimestamps(data);
+        return { id: docSnap.id, ...convertedData };
       } else {
         return null;
       }

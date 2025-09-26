@@ -35,8 +35,9 @@ interface Product {
     categoryName: string;
   };
   businessOwner?: {
+    id: string;
     name: string;
-    email: string;
+    businessName?: string;
   };
 }
 

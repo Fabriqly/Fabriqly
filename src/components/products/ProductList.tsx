@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useReducer } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProductCard } from './ProductCard';
-import { ProductForm } from './ProductForm';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { 
@@ -19,7 +18,11 @@ import {
   Grid, 
   List,
   Download,
-  RefreshCw
+  RefreshCw,
+  AlertCircle,
+  Loader2,
+  Send,
+  Package
 } from 'lucide-react';
 
 interface ProductListProps {
@@ -27,105 +30,289 @@ interface ProductListProps {
   showCreateButton?: boolean;
 }
 
-export function ProductList({ businessOwnerId, showCreateButton = true }: ProductListProps) {
-  const router = useRouter();
-  const [products, setProducts] = useState<ProductWithDetails[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchResult, setSearchResult] = useState<ProductSearchResult | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [editingProduct, setEditingProduct] = useState<ProductWithDetails | null>(null);
-  const [showCreateForm, setShowCreateForm] = useState(false);
+// State management with useReducer for better performance
+interface ProductListState {
+  products: ProductWithDetails[];
+  categories: Category[];
+  loading: boolean;
+  error: string | null;
+  filters: ProductFilters;
+  searchResult: ProductSearchResult | null;
+  viewMode: 'grid' | 'list';
+}
 
-  const [filters, setFilters] = useState<ProductFilters>({
-    search: '',
-    categoryId: '',
-    status: undefined,
-    isCustomizable: undefined,
-    isDigital: undefined,
-    minPrice: undefined,
-    maxPrice: undefined,
+type ProductListAction = 
+  | { type: 'SET_PRODUCTS'; payload: ProductWithDetails[] }
+  | { type: 'SET_CATEGORIES'; payload: Category[] }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_FILTERS'; payload: Partial<ProductFilters> }
+  | { type: 'SET_SEARCH_RESULT'; payload: ProductSearchResult }
+  | { type: 'SET_VIEW_MODE'; payload: 'grid' | 'list' }
+  | { type: 'CLEAR_FILTERS' };
+
+const initialState: ProductListState = {
+  products: [],
+  categories: [],
+  loading: false,
+  error: null,
+  filters: {
     sortBy: 'createdAt',
     sortOrder: 'desc',
     limit: 20,
     offset: 0
-  });
+  },
+  searchResult: null,
+  viewMode: 'grid'
+};
 
+function productListReducer(state: ProductListState, action: ProductListAction): ProductListState {
+  switch (action.type) {
+    case 'SET_PRODUCTS':
+      return { ...state, products: action.payload };
+    case 'SET_CATEGORIES':
+      return { ...state, categories: action.payload };
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    case 'SET_FILTERS':
+      return { ...state, filters: { ...state.filters, ...action.payload } };
+    case 'SET_SEARCH_RESULT':
+      return { 
+        ...state, 
+        products: action.payload.products,
+        searchResult: action.payload
+      };
+    case 'SET_VIEW_MODE':
+      return { ...state, viewMode: action.payload };
+    case 'CLEAR_FILTERS':
+      return {
+        ...state,
+        filters: {
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+          limit: 20,
+          offset: 0
+        }
+      };
+    default:
+      return state;
+  }
+}
+
+const SearchAndFilters = ({ 
+  filters, 
+  categories, 
+  onFilterChange, 
+  onClearFilters, 
+  hasActiveFilters 
+}: any) => (
+  <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      {/* Search */}
+      <div className="flex-1 max-w-md">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            placeholder="Search products..."
+            value={filters.search || ''}
+            onChange={(e) => onFilterChange('search', e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-4">
+        {/* Category Filter */}
+        <div className="min-w-48">
+          <select
+            value={filters.categoryId || ''}
+            onChange={(e) => onFilterChange('categoryId', e.target.value || undefined)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All Categories</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Status Filter */}
+        <div className="min-w-32">
+          <select
+            value={filters.status || ''}
+            onChange={(e) => onFilterChange('status', e.target.value || undefined)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All Status</option>
+            <option value="draft">Draft</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="out_of_stock">Out of Stock</option>
+          </select>
+        </div>
+
+        {/* Sort */}
+        <div className="min-w-32">
+          <select
+            value={`${filters.sortBy}-${filters.sortOrder}`}
+            onChange={(e) => {
+              const [sortBy, sortOrder] = e.target.value.split('-');
+              onFilterChange('sortBy', sortBy);
+              onFilterChange('sortOrder', sortOrder);
+            }}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="createdAt-desc">Newest First</option>
+            <option value="createdAt-asc">Oldest First</option>
+            <option value="name-asc">Name A-Z</option>
+            <option value="name-desc">Name Z-A</option>
+            <option value="price-asc">Price Low-High</option>
+            <option value="price-desc">Price High-Low</option>
+          </select>
+        </div>
+
+        {/* Clear Filters */}
+        {hasActiveFilters && (
+          <Button
+            variant="outline"
+            onClick={onClearFilters}
+            className="flex items-center space-x-2"
+          >
+            <Filter className="w-4 h-4" />
+            <span>Clear</span>
+          </Button>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
+const ProductGrid = ({ products, viewMode, onEditProduct, onDeleteProduct, onPublishProduct }: any) => (
+  <div className={
+    viewMode === 'grid' 
+      ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+      : 'space-y-4'
+  }>
+    {products.map((product: ProductWithDetails) => (
+      <ProductCard
+        key={product.id}
+        product={product}
+        onEdit={onEditProduct}
+        onDelete={onDeleteProduct}
+        onPublish={onPublishProduct}
+        showActions={true}
+        variant="management"
+      />
+    ))}
+  </div>
+);
+
+const EmptyState = ({ hasActiveFilters, onClearFilters, onCreateProduct }: any) => (
+  <div className="text-center py-12">
+    <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+    <h3 className="text-lg font-medium text-gray-900 mb-2">
+      {hasActiveFilters ? 'No products match your filters' : 'No products yet'}
+    </h3>
+    <p className="text-gray-500 mb-6">
+      {hasActiveFilters 
+        ? 'Try adjusting your search criteria or clear the filters.'
+        : 'Get started by creating your first product.'
+      }
+    </p>
+    <div className="flex justify-center space-x-4">
+      {hasActiveFilters ? (
+        <Button onClick={onClearFilters} variant="outline">
+          Clear Filters
+        </Button>
+      ) : (
+        <Button onClick={onCreateProduct} className="flex items-center space-x-2">
+          <Plus className="w-4 h-4" />
+          <span>Create Product</span>
+        </Button>
+      )}
+    </div>
+  </div>
+);
+
+export function ProductList({ businessOwnerId, showCreateButton = true }: ProductListProps) {
+  const router = useRouter();
+  const [state, dispatch] = useReducer(productListReducer, initialState);
+
+  // Load categories on mount
   useEffect(() => {
     loadCategories();
-    loadProducts();
   }, []);
 
+  // Load products when filters change
   useEffect(() => {
     loadProducts();
-  }, [filters]);
+  }, [state.filters, businessOwnerId]);
 
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     try {
       const response = await fetch('/api/categories');
-      const data = await response.json();
-      setCategories(data.categories || []);
+      if (response.ok) {
+        const data = await response.json();
+        dispatch({ type: 'SET_CATEGORIES', payload: data.categories || [] });
+      }
     } catch (error) {
       console.error('Error loading categories:', error);
     }
-  };
+  }, []);
 
-  const loadProducts = async () => {
-    setLoading(true);
+  const loadProducts = useCallback(async () => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
+
     try {
-      const queryParams = new URLSearchParams();
+      const params = new URLSearchParams();
       
-      if (businessOwnerId) queryParams.append('businessOwnerId', businessOwnerId);
-      if (filters.search) queryParams.append('search', filters.search);
-      if (filters.categoryId) queryParams.append('categoryId', filters.categoryId);
-      if (filters.status) queryParams.append('status', filters.status);
-      if (filters.isCustomizable !== undefined) queryParams.append('isCustomizable', filters.isCustomizable.toString());
-      if (filters.isDigital !== undefined) queryParams.append('isDigital', filters.isDigital.toString());
-      if (filters.minPrice !== undefined) queryParams.append('minPrice', filters.minPrice.toString());
-      if (filters.maxPrice !== undefined) queryParams.append('maxPrice', filters.maxPrice.toString());
-      if (filters.sortBy) queryParams.append('sortBy', filters.sortBy);
-      if (filters.sortOrder) queryParams.append('sortOrder', filters.sortOrder);
-      if (filters.limit) queryParams.append('limit', filters.limit.toString());
-      if (filters.offset) queryParams.append('offset', filters.offset.toString());
-
-      const response = await fetch(`/api/products?${queryParams}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setProducts(data.products || []);
-        setSearchResult(data);
-      } else {
-        console.error('Error loading products:', data.error);
+      // Add business owner filter
+      if (businessOwnerId) {
+        params.append('businessOwnerId', businessOwnerId);
       }
-    } catch (error) {
+      
+      // Add other filters
+      Object.entries(state.filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          if (Array.isArray(value)) {
+            params.append(key, value.join(','));
+          } else {
+            params.append(key, String(value));
+          }
+        }
+      });
+
+      const response = await fetch(`/api/products?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch products');
+      }
+
+      const data: ProductSearchResult = await response.json();
+      dispatch({ type: 'SET_SEARCH_RESULT', payload: data });
+    } catch (error: any) {
       console.error('Error loading products:', error);
+      dispatch({ type: 'SET_ERROR', payload: error.message || 'Failed to load products' });
     } finally {
-      setLoading(false);
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
-  };
+  }, [state.filters, businessOwnerId]);
 
-  const handleSearch = (searchTerm: string) => {
-    setFilters(prev => ({
-      ...prev,
-      search: searchTerm,
-      offset: 0
-    }));
-  };
+  const handleFilterChange = useCallback((key: keyof ProductFilters, value: any) => {
+    dispatch({ type: 'SET_FILTERS', payload: { [key]: value } });
+  }, []);
 
-  const handleFilterChange = (key: keyof ProductFilters, value: any) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value,
-      offset: 0
-    }));
-  };
+  const handleEditProduct = useCallback((product: ProductWithDetails) => {
+    router.push(`/dashboard/products/edit/${product.id}`);
+  }, [router]);
 
-  const handleEditProduct = (product: ProductWithDetails) => {
-    setEditingProduct(product);
-  };
-
-  const handleDeleteProduct = async (product: ProductWithDetails) => {
+  const handleDeleteProduct = useCallback(async (product: ProductWithDetails) => {
     if (!confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`)) {
       return;
     }
@@ -136,7 +323,8 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
       });
 
       if (response.ok) {
-        setProducts(prev => prev.filter(p => p.id !== product.id));
+        dispatch({ type: 'SET_PRODUCTS', payload: state.products.filter(p => p.id !== product.id) });
+        // Optionally show success message
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to delete product');
@@ -145,214 +333,210 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
       console.error('Error deleting product:', error);
       alert('Failed to delete product');
     }
-  };
+  }, [state.products]);
 
-  const handleProductSaved = (savedProduct: ProductWithDetails) => {
-    if (editingProduct) {
-      setProducts(prev => prev.map(p => p.id === savedProduct.id ? savedProduct : p));
-      setEditingProduct(null);
-    } else {
-      setProducts(prev => [savedProduct, ...prev]);
-      setShowCreateForm(false);
+  const handlePublishProduct = useCallback(async (product: ProductWithDetails) => {
+    if (!confirm(`Are you sure you want to publish "${product.name}"? This will make it visible to customers.`)) {
+      return;
     }
-  };
 
-  const handleRefresh = () => {
+    try {
+      const response = await fetch(`/api/products/${product.id}/publish`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        // Update the product status in the local state
+        const updatedProducts = state.products.map(p => 
+          p.id === product.id ? { ...p, status: 'active' as const } : p
+        );
+        dispatch({ type: 'SET_PRODUCTS', payload: updatedProducts });
+        
+        // Show success message
+        alert(`"${product.name}" has been published successfully!`);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to publish product');
+      }
+    } catch (error) {
+      console.error('Error publishing product:', error);
+      alert('Failed to publish product');
+    }
+  }, [state.products]);
+
+  const handleRefresh = useCallback(() => {
     loadProducts();
-  };
+  }, [loadProducts]);
 
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     // TODO: Implement CSV export
     console.log('Export functionality to be implemented');
-  };
+  }, []);
 
-  if (editingProduct) {
-    return (
-      <ProductForm
-        product={editingProduct}
-        onSave={handleProductSaved}
-        onCancel={() => setEditingProduct(null)}
-      />
-    );
-  }
+  const handleLoadMore = useCallback(() => {
+    dispatch({ 
+      type: 'SET_FILTERS', 
+      payload: { offset: (state.filters.offset || 0) + (state.filters.limit || 20) }
+    });
+  }, [state.filters.offset, state.filters.limit]);
 
-  if (showCreateForm) {
+  const handleClearFilters = useCallback(() => {
+    dispatch({ type: 'CLEAR_FILTERS' });
+  }, []);
+
+  const handleCreateProduct = useCallback(() => {
+    router.push('/dashboard/products/create');
+  }, [router]);
+
+  const hasActiveFilters = useMemo(() => {
+    return Object.entries(state.filters).some(([key, value]) => {
+      if (key === 'sortBy' || key === 'sortOrder' || key === 'limit' || key === 'offset') {
+        return false; // These are default filters
+      }
+      return value !== undefined && value !== null && value !== '';
+    });
+  }, [state.filters]);
+
+  const draftProductsCount = useMemo(() => {
+    return state.products.filter(p => p.status === 'draft').length;
+  }, [state.products]);
+
+  if (state.loading && state.products.length === 0) {
     return (
-      <ProductForm
-        onSave={handleProductSaved}
-        onCancel={() => setShowCreateForm(false)}
-      />
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading products...</p>
+        </div>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
-
-      {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center space-x-4 mb-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search products..."
-                value={filters.search}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-
-          <Button
-            variant="outline"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
-          </Button>
-
-          <div className="flex items-center space-x-2">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+          <p className="text-gray-600">
+            {state.products.length} products
+            {draftProductsCount > 0 && (
+              <span className="ml-2 text-orange-600">
+                ({draftProductsCount} draft{draftProductsCount !== 1 ? 's' : ''})
+              </span>
+            )}
+          </p>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          {/* View Mode Toggle */}
+          <div className="flex items-center border border-gray-300 rounded-md">
             <Button
-              variant={viewMode === 'grid' ? 'primary' : 'outline'}
+              variant={state.viewMode === 'grid' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setViewMode('grid')}
+              onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'grid' })}
+              className="rounded-r-none border-r-0"
             >
               <Grid className="w-4 h-4" />
             </Button>
             <Button
-              variant={viewMode === 'list' ? 'primary' : 'outline'}
+              variant={state.viewMode === 'list' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setViewMode('list')}
+              onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'list' })}
+              className="rounded-l-none"
             >
               <List className="w-4 h-4" />
             </Button>
           </div>
-        </div>
 
-        {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Category
-              </label>
-              <select
-                value={filters.categoryId}
-                onChange={(e) => handleFilterChange('categoryId', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          {/* Actions */}
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={state.loading}
+              className="flex items-center space-x-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${state.loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </Button>
+            
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              className="flex items-center space-x-2"
+            >
+              <Download className="w-4 h-4" />
+              <span>Export</span>
+            </Button>
+            
+            {showCreateButton && (
+              <Button
+                onClick={handleCreateProduct}
+                className="flex items-center space-x-2"
               >
-                <option value="">All Categories</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status
-              </label>
-              <select
-                value={filters.status || ''}
-                onChange={(e) => handleFilterChange('status', e.target.value || undefined)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="out_of_stock">Out of Stock</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Min Price
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={filters.minPrice || ''}
-                onChange={(e) => handleFilterChange('minPrice', e.target.value ? parseFloat(e.target.value) : undefined)}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Max Price
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={filters.maxPrice || ''}
-                onChange={(e) => handleFilterChange('maxPrice', e.target.value ? parseFloat(e.target.value) : undefined)}
-                placeholder="999.99"
-              />
-            </div>
+                <Plus className="w-4 h-4" />
+                <span>Create Product</span>
+              </Button>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Products Grid/List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
-          <span className="ml-2 text-gray-600">Loading products...</span>
-        </div>
-      ) : products.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
-            <Grid className="w-16 h-16 mx-auto" />
+      {/* Search and Filters */}
+      <SearchAndFilters
+        filters={state.filters}
+        categories={state.categories}
+        onFilterChange={handleFilterChange}
+        onClearFilters={handleClearFilters}
+        hasActiveFilters={hasActiveFilters}
+      />
+
+      {/* Error State */}
+      {state.error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex items-center">
+            <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
+            <p className="text-red-800">{state.error}</p>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
-          <p className="text-gray-600 mb-4">
-            {filters.search || filters.categoryId ? 
-              'Try adjusting your search criteria' : 
-              'Get started by adding your first product'
-            }
-          </p>
-          {showCreateButton && !filters.search && !filters.categoryId && (
-            <Button onClick={() => setShowCreateForm(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Your First Product
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className={
-          viewMode === 'grid' 
-            ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-            : 'space-y-4'
-        }>
-          {products.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onEdit={handleEditProduct}
-              onDelete={handleDeleteProduct}
-              showActions={true}
-              variant={viewMode === 'grid' ? 'management' : 'management'}
-            />
-          ))}
         </div>
       )}
 
-      {/* Pagination */}
-      {searchResult && searchResult.hasMore && (
-        <div className="flex justify-center">
+      {/* Products Grid/List */}
+      {state.products.length > 0 ? (
+        <ProductGrid
+          products={state.products}
+          viewMode={state.viewMode}
+          onEditProduct={handleEditProduct}
+          onDeleteProduct={handleDeleteProduct}
+          onPublishProduct={handlePublishProduct}
+        />
+      ) : (
+        <EmptyState
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={handleClearFilters}
+          onCreateProduct={handleCreateProduct}
+        />
+      )}
+
+      {/* Load More */}
+      {state.searchResult?.hasMore && (
+        <div className="text-center py-6">
           <Button
+            onClick={handleLoadMore}
+            disabled={state.loading}
             variant="outline"
-            onClick={() => handleFilterChange('offset', (filters.offset || 0) + (filters.limit || 20))}
-            disabled={loading}
+            className="flex items-center space-x-2"
           >
-            Load More Products
+            {state.loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
+            <span>Load More</span>
           </Button>
         </div>
       )}
     </div>
   );
 }
-

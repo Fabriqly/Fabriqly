@@ -350,9 +350,14 @@ export interface UpdateColorData extends Partial<CreateColorData> {
 }
 
 export interface CreateProductColorData {
-  productId: string;
   colorId: string;
   priceAdjustment: number;
   isAvailable: boolean;
+  stockQuantity?: number;
+}
+
+export interface UpdateProductColorData {
+  priceAdjustment?: number;
+  isAvailable?: boolean;
   stockQuantity?: number;
 }
