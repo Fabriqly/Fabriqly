@@ -424,6 +424,7 @@ export default function AdminCategoriesPage() {
                       description: '',
                       slug: '',
                       parentId: '',
+                      iconUrl: '',
                       isActive: true
                     });
                   }}

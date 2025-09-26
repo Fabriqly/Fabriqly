@@ -50,7 +50,7 @@ const formatTimestamp = (timestamp: any): string => {
 // ColorForm component for adding/editing colors
 interface ColorFormProps {
   color?: Color;
-  onSave: (data: CreateColorData | UpdateColorData) => void;
+  onSave: (data: CreateColorData | UpdateColorData) => Promise<void>;
   onCancel: () => void;
   title: string;
 }
@@ -100,10 +100,10 @@ function ColorForm({ color, onSave, onCancel, title }: ColorFormProps) {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      onSave(formData);
+      await onSave(formData);
     }
   };
 
@@ -302,7 +302,7 @@ export function ColorManagement({ onColorChange }: ColorManagementProps) {
     setFilteredColors(filtered);
   };
 
-  const handleCreateColor = async (colorData: CreateColorData) => {
+  const handleCreateColor = async (colorData: CreateColorData | UpdateColorData) => {
     try {
       const response = await fetch('/api/colors', {
         method: 'POST',

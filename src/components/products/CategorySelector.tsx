@@ -14,6 +14,7 @@ interface CategorySelectorProps {
 
 interface CategoryNode extends Category {
   children?: CategoryNode[];
+  path?: string[]; // Breadcrumb path for hierarchical display
 }
 
 export function CategorySelector({ 
@@ -39,7 +40,9 @@ export function CategorySelector({
       const data = await response.json();
       setCategories(data.categories || []);
     } catch (error) {
-      console.error('Error loading categories:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading categories:', error);
+      }
     } finally {
       setLoading(false);
     }

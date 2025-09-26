@@ -150,12 +150,25 @@ export function RecentActivity({
   };
 
   const toggleFilter = (type: 'types' | 'priority', value: ActivityType | ActivityPriority) => {
-    setFilters(prev => ({
-      ...prev,
-      [type]: prev[type].includes(value as any)
-        ? prev[type].filter(item => item !== value)
-        : [...prev[type], value as any]
-    }));
+    setFilters(prev => {
+      if (type === 'types') {
+        const currentTypes = prev.types;
+        return {
+          ...prev,
+          types: currentTypes.includes(value as ActivityType)
+            ? currentTypes.filter(item => item !== value)
+            : [...currentTypes, value as ActivityType]
+        };
+      } else {
+        const currentPriority = prev.priority;
+        return {
+          ...prev,
+          priority: currentPriority.includes(value as ActivityPriority)
+            ? currentPriority.filter(item => item !== value)
+            : [...currentPriority, value as ActivityPriority]
+        };
+      }
+    });
   };
 
   if (loading) {

@@ -35,8 +35,8 @@ export async function POST(request: NextRequest) {
     }
 
     const results = {
-      created: [],
-      errors: [],
+      created: [] as any[],
+      errors: [] as Array<{ index: number; color: CreateColorData; error: string }>,
       total: body.colors.length
     };
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
           colorName: colorData.colorName,
           hexCode: colorData.hexCode,
           rgbCode: colorData.rgbCode,
-          isActive: colorData.isActive !== undefined ? colorData.isActive : true,
+          isActive: true,
           createdAt: Timestamp.now(),
           ...(session.user.role === 'business_owner' && { businessOwnerId: session.user.id })
         };
@@ -128,13 +128,13 @@ export async function POST(request: NextRequest) {
             successfulColors: results.created.length,
             failedColors: results.errors.length,
             createdBy: session.user.role,
-            colorNames: results.created.map(c => c.colorName),
+            colorNames: results.created.map((c: any) => c.colorName),
             createdAt: new Date().toISOString()
           }
         });
         console.log('✅ Bulk color creation activity logged successfully');
       }
-    } catch (activityError) {
+    } catch (activityError: any) {
       console.error('❌ Error logging bulk color creation activity:', activityError);
       // Don't fail the bulk operation if activity logging fails
     }
@@ -181,8 +181,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     const results = {
-      deleted: [],
-      errors: [],
+      deleted: [] as Array<{ colorId: string; colorName: string }>,
+      errors: [] as Array<{ colorId: string; error: string }>,
       total: body.colorIds.length
     };
 

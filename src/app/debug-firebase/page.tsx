@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { DebugPage } from '@/utils/debug';
 
 export default function DebugFirebasePage() {
   const [result, setResult] = useState<string>('');
@@ -46,7 +47,7 @@ export default function DebugFirebasePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <DebugPage title="Firebase Debug">
       <div className="max-w-4xl mx-auto px-4">
         <div className="bg-white rounded-lg shadow-md p-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-8">🔍 Firebase Debug Tool</h1>
@@ -94,6 +95,6 @@ export default function DebugFirebasePage() {
           </div>
         </div>
       </div>
-    </div>
+    </DebugPage>
   );
 }

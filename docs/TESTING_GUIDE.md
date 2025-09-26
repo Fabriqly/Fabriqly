@@ -1,7 +1,12 @@
-# Product System Testing Guide
+# Complete Testing Guide
 
 ## 🎯 Testing Overview
-This guide covers testing the optimized product management system including API routes, components, and performance improvements.
+This comprehensive guide covers testing all aspects of the Fabriqly system including:
+- Product management system (API routes, components, performance)
+- Color management system
+- Activity tracking system
+- Dashboard analytics
+- Authentication and authorization
 
 ## 📋 Prerequisites
 - Node.js and npm installed
@@ -365,6 +370,115 @@ node scripts/create-test-data.js
 - [ ] Sensitive data not exposed
 - [ ] CSRF protection works
 
+## 🎨 Color Management Testing
+
+### **Color Management System Tests**
+
+#### Test 1: Admin Dashboard Access
+- Navigate to `/dashboard/admin/colors`
+- Verify ColorManagement component loads
+- Check that admin user can see all colors (global + custom)
+- Verify business owner can only see global + their own colors
+
+#### Test 2: Color CRUD Operations
+- **Create Color**: Click "Add Color" button
+  - Fill form with valid data (name, hex, rgb)
+  - Verify color preview updates in real-time
+  - Submit and check color appears in list
+- **Edit Color**: Click edit button on existing color
+  - Modify color properties
+  - Verify changes are saved
+- **Delete Color**: Click delete button
+  - Confirm deletion dialog
+  - Verify color is removed from list
+
+#### Test 3: Color Filtering & Search
+- **Search by Name**: Type color name in search box
+- **Search by Hex**: Type hex code in search box
+- **Filter by Type**: Switch between "All", "Global", "Custom"
+- **Show/Hide Inactive**: Toggle inactive colors visibility
+
+#### Test 4: Bulk Operations
+- **Select Individual Colors**: Check individual color checkboxes
+- **Select All**: Use "Select All" checkbox
+- **Bulk Delete**: Select multiple colors and delete
+- **Verify Results**: Check success/error messages
+
+### **Color Management API Tests**
+
+```bash
+# Get all colors
+curl -X GET "http://localhost:3000/api/colors" \
+  -H "Content-Type: application/json"
+
+# Create a new color
+curl -X POST "http://localhost:3000/api/colors" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test Color",
+    "hex": "#FF5733",
+    "rgb": {"r": 255, "g": 87, "b": 51},
+    "isGlobal": false
+  }'
+
+# Update a color
+curl -X PUT "http://localhost:3000/api/colors/color-id" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Updated Color Name"}'
+
+# Delete a color
+curl -X DELETE "http://localhost:3000/api/colors/color-id"
+```
+
+## 📊 Activity System Testing
+
+### **Activity System Tests**
+
+#### Test 1: Dashboard Recent Activity Component
+- **Component Renders**: Recent Activity section appears on admin dashboard
+- **Loading State**: Shows loading spinner when fetching activities
+- **Empty State**: Shows "No recent activity" when no activities exist
+- **Activity Display**: Shows activity title, description, actor, and timestamp
+- **Priority Colors**: Different priority levels show different colored icons
+- **Activity Icons**: Each activity type shows appropriate icon
+- **Relative Time**: Shows "2 hours ago", "Just now", etc.
+- **Refresh Button**: Manual refresh button works
+- **Click Navigation**: Clicking activities opens relevant pages (if target exists)
+- **Error Handling**: Shows error message if API fails
+
+#### Test 2: Activity Management Page
+- **Navigation**: "Activities" link appears in admin sidebar
+- **Page Loads**: `/dashboard/admin/activities` page loads successfully
+- **Activity List**: Shows list of all activities
+- **Pagination**: "Load More" button works
+- **Search**: Search functionality works across titles, descriptions, actors
+- **Filters**: Filter by activity type, priority, status
+- **Sorting**: Sort by date, priority, type
+- **Export**: CSV export functionality works
+- **Responsive**: Page works on mobile devices
+
+#### Test 3: Activity API Endpoints
+- **GET /api/activities**: Returns list of activities
+- **GET /api/activities?limit=10**: Pagination works
+- **GET /api/activities?types=user_registered**: Filtering works
+- **GET /api/activities?priority=high**: Priority filtering works
+- **POST /api/activities**: Creates new activity
+- **PUT /api/activities/[id]**: Updates existing activity
+- **DELETE /api/activities/[id]**: Deletes activity
+
+### **Activity System Test Commands**
+
+```bash
+# Generate test activities
+node scripts/create-test-activities.js
+
+# Initialize activities collection
+node scripts/init-activities-collection.js
+
+# Test activity API
+curl -X GET "http://localhost:3000/api/activities?limit=5"
+```
+
 ## 🚀 Next Steps After Testing
 
 1. **Fix any issues found**
@@ -378,4 +492,4 @@ node scripts/create-test-data.js
 
 ---
 
-**Note:** This testing guide should be executed systematically to ensure all optimizations work correctly and performance improvements are realized.
+**Note:** This comprehensive testing guide should be executed systematically to ensure all system components work correctly and performance improvements are realized.

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
 import { ProductImage } from '@/types/products';
+import { Timestamp } from 'firebase/firestore';
 
 interface RouteParams {
   params: {
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           altText: altText || file.name,
           isPrimary: isPrimary && i === 0, // Only first image can be primary
           sortOrder,
-          createdAt: new Date()
+          createdAt: Timestamp.now()
         };
 
         console.log('Creating image document:', imageData);

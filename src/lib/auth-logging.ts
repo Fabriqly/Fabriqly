@@ -1,5 +1,6 @@
 // lib/auth-logging.ts - Comprehensive Authentication Logging
 import { AuthErrorCode } from './auth-errors';
+import { debug } from '@/utils/debug';
 
 export enum LogLevel {
   DEBUG = 'DEBUG',
@@ -91,12 +92,15 @@ class AuthLogger {
     const emoji = this.getEmoji(entry.level);
     const prefix = `${emoji} [${entry.level}] ${entry.action}`;
     
+    // Use debug utilities for consistent logging
     if (entry.level === LogLevel.ERROR) {
-      console.error(prefix, entry.message, entry.details);
+      debug.log.error(prefix, entry.message, entry.details);
     } else if (entry.level === LogLevel.WARN) {
-      console.warn(prefix, entry.message, entry.details);
-    } else if (process.env.NODE_ENV === 'development') {
-      console.log(prefix, entry.message, entry.details);
+      debug.log.warn(prefix, entry.message, entry.details);
+    } else if (entry.level === LogLevel.DEBUG) {
+      debug.log.log(prefix, entry.message, entry.details);
+    } else if (entry.level === LogLevel.INFO) {
+      debug.log.info(prefix, entry.message, entry.details);
     }
   }
 
@@ -113,6 +117,15 @@ class AuthLogger {
   private sendToExternalService(entry: AuthLogEntry): void {
     // In production, implement external logging service integration
     // Examples: Sentry, LogRocket, DataDog, etc.
+    
+    // For now, we'll use debug utilities to log in development
+    // and could extend this to send to external services in production
+    if (debug.isDevelopment) {
+      debug.log.info('Auth Log Entry (Production Mode):', entry);
+    }
+    
+    // TODO: Implement external service integration
+    // Example: Sentry.captureMessage(entry.message, entry.level);
   }
 
   // Convenience methods for common log scenarios
