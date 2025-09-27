@@ -24,3 +24,4 @@ export interface IProductService {
   updateStock(productId: string, quantity: number, userId: string): Promise<Product>;
   validateProductData(data: CreateProductData): Promise<{ isValid: boolean; errors: string[] }>;
 }
+
