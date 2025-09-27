@@ -288,3 +288,4 @@ export function EmitEvent(eventType: string, getData?: (result: any, args: any[]
     return descriptor;
   };
 }
+

@@ -34,3 +34,4 @@ export interface IUserService {
   searchUsers(searchTerm: string): Promise<User[]>;
   validateUserData(userData: CreateUserData): { isValid: boolean; errors: string[] };
 }
+

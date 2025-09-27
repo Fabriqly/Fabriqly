@@ -34,3 +34,4 @@ export interface ICategoryService {
   getCategoryBySlug(slug: string): Promise<Category | null>;
   validateCategoryData(data: CreateCategoryData): Promise<{ isValid: boolean; errors: string[] }>;
 }
+

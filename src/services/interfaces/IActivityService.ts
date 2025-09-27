@@ -55,3 +55,4 @@ export interface IActivityService {
   getActivityStats(): Promise<ActivityStats>;
   logActivity(type: string, targetId: string, actorId: string, metadata?: any): Promise<Activity>;
 }
+

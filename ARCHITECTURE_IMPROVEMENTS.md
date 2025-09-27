@@ -236,3 +236,4 @@ eventBus.on(EventTypes.PRODUCT_CREATED, async (event) => {
 - **Audit Logging**: All operations logged for security auditing
 
 This architecture provides a solid foundation for the Fabriqly application, ensuring it can scale, maintain, and evolve effectively.
+
