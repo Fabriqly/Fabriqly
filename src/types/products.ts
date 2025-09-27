@@ -12,12 +12,16 @@ export interface Category {
   parentCategoryId?: string; // Database field name for subcategories
   parentId?: string; // Alias for backward compatibility
   slug: string; // URL-friendly name
+  iconUrl?: string; // Category image/icon URL
   isActive: boolean;
   level?: number; // Hierarchy level (0 for root categories)
   path?: string[]; // Breadcrumb path for hierarchy
   sortOrder?: number; // For ordering categories
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  // Supabase Storage metadata
+  storagePath?: string; // Path in Supabase Storage
+  storageBucket?: string; // Bucket name in Supabase Storage
 }
 
 // Product Variants (for sizes, colors, etc.)
@@ -44,6 +48,9 @@ export interface ProductImage {
   isPrimary: boolean; // Main product image
   sortOrder: number; // For ordering images
   createdAt: Timestamp;
+  // Supabase Storage metadata
+  storagePath?: string; // Path in Supabase Storage
+  storageBucket?: string; // Bucket name in Supabase Storage
 }
 
 // Main Product Interface
