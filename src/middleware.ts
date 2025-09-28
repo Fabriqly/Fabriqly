@@ -10,13 +10,7 @@ export default withAuth(
     callbacks: {
       authorized: ({ token, req }) => {
         // Always allow access to auth pages and API routes
-        if (req.nextUrl.pathname.startsWith('/api/auth/') ||
-            req.nextUrl.pathname.startsWith('/api/test-') ||
-            req.nextUrl.pathname.startsWith('/api/diagnose-') ||
-            req.nextUrl.pathname.startsWith('/api/create-test-') ||
-            req.nextUrl.pathname.startsWith('/api/debug') ||
-            req.nextUrl.pathname.startsWith('/api/direct-') ||
-            req.nextUrl.pathname.startsWith('/api/check-')) {
+        if (req.nextUrl.pathname.startsWith('/api/auth/')) {
           return true;
         }
         
@@ -25,11 +19,6 @@ export default withAuth(
             req.nextUrl.pathname.startsWith('/register') ||
             req.nextUrl.pathname.startsWith('/role-selection') ||
             req.nextUrl.pathname.startsWith('/forgot-password') ||
-            req.nextUrl.pathname.startsWith('/reset-password') ||
-            req.nextUrl.pathname.startsWith('/nav-test') ||
-            req.nextUrl.pathname.startsWith('/test-forgot') ||
-            req.nextUrl.pathname.startsWith('/test-email') ||
-            req.nextUrl.pathname.startsWith('/test-automatic') ||
             req.nextUrl.pathname === '/') {
           return true;
         }

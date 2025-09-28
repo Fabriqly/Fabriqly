@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/forgot-password-simple-flow', {
+      const response = await fetch('/api/auth/forgot-password-firebase-simple', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -73,7 +73,7 @@ export default function ForgotPasswordPage() {
                 📧 Email Sent Successfully!
               </p>
               <p className="text-xs text-green-700">
-                You'll receive a password reset email. Click the reset link in the email to set your new password.
+                Firebase has sent a password reset email to your inbox. Check your email and follow the instructions.
               </p>
             </div>
             
@@ -83,10 +83,10 @@ export default function ForgotPasswordPage() {
               </p>
               <ol className="text-xs text-blue-700 space-y-1 list-decimal list-inside">
                 <li>Check your email inbox (and spam folder)</li>
-                <li>Look for the password reset email</li>
-                <li>Click the reset link in that email</li>
-                <li>Set your new password on the reset page</li>
-                <li>You'll be redirected back to login automatically</li>
+                <li>Look for an email from Firebase</li>
+                <li>Click the password reset link in the email</li>
+                <li>Follow Firebase's instructions to reset your password</li>
+                <li>Return to login with your new password</li>
               </ol>
             </div>
             

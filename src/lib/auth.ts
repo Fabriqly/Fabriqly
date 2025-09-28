@@ -9,7 +9,7 @@ import {
   fetchSignInMethodsForEmail
 } from 'firebase/auth';
 import { auth, db } from './firebase';
-import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Collections } from '@/services/firebase';
 
 // Define UserRole type
