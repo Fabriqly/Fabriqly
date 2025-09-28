@@ -6,13 +6,22 @@ export type ProductStatus = 'draft' | 'active' | 'inactive' | 'out_of_stock';
 // Product Categories
 export interface Category {
   id: string;
-  name: string;
+  categoryName: string; // Database field name
+  name?: string; // Alias for backward compatibility
   description?: string;
-  parentId?: string; // For subcategories
+  parentCategoryId?: string; // Database field name for subcategories
+  parentId?: string; // Alias for backward compatibility
   slug: string; // URL-friendly name
+  iconUrl?: string; // Category image/icon URL
   isActive: boolean;
+  level?: number; // Hierarchy level (0 for root categories)
+  path?: string[]; // Breadcrumb path for hierarchy
+  sortOrder?: number; // For ordering categories
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  // Supabase Storage metadata
+  storagePath?: string; // Path in Supabase Storage
+  storageBucket?: string; // Bucket name in Supabase Storage
 }
 
 // Product Variants (for sizes, colors, etc.)
@@ -39,6 +48,9 @@ export interface ProductImage {
   isPrimary: boolean; // Main product image
   sortOrder: number; // For ordering images
   createdAt: Timestamp;
+  // Supabase Storage metadata
+  storagePath?: string; // Path in Supabase Storage
+  storageBucket?: string; // Bucket name in Supabase Storage
 }
 
 // Main Product Interface
@@ -130,7 +142,7 @@ export interface ProductFilters {
 
 // Product Search Results
 export interface ProductSearchResult {
-  products: ProductWithDetails[];
+  products: Product[];
   total: number;
   hasMore: boolean;
   filters: ProductFilters;
@@ -142,6 +154,7 @@ export interface CreateCategoryData {
   description?: string;
   parentId?: string;
   slug: string;
+  iconUrl?: string;
   isActive: boolean;
 }
 

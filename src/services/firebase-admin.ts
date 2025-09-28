@@ -55,8 +55,8 @@ export class FirebaseAdminService {
             theme: 'light'
           }
         },
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       };
 
       await adminDb.collection(Collections.USERS).doc(userRecord.uid).set(userDoc);
@@ -117,7 +117,7 @@ export class FirebaseAdminService {
     try {
       await adminDb.collection(Collections.USERS).doc(uid).update({
         role,
-        updatedAt: new Date()
+        updatedAt: Timestamp.now()
       });
 
       // Set custom claims for role-based access
@@ -139,7 +139,7 @@ export class FirebaseAdminService {
 
       await adminDb.collection(Collections.USERS).doc(uid).update({
         isVerified: true,
-        updatedAt: new Date()
+        updatedAt: Timestamp.now()
       });
 
       return { uid, isVerified: true };
@@ -180,10 +180,10 @@ export class FirebaseAdminService {
         
         switch (op.type) {
           case 'set':
-            batch.set(docRef, { ...op.data, updatedAt: new Date() });
+            batch.set(docRef, { ...op.data, updatedAt: Timestamp.now() });
             break;
           case 'update':
-            batch.update(docRef, { ...op.data, updatedAt: new Date() });
+            batch.update(docRef, { ...op.data, updatedAt: Timestamp.now() });
             break;
           case 'delete':
             batch.delete(docRef);
@@ -274,15 +274,51 @@ export class FirebaseAdminService {
   }
 
   // Create a new document
-  static async createDocument(collection: string, data: any) {
+  static async createDocument(collection: string, data: any, transaction?: FirebaseFirestore.Transaction) {
     try {
-      const docRef = await adminDb.collection(collection).add({
-        ...data,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
+      const collectionRef = adminDb.collection(collection);
       
-      return { id: docRef.id, ...data };
+      if (transaction) {
+        // In transaction, we need to generate an ID first
+        const docRef = collectionRef.doc();
+        transaction.set(docRef, {
+          ...data,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        });
+        return { id: docRef.id, ...data };
+      } else {
+        // Ensure collection exists by checking if it has any documents
+        const existingDocs = await collectionRef.limit(1).get();
+        
+        // If collection is empty, add a temporary initialization document
+        if (existingDocs.empty && collection === Collections.ACTIVITIES) {
+          console.log(`Initializing ${collection} collection...`);
+          const initDoc = {
+            type: 'system_event',
+            title: `${collection} Collection Initialized`,
+            description: `The ${collection} collection has been initialized`,
+            priority: 'low',
+            status: 'active',
+            actorId: 'system',
+            metadata: { initialization: true },
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
+          };
+          
+          // Add initialization document
+          await collectionRef.add(initDoc);
+          console.log(`${collection} collection initialized successfully`);
+        }
+        
+        const docRef = await collectionRef.add({
+          ...data,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        });
+        
+        return { id: docRef.id, ...data };
+      }
     } catch (error) {
       console.error('Error creating document:', error);
       throw error;
@@ -290,15 +326,23 @@ export class FirebaseAdminService {
   }
 
   // Update a document
-  static async updateDocument(collection: string, docId: string, data: any) {
+  static async updateDocument(collection: string, docId: string, data: any, transaction?: FirebaseFirestore.Transaction) {
     try {
       const docRef = adminDb.collection(collection).doc(docId);
-      await docRef.update({
-        ...data,
-        updatedAt: new Date()
-      });
       
-      return { id: docId, ...data };
+      if (transaction) {
+        transaction.update(docRef, {
+          ...data,
+          updatedAt: Timestamp.now()
+        });
+        return { id: docId, ...data };
+      } else {
+        await docRef.update({
+          ...data,
+          updatedAt: Timestamp.now()
+        });
+        return { id: docId, ...data };
+      }
     } catch (error) {
       console.error('Error updating document:', error);
       throw error;
@@ -306,14 +350,31 @@ export class FirebaseAdminService {
   }
 
   // Delete a document
-  static async deleteDocument(collection: string, docId: string) {
+  static async deleteDocument(collection: string, docId: string, transaction?: FirebaseFirestore.Transaction) {
     try {
       const docRef = adminDb.collection(collection).doc(docId);
-      await docRef.delete();
       
-      return { id: docId };
+      if (transaction) {
+        transaction.delete(docRef);
+        return { id: docId };
+      } else {
+        await docRef.delete();
+        return { id: docId };
+      }
     } catch (error) {
       console.error('Error deleting document:', error);
+      throw error;
+    }
+  }
+
+  // Run a transaction
+  static async runTransaction<T>(
+    updateFunction: (transaction: FirebaseFirestore.Transaction) => Promise<T>
+  ): Promise<T> {
+    try {
+      return await adminDb.runTransaction(updateFunction);
+    } catch (error) {
+      console.error('Error running transaction:', error);
       throw error;
     }
   }

@@ -58,7 +58,8 @@ export function ProductDetail() {
       const data = await response.json();
       
       if (response.ok) {
-        setProduct(data.product);
+        // Handle ResponseBuilder structure: { success: true, data: product, meta: {...} }
+        setProduct(data.data);
       } else {
         setError(data.error || 'Product not found');
       }

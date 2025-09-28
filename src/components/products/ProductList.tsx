@@ -6,7 +6,7 @@ import { ProductCard } from './ProductCard';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { 
-  ProductWithDetails, 
+  Product, 
   ProductFilters, 
   ProductSearchResult,
   Category 
@@ -24,6 +24,7 @@ import {
   Send,
   Package
 } from 'lucide-react';
+import { CategorySelector } from './CategorySelector';
 
 interface ProductListProps {
   businessOwnerId?: string;
@@ -32,7 +33,7 @@ interface ProductListProps {
 
 // State management with useReducer for better performance
 interface ProductListState {
-  products: ProductWithDetails[];
+  products: Product[];
   categories: Category[];
   loading: boolean;
   error: string | null;
@@ -42,7 +43,7 @@ interface ProductListState {
 }
 
 type ProductListAction = 
-  | { type: 'SET_PRODUCTS'; payload: ProductWithDetails[] }
+  | { type: 'SET_PRODUCTS'; payload: Product[] }
   | { type: 'SET_CATEGORIES'; payload: Category[] }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
@@ -127,18 +128,11 @@ const SearchAndFilters = ({
       <div className="flex flex-wrap gap-4">
         {/* Category Filter */}
         <div className="min-w-48">
-          <select
+          <CategorySelector
             value={filters.categoryId || ''}
-            onChange={(e) => onFilterChange('categoryId', e.target.value || undefined)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Categories</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
+            onChange={(categoryId) => onFilterChange('categoryId', categoryId || undefined)}
+            placeholder="All Categories"
+          />
         </div>
 
         {/* Status Filter */}
@@ -198,7 +192,7 @@ const ProductGrid = ({ products, viewMode, onEditProduct, onDeleteProduct, onPub
       ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
       : 'space-y-4'
   }>
-    {products.map((product: ProductWithDetails) => (
+    {products.map((product: Product) => (
       <ProductCard
         key={product.id}
         product={product}
@@ -230,7 +224,7 @@ const EmptyState = ({ hasActiveFilters, onClearFilters, onCreateProduct }: any) 
           Clear Filters
         </Button>
       ) : (
-        <Button onClick={onCreateProduct} className="flex items-center space-x-2">
+        <Button onClick={onCreateProduct} variant="primary" className="flex items-center space-x-2">
           <Plus className="w-4 h-4" />
           <span>Create Product</span>
         </Button>
@@ -261,7 +255,9 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
         dispatch({ type: 'SET_CATEGORIES', payload: data.categories || [] });
       }
     } catch (error) {
-      console.error('Error loading categories:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading categories:', error);
+      }
     }
   }, []);
 
@@ -277,7 +273,7 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
         params.append('businessOwnerId', businessOwnerId);
       }
       
-      // Add other filters
+      // Add all filters including status
       Object.entries(state.filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
           if (Array.isArray(value)) {
@@ -287,6 +283,11 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
           }
         }
       });
+      
+      // If no status filter is provided, show all products for business owners
+      if (!state.filters.status) {
+        params.append('status', 'all');
+      }
 
       const response = await fetch(`/api/products?${params.toString()}`);
       
@@ -294,10 +295,26 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
         throw new Error('Failed to fetch products');
       }
 
-      const data: ProductSearchResult = await response.json();
-      dispatch({ type: 'SET_SEARCH_RESULT', payload: data });
+      const data = await response.json();
+      
+      // Handle the new standardized response structure
+      let searchResult: ProductSearchResult;
+      if (data.success && data.data) {
+        // New ResponseBuilder format: { success: true, data: { products: [...], total: ..., hasMore: ..., filters: {...} } }
+        searchResult = data.data;
+      } else if (data.products) {
+        // Legacy format: { products: [...] }
+        searchResult = data;
+      } else {
+        // Fallback
+        searchResult = { products: [], total: 0, hasMore: false, filters: {} };
+      }
+      
+      dispatch({ type: 'SET_SEARCH_RESULT', payload: searchResult });
     } catch (error: any) {
-      console.error('Error loading products:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading products:', error);
+      }
       dispatch({ type: 'SET_ERROR', payload: error.message || 'Failed to load products' });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -308,11 +325,11 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
     dispatch({ type: 'SET_FILTERS', payload: { [key]: value } });
   }, []);
 
-  const handleEditProduct = useCallback((product: ProductWithDetails) => {
+  const handleEditProduct = useCallback((product: Product) => {
     router.push(`/dashboard/products/edit/${product.id}`);
   }, [router]);
 
-  const handleDeleteProduct = useCallback(async (product: ProductWithDetails) => {
+  const handleDeleteProduct = useCallback(async (product: Product) => {
     if (!confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`)) {
       return;
     }
@@ -330,12 +347,14 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
         alert(error.error || 'Failed to delete product');
       }
     } catch (error) {
-      console.error('Error deleting product:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error deleting product:', error);
+      }
       alert('Failed to delete product');
     }
   }, [state.products]);
 
-  const handlePublishProduct = useCallback(async (product: ProductWithDetails) => {
+  const handlePublishProduct = useCallback(async (product: Product) => {
     if (!confirm(`Are you sure you want to publish "${product.name}"? This will make it visible to customers.`)) {
       return;
     }
@@ -359,7 +378,9 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
         alert(error.error || 'Failed to publish product');
       }
     } catch (error) {
-      console.error('Error publishing product:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error publishing product:', error);
+      }
       alert('Failed to publish product');
     }
   }, [state.products]);
@@ -370,7 +391,9 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
 
   const handleExport = useCallback(() => {
     // TODO: Implement CSV export
-    console.log('Export functionality to be implemented');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Export functionality to be implemented');
+    }
   }, []);
 
   const handleLoadMore = useCallback(() => {
@@ -432,7 +455,7 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
           {/* View Mode Toggle */}
           <div className="flex items-center border border-gray-300 rounded-md">
             <Button
-              variant={state.viewMode === 'grid' ? 'default' : 'outline'}
+              variant={state.viewMode === 'grid' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'grid' })}
               className="rounded-r-none border-r-0"
@@ -440,7 +463,7 @@ export function ProductList({ businessOwnerId, showCreateButton = true }: Produc
               <Grid className="w-4 h-4" />
             </Button>
             <Button
-              variant={state.viewMode === 'list' ? 'default' : 'outline'}
+              variant={state.viewMode === 'list' ? 'primary' : 'outline'}
               size="sm"
               onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'list' })}
               className="rounded-l-none"

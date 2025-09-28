@@ -10,7 +10,8 @@ import {
   DollarSign,
   ShoppingCart,
   Eye,
-  Heart
+  Heart,
+  X
 } from 'lucide-react';
 
 interface AnalyticsData {
@@ -60,6 +61,7 @@ export default function AdminAnalyticsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('30d');
+  const [showUserGrowthInfo, setShowUserGrowthInfo] = useState(true);
 
   useEffect(() => {
     loadAnalytics();
@@ -69,43 +71,37 @@ export default function AdminAnalyticsPage() {
     try {
       setLoading(true);
       
-      // Load analytics data
-      const [usersRes, productsRes, ordersRes, categoriesRes] = await Promise.all([
-        fetch('/api/users'),
-        fetch('/api/products'),
-        fetch('/api/orders'),
-        fetch('/api/categories')
+      // Use the dashboard-stats API for overview data
+      const [statsResponse, analyticsResponse] = await Promise.all([
+        fetch(`/api/dashboard-stats?period=${timeRange}`),
+        fetch(`/api/analytics?timeRange=${timeRange}`)
       ]);
+      
+      if (!statsResponse.ok || !analyticsResponse.ok) {
+        throw new Error('Failed to fetch analytics data');
+      }
 
-      const [users, products, orders, categories] = await Promise.all([
-        usersRes.json(),
-        productsRes.json(),
-        ordersRes.json(),
-        categoriesRes.json()
+      const [statsData, analyticsData] = await Promise.all([
+        statsResponse.json(),
+        analyticsResponse.json()
       ]);
-
-      // Calculate overview stats
+      
+      // Calculate overview stats from real data
       const overview = {
-        totalUsers: users.users?.length || 0,
-        totalProducts: products.products?.length || 0,
-        totalOrders: orders.orders?.length || 0,
-        totalRevenue: orders.totalRevenue || 0,
-        activeProducts: products.products?.filter((p: any) => p.status === 'active').length || 0,
-        pendingOrders: orders.orders?.filter((o: any) => o.status === 'pending').length || 0
+        totalUsers: statsData.current.totalUsers,
+        totalProducts: statsData.current.totalProducts,
+        totalOrders: statsData.current.totalOrders,
+        totalRevenue: statsData.current.totalRevenue,
+        activeProducts: statsData.current.activeProducts,
+        pendingOrders: statsData.current.pendingOrders
       };
-
-      // Generate mock data for charts (in real app, this would come from analytics API)
-      const userGrowth = generateUserGrowthData();
-      const productStats = generateProductStatsData(categories.categories || []);
-      const revenueData = generateRevenueData();
-      const topProducts = generateTopProductsData(products.products || []);
 
       setAnalytics({
         overview,
-        userGrowth,
-        productStats,
-        revenueData,
-        topProducts
+        userGrowth: analyticsData.userGrowth,
+        productStats: analyticsData.productStats,
+        revenueData: analyticsData.revenueData,
+        topProducts: analyticsData.topProducts
       });
     } catch (error) {
       console.error('Error loading analytics:', error);
@@ -114,44 +110,40 @@ export default function AdminAnalyticsPage() {
     }
   };
 
-  const generateUserGrowthData = () => {
-    const data = [];
-    const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+
+  const [percentageChanges, setPercentageChanges] = useState({
+    totalUsers: { value: 0, type: 'neutral' },
+    totalProducts: { value: 0, type: 'neutral' },
+    totalOrders: { value: 0, type: 'neutral' },
+    totalRevenue: { value: 0, type: 'neutral' }
+  });
+
+  // Load percentage changes from dashboard-stats API
+  useEffect(() => {
+    const loadPercentageChanges = async () => {
+      try {
+        const response = await fetch(`/api/dashboard-stats?period=${timeRange}`);
+        if (response.ok) {
+          const data = await response.json();
+          setPercentageChanges({
+            totalUsers: data.changes.totalUsers,
+            totalProducts: data.changes.totalProducts,
+            totalOrders: data.changes.totalOrders,
+            totalRevenue: data.changes.totalRevenue
+          });
+        }
+      } catch (error) {
+        console.error('Error loading percentage changes:', error);
+      }
+    };
     
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      data.push({
-        date: date.toISOString().split('T')[0],
-        users: Math.floor(Math.random() * 10) + 1
-      });
-    }
-    return data;
-  };
+    loadPercentageChanges();
+  }, [timeRange]);
 
-  const generateProductStatsData = (categories: any[]) => {
-    return categories.map(category => ({
-      category: category.categoryName,
-      count: Math.floor(Math.random() * 50) + 1
-    }));
-  };
-
-  const generateRevenueData = () => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return months.map(month => ({
-      month,
-      revenue: Math.floor(Math.random() * 10000) + 1000
-    }));
-  };
-
-  const generateTopProductsData = (products: any[]) => {
-    return products.slice(0, 5).map(product => ({
-      id: product.id,
-      name: product.name,
-      views: Math.floor(Math.random() * 1000) + 100,
-      orders: Math.floor(Math.random() * 100) + 10,
-      revenue: Math.floor(Math.random() * 5000) + 500
-    }));
+  const formatChange = (change: { value: number; type: string }) => {
+    if (change.value === 0) return '0%';
+    const sign = change.type === 'positive' ? '+' : change.type === 'negative' ? '-' : '';
+    return `${sign}${change.value}%`;
   };
 
   const overviewCards = [
@@ -160,32 +152,32 @@ export default function AdminAnalyticsPage() {
       value: analytics.overview.totalUsers,
       icon: Users,
       color: 'bg-blue-500',
-      change: '+12%',
-      changeType: 'positive'
+      change: formatChange(percentageChanges.totalUsers),
+      changeType: percentageChanges.totalUsers.type
     },
     {
       name: 'Total Products',
       value: analytics.overview.totalProducts,
       icon: Package,
       color: 'bg-green-500',
-      change: '+8%',
-      changeType: 'positive'
+      change: formatChange(percentageChanges.totalProducts),
+      changeType: percentageChanges.totalProducts.type
     },
     {
       name: 'Total Orders',
       value: analytics.overview.totalOrders,
       icon: ShoppingCart,
       color: 'bg-orange-500',
-      change: '+15%',
-      changeType: 'positive'
+      change: formatChange(percentageChanges.totalOrders),
+      changeType: percentageChanges.totalOrders.type
     },
     {
       name: 'Total Revenue',
       value: `$${analytics.overview.totalRevenue.toLocaleString()}`,
       icon: DollarSign,
       color: 'bg-emerald-500',
-      change: '+23%',
-      changeType: 'positive'
+      change: formatChange(percentageChanges.totalRevenue),
+      changeType: percentageChanges.totalRevenue.type
     }
   ];
 
@@ -243,7 +235,8 @@ export default function AdminAnalyticsPage() {
                     {stat.value}
                   </p>
                   <p className={`ml-2 flex items-baseline text-sm font-semibold ${
-                    stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                    stat.changeType === 'positive' ? 'text-green-600' : 
+                    stat.changeType === 'negative' ? 'text-red-600' : 'text-gray-500'
                   }`}>
                     {stat.change}
                   </p>
@@ -257,20 +250,51 @@ export default function AdminAnalyticsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* User Growth Chart */}
           <div className="bg-white shadow rounded-lg p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">User Growth</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Daily User Registrations</h3>
             <div className="h-64 flex items-end space-x-2">
-              {analytics.userGrowth.map((data, index) => (
-                <div key={index} className="flex-1 flex flex-col items-center">
-                  <div
-                    className="bg-blue-500 rounded-t w-full"
-                    style={{ height: `${(data.users / Math.max(...analytics.userGrowth.map(d => d.users))) * 200}px` }}
-                  ></div>
-                  <span className="text-xs text-gray-500 mt-2">
-                    {new Date(data.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </span>
-                </div>
-              ))}
+              {analytics.userGrowth.map((data, index) => {
+                const maxUsers = Math.max(...analytics.userGrowth.map(d => d.users), 1);
+                const barHeight = (data.users / maxUsers) * 200;
+                return (
+                  <div key={index} className="flex-1 flex flex-col items-center">
+                    <div
+                      className="bg-blue-500 rounded-t w-full relative group"
+                      style={{ height: `${barHeight}px` }}
+                      title={`${data.users} new users registered`}
+                    >
+                      {data.users > 0 && (
+                        <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                          {data.users}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500 mt-2">
+                      {new Date(data.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                    {data.users > 0 && (
+                      <span className="text-xs text-blue-600 font-medium">
+                        {data.users}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
+            {showUserGrowthInfo && (
+              <div className="mt-4 relative bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <button
+                  onClick={() => setShowUserGrowthInfo(false)}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Hide instructions"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <div className="text-sm text-blue-800 pr-6">
+                  <p>💡 Hover over bars to see exact registration counts</p>
+                  <p>📊 Shows daily new user registrations for the selected period</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Product Categories Chart */}

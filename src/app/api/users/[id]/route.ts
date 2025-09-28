@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { FirebaseAdminService } from '@/services/firebase-admin';
-import { Collections } from '@/services/firebase';
+import { ServiceContainer } from '@/container/ServiceContainer';
+import { UserService } from '@/services/UserService';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
+
+interface RouteParams {
+  params: {
+    id: string;
+  };
+}
 
 // GET /api/users/[id] - Get single user
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -26,41 +34,28 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       );
     }
 
-    const user = await FirebaseAdminService.getDocument(Collections.USERS, id);
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
+    const user = await userService.getUser(id);
 
     if (!user) {
       return NextResponse.json(
-        { error: 'User not found' },
+        ResponseBuilder.error(ErrorHandler.handle(new Error('User not found'))),
         { status: 404 }
       );
     }
 
-    // Map user document to the expected frontend structure
-    const mappedUser = {
-      id: user.id,
-      email: user.email,
-      name: user.displayName || 
-            `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim() ||
-            'No name',
-      role: user.role,
-      isVerified: user.isVerified,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      profile: user.profile
-    };
-
-    return NextResponse.json({ user: mappedUser });
+    return NextResponse.json(ResponseBuilder.success(user));
   } catch (error) {
-    console.error('Error fetching user:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
 
 // PUT /api/users/[id] - Update user
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -71,8 +66,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       );
     }
 
-    const body = await request.json();
     const { id } = params;
+    const body = await request.json();
 
     // Users can only update their own profile unless they're admin
     if (session.user.id !== id && session.user.role !== 'admin') {
@@ -82,68 +77,42 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       );
     }
 
-    // Non-admin users cannot change their role
-    if (session.user.role !== 'admin' && body.role) {
-      delete body.role;
-    }
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
+    const updatedUser = await userService.updateUser(id, body, session.user.id);
 
-    const updatedUser = await FirebaseAdminService.updateDocument(
-      Collections.USERS,
-      id,
-      {
-        ...body,
-        updatedAt: new Date()
-      }
-    );
-
-    return NextResponse.json({ user: updatedUser });
+    return NextResponse.json(ResponseBuilder.success(updatedUser));
   } catch (error) {
-    console.error('Error updating user:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
 
-// DELETE /api/users/[id] - Delete user
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+// DELETE /api/users/[id] - Delete user (admin only)
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session) {
+    if (!session || session.user.role !== 'admin') {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - Admin access required' },
         { status: 401 }
       );
     }
 
     const { id } = params;
 
-    // Users can only delete their own account unless they're admin
-    if (session.user.id !== id && session.user.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Unauthorized - Can only delete your own account' },
-        { status: 403 }
-      );
-    }
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
+    await userService.deleteUser(id, session.user.id);
 
-    // Prevent admin from deleting themselves
-    if (id === session.user.id && session.user.role === 'admin') {
-      return NextResponse.json(
-        { error: 'Cannot delete your own account' },
-        { status: 400 }
-      );
-    }
-
-    await FirebaseAdminService.deleteUser(id);
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json(ResponseBuilder.success({ message: 'User deleted successfully' }));
   } catch (error) {
-    console.error('Error deleting user:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }

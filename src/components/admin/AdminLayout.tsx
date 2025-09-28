@@ -13,7 +13,9 @@ import {
   BarChart3, 
   Settings,
   X,
-  Palette
+  LogOut,
+  Palette,
+  Activity
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -26,6 +28,12 @@ const adminNavigation = [
     href: '/dashboard/admin',
     icon: LayoutDashboard,
     description: 'Overview and analytics'
+  },
+  {
+    name: 'Activities',
+    href: '/dashboard/admin/activities',
+    icon: Activity,
+    description: 'System activity log'
   },
   {
     name: 'Categories',
