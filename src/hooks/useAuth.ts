@@ -13,6 +13,8 @@ export interface User {
   name?: string;
   image?: string;
   role: 'customer' | 'designer' | 'business_owner' | 'admin';
+  firstName?: string;
+  lastName?: string;
 }
 
 export function useAuth(requireAuth = false, requiredRole?: string) {

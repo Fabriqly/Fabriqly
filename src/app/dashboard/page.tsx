@@ -65,7 +65,9 @@ function DashboardContent() {
   // Get display name from profile data or fallback to session data
   const displayName = profileData?.firstName && profileData?.lastName 
     ? `${profileData.firstName} ${profileData.lastName}` 
-    : user?.name || user?.email;
+    : ((user as any)?.firstName && (user as any)?.lastName) 
+      ? `${(user as any).firstName} ${(user as any).lastName}`
+      : user?.name || user?.email;
 
   return (
     <div className="min-h-screen bg-gray-50">

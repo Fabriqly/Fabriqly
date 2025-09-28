@@ -11,6 +11,8 @@ declare module 'next-auth' {
       name?: string;
       image?: string;
       role: UserRole;
+      firstName?: string;
+      lastName?: string;
     };
   }
 
@@ -20,6 +22,8 @@ declare module 'next-auth' {
     name?: string;
     image?: string;
     role: UserRole;
+    firstName?: string;
+    lastName?: string;
   }
 }
 
@@ -29,6 +33,8 @@ declare module 'next-auth/jwt' {
     sub: string; // Explicitly include sub for user ID
     displayName?: string;
     photoURL?: string;
+    firstName?: string;
+    lastName?: string;
   }
 }
 
@@ -39,6 +45,8 @@ export interface AuthUser {
   name?: string;
   image?: string;
   role: UserRole;
+  firstName?: string;
+  lastName?: string;
 }
 
 // Type for role permissions
