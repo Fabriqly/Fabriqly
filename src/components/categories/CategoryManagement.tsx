@@ -432,6 +432,8 @@ function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) {
             onChange={(url) => handleInputChange('iconUrl', url)}
             placeholder="Upload category image"
             maxSize={5}
+            uploadType="category"
+            entityId={category?.id}
           />
         </div>
 

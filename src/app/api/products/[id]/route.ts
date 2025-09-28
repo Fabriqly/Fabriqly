@@ -10,6 +10,8 @@ import {
   ProductImage
 } from '@/types/products';
 import { Timestamp } from 'firebase/firestore';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
 interface RouteParams {
   params: {
@@ -98,15 +100,12 @@ export async function GET(
       productColors
     };
 
-    return NextResponse.json({ product: productWithDetails });
+    return NextResponse.json(ResponseBuilder.success(productWithDetails));
   } catch (error) {
-    console.error('Error fetching product:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: 'Failed to fetch product', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -341,16 +340,12 @@ export async function PUT(
       businessOwner
     };
 
-    return NextResponse.json({ product: productWithDetails });
+    return NextResponse.json(ResponseBuilder.success(productWithDetails));
   } catch (error: any) {
-    console.error('Error updating product:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: 'Failed to update product', 
-        details: error.message || 'Unknown error',
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }

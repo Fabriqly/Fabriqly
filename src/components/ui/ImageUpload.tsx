@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { SupabaseStorageService, StorageBuckets } from '@/lib/supabase-storage';
 
 interface ImageUploadProps {
   value?: string;
@@ -10,6 +11,8 @@ interface ImageUploadProps {
   accept?: string;
   maxSize?: number; // in MB
   className?: string;
+  uploadType?: 'category' | 'product' | 'profile' | 'design'; // Type of upload
+  entityId?: string; // ID of the entity (category, product, etc.)
 }
 
 export function ImageUpload({ 
@@ -18,11 +21,23 @@ export function ImageUpload({
   placeholder = "Upload an image",
   accept = "image/*",
   maxSize = 5,
-  className = ""
+  className = "",
+  uploadType = 'category',
+  entityId
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const getBucketForType = (type: string) => {
+    switch (type) {
+      case 'category': return StorageBuckets.CATEGORIES;
+      case 'product': return StorageBuckets.PRODUCTS;
+      case 'profile': return StorageBuckets.PROFILES;
+      case 'design': return StorageBuckets.DESIGNS;
+      default: return StorageBuckets.CATEGORIES;
+    }
+  };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -44,27 +59,70 @@ export function ImageUpload({
     setError(null);
 
     try {
-      // Convert to base64 for now (in production, you'd upload to a cloud service)
-      const base64 = await convertToBase64(file);
-      onChange(base64);
-    } catch (err) {
-      setError('Failed to process image');
+      if (uploadType === 'category' && entityId) {
+        // Upload category image via API (more secure)
+        await uploadCategoryImage(file, entityId);
+      } else if (uploadType === 'category' && !entityId) {
+        // For new categories without ID, create a temporary upload
+        const tempId = 'temp-' + Date.now();
+        await uploadCategoryImage(file, tempId);
+      } else {
+        // Upload directly to Supabase Storage for other types
+        const bucket = getBucketForType(uploadType);
+        const folder = entityId || 'temp';
+        
+        const uploadResult = await SupabaseStorageService.uploadFile(file, {
+          bucket,
+          folder,
+          upsert: false
+        });
+        
+        onChange(uploadResult.url);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload image');
       console.error('Image upload error:', err);
     } finally {
       setIsUploading(false);
     }
   };
 
-  const convertToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+  const uploadCategoryImage = async (file: File, categoryId: string) => {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await fetch(`/api/categories/${categoryId}/image`, {
+      method: 'POST',
+      body: formData,
     });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to upload image');
+    }
+
+    const data = await response.json();
+    
+    // Handle ResponseBuilder structure
+    const imageData = data.data || data;
+    onChange(imageData.imageUrl);
   };
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
+    if (value && uploadType === 'category' && entityId) {
+      // Try to delete from Supabase Storage if we have storage info
+      try {
+        // Extract storage path from URL or use a default pattern
+        const urlParts = value.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        const storagePath = `${entityId}/${fileName}`;
+        
+        await SupabaseStorageService.deleteFile(StorageBuckets.CATEGORIES, storagePath);
+      } catch (error) {
+        console.warn('Could not delete image from storage:', error);
+      }
+    }
+    
     onChange('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -93,6 +151,10 @@ export function ImageUpload({
                 src={value}
                 alt="Uploaded"
                 className="w-12 h-12 object-cover rounded-md"
+                onError={(e) => {
+                  console.error('Image failed to load:', value);
+                  e.currentTarget.style.display = 'none';
+                }}
               />
             </div>
             <div className="flex-1 min-w-0">
@@ -128,7 +190,7 @@ export function ImageUpload({
         >
           <div className="flex flex-col items-center space-y-2">
             {isUploading ? (
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
             ) : (
               <ImageIcon className="w-8 h-8 text-gray-400" />
             )}
