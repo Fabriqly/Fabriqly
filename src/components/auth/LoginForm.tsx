@@ -70,8 +70,16 @@ export function LoginForm() {
       if (result?.error) {
         setGeneralError('Invalid email or password');
       } else {
-        // Redirect based on user role or to dashboard
-        router.push('/dashboard');
+        // Get user session to determine redirect
+        const response = await fetch('/api/auth/session');
+        const session = await response.json();
+        
+        if (session?.user?.role === 'customer') {
+          router.push('/customer');
+        } else {
+          // Admin, business_owner, and designer go to dashboard
+          router.push('/dashboard');
+        }
         router.refresh();
       }
     } catch (error) {

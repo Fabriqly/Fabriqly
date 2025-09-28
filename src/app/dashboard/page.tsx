@@ -1,48 +1,36 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useAuth } from '@/hooks/useAuth';
-import { signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/Button';
-import { User, LogOut, Settings, Bell, Palette } from 'lucide-react';
+import { DashboardHeader, DashboardSidebar } from '@/components/layout';
+import { User, Settings, Palette } from 'lucide-react';
 
 function DashboardContent() {
   const { user, isCustomer, isDesigner, isBusinessOwner, isAdmin, isLoading } = useAuth();
+  const router = useRouter();
 
-  // Dashboard now displays whatever role is stored in the database
-  // No more automatic redirects to role selection
-
-  const handleSignOut = () => {
-    signOut({ callbackUrl: '/' });
-  };
+  // Redirect customers to customer page
+  useEffect(() => {
+    if (!isLoading && isCustomer) {
+      router.push('/customer');
+    }
+  }, [isCustomer, isLoading, router]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm">
-                <Bell className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => window.location.href = '/role-selection'}>
-                <Settings className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleSignOut}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Dashboard Header */}
+      <DashboardHeader user={user} />
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex flex-1">
+        {/* Dashboard Sidebar */}
+        <DashboardSidebar user={user} />
+
+        {/* Main Content */}
+        <div className="flex-1">
+          <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
         {/* Welcome Section */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <div className="flex items-center">
@@ -122,16 +110,6 @@ function DashboardContent() {
                 <Button size="sm">Manage Shop</Button>
               </div>
               
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Product Colors</h3>
-                <p className="text-gray-600 text-sm mb-4">
-                  Create and manage colors for your products.
-                </p>
-                <Button size="sm" onClick={() => window.location.href = '/dashboard/products/colors'}>
-                  <Palette className="w-4 h-4 mr-2" />
-                  Manage Colors
-                </Button>
-              </div>
               
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Orders</h3>
@@ -197,12 +175,14 @@ function DashboardContent() {
               <div className="text-2xl font-bold text-orange-600">0</div>
               <div className="text-sm text-gray-600">Messages</div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+           </div>
+         </div>
+           </div>
+         </div>
+       </div>
+     </div>
+   );
+ }
 
 export default function DashboardPage() {
   return (
