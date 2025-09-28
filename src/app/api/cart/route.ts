@@ -5,6 +5,7 @@ import { CartRepository } from '@/repositories/CartRepository';
 import { ProductRepository } from '@/repositories/ProductRepository';
 import { AddToCartRequest, CartResponse } from '@/types/cart';
 import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { CacheService } from '@/services/CacheService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,21 +31,30 @@ export async function GET(request: NextRequest) {
       }));
     }
 
-    // Refresh product images for all cart items
+    // Try to get cached cart first
+    const cacheKey = `cart-${session.user.id}`;
+    const cached = await CacheService.get(cacheKey);
+    
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
+    // Refresh product images for all cart items (with limits)
     const { FirebaseAdminService } = await import('@/services/firebase-admin');
     const { Collections } = await import('@/services/firebase');
     
     const updatedItems = await Promise.all(
       cart.items.map(async (item) => {
         try {
-          // Fetch fresh product images
+          // Fetch fresh product images with limit
           const allImages = await FirebaseAdminService.queryDocuments(
             Collections.PRODUCT_IMAGES,
-            [], // No constraints to avoid index requirements
-            { field: 'sortOrder', direction: 'asc' }
+            [{ field: 'productId', operator: '==' as const, value: item.productId }],
+            { field: 'sortOrder', direction: 'asc' },
+            10 // Limit to 10 images per product
           );
           
-          const productImages = allImages.filter(img => img.productId === item.productId) || [];
+          const productImages = allImages || [];
           console.log(`Refreshing images for product ${item.productId}:`, productImages);
           
           return {
@@ -71,7 +81,12 @@ export async function GET(request: NextRequest) {
       items: updatedItems
     };
 
-    return NextResponse.json(ResponseBuilder.success(updatedCart));
+    const response = ResponseBuilder.success(updatedCart);
+    
+    // Cache the response for 2 minutes (cart changes frequently)
+    await CacheService.set(cacheKey, response, 2 * 60 * 1000);
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error fetching cart:', error);
     return NextResponse.json(ResponseBuilder.error('Failed to fetch cart'), { status: 500 });
@@ -106,7 +121,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(ResponseBuilder.error('Product not found'), { status: 404 });
     }
 
-    // Fetch product images
+    // Fetch product images with limit
     let images: any[] = [];
     try {
       const { FirebaseAdminService } = await import('@/services/firebase-admin');
@@ -114,11 +129,12 @@ export async function POST(request: NextRequest) {
       
       const allImages = await FirebaseAdminService.queryDocuments(
         Collections.PRODUCT_IMAGES,
-        [], // No constraints to avoid index requirements
-        { field: 'sortOrder', direction: 'asc' }
+        [{ field: 'productId', operator: '==' as const, value: productId }],
+        { field: 'sortOrder', direction: 'asc' },
+        10 // Limit to 10 images per product
       );
       
-      images = allImages.filter(img => img.productId === productId) || [];
+      images = allImages || [];
       console.log(`Product ${productId} images:`, images);
     } catch (error) {
       console.error(`Error fetching images for product ${productId}:`, error);

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
+import { CacheService } from '@/services/CacheService';
 
 // GET /api/analytics - Get real analytics data
 export async function GET(request: NextRequest) {
@@ -20,12 +21,20 @@ export async function GET(request: NextRequest) {
     const timeRange = searchParams.get('timeRange') || '30d';
     const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
 
-    // Get all data directly from database
+    // Try to get cached data first
+    const cacheKey = `analytics-${timeRange}`;
+    const cached = await CacheService.get(cacheKey);
+    
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
+    // Get data with limits to reduce quota usage
     const [users, products, categories, orders] = await Promise.all([
-      FirebaseAdminService.queryDocuments(Collections.USERS),
-      FirebaseAdminService.queryDocuments(Collections.PRODUCTS),
-      FirebaseAdminService.queryDocuments(Collections.PRODUCT_CATEGORIES),
-      FirebaseAdminService.queryDocuments(Collections.ORDERS)
+      FirebaseAdminService.queryDocuments(Collections.USERS, [], { field: 'createdAt', direction: 'desc' }, 1000),
+      FirebaseAdminService.queryDocuments(Collections.PRODUCTS, [], { field: 'createdAt', direction: 'desc' }, 1000),
+      FirebaseAdminService.queryDocuments(Collections.PRODUCT_CATEGORIES, [], { field: 'createdAt', direction: 'desc' }, 100),
+      FirebaseAdminService.queryDocuments(Collections.ORDERS, [], { field: 'createdAt', direction: 'desc' }, 1000)
     ]);
 
     // Calculate user growth over time
@@ -40,12 +49,17 @@ export async function GET(request: NextRequest) {
     // Get top performing products
     const topProducts = await calculateTopProducts(products, orders);
 
-    return NextResponse.json({
+    const response = {
       userGrowth,
       productStats,
       revenueData,
       topProducts
-    });
+    };
+
+    // Cache the response for 10 minutes
+    await CacheService.set(cacheKey, response, 10 * 60 * 1000);
+
+    return NextResponse.json(response);
 
   } catch (error) {
     console.error('Error fetching analytics:', error);

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { ServiceContainer } from '@/container/ServiceContainer';
 import { ActivityService, ActivityFilters } from '@/services/ActivityService';
+import { CacheService } from '@/services/CacheService';
 import { 
   Activity, 
   CreateActivityData, 
@@ -48,6 +49,14 @@ export async function GET(request: NextRequest) {
     const priority = searchParams.get('priority');
     const status = searchParams.get('status');
 
+    // Try to get cached activities first
+    const cacheKey = `activities-${JSON.stringify({ filters, types, priority, status, limit, offset, sortBy, sortOrder })}`;
+    const cached = await CacheService.get(cacheKey);
+    
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const activityService = ServiceContainer.getInstance().get<ActivityService>('activityService');
     const result = await activityService.getActivitiesWithPagination({
       ...filters,
@@ -61,7 +70,12 @@ export async function GET(request: NextRequest) {
       sortOrder: sortOrder as 'asc' | 'desc'
     });
 
-    return NextResponse.json(ResponseBuilder.success(result));
+    const response = ResponseBuilder.success(result);
+    
+    // Cache the response for 1 minute (activities change frequently)
+    await CacheService.set(cacheKey, response, 1 * 60 * 1000);
+
+    return NextResponse.json(response);
   } catch (error) {
     const appError = ErrorHandler.handle(error);
     return NextResponse.json(
