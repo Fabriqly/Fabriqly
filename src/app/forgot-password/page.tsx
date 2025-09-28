@@ -5,14 +5,14 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Mail, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const [resetLink, setResetLink] = useState('');
+  const [userName, setUserName] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,14 +31,25 @@ export default function ForgotPasswordPage() {
     setError('');
 
     try {
-      await sendPasswordResetEmail(auth, email);
-      setSent(true);
-    } catch (error: any) {
-      if (error.code === 'auth/user-not-found') {
-        setError('No account found with this email address');
-      } else {
-        setError('Failed to send reset email. Please try again.');
+      const response = await fetch('/api/auth/forgot-password-simple-flow', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || data.message || 'Failed to process password reset. Please try again.');
+        return;
       }
+
+      // Email sent successfully - no reset link stored
+      setSent(true);
+    } catch (error) {
+      setError('Failed to process password reset. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -54,11 +65,31 @@ export default function ForgotPasswordPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h1>
             <p className="text-gray-600 mb-6">
-              We've sent a password reset link to <strong>{email}</strong>
+              We've sent a password reset email to <strong>{email}</strong>
             </p>
-            <p className="text-sm text-gray-500 mb-6">
-              Didn't receive the email? Check your spam folder or try again.
-            </p>
+            
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-sm text-green-800 font-semibold mb-2">
+                📧 Email Sent Successfully!
+              </p>
+              <p className="text-xs text-green-700">
+                You'll receive a password reset email. Click the reset link in the email to set your new password.
+              </p>
+            </div>
+            
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-800 font-semibold mb-2">
+                📱 What to do next:
+              </p>
+              <ol className="text-xs text-blue-700 space-y-1 list-decimal list-inside">
+                <li>Check your email inbox (and spam folder)</li>
+                <li>Look for the password reset email</li>
+                <li>Click the reset link in that email</li>
+                <li>Set your new password on the reset page</li>
+                <li>You'll be redirected back to login automatically</li>
+              </ol>
+            </div>
+            
             <div className="space-y-3">
               <Button
                 onClick={() => {
@@ -131,3 +162,4 @@ export default function ForgotPasswordPage() {
     </div>
   );
 }
+

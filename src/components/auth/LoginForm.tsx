@@ -23,6 +23,19 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [generalError, setGeneralError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // Check for success messages from URL params
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const message = urlParams.get('message');
+    
+    if (message === 'password-reset-success') {
+      setSuccessMessage('Password reset successful! You can now log in with your new password.');
+      // Clean up the URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -111,6 +124,12 @@ export function LoginForm() {
           </div>
         )}
 
+        {successMessage && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+            <p className="text-sm text-green-600">{successMessage}</p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             type="email"
@@ -149,8 +168,11 @@ export function LoginForm() {
         </form>
 
         <div className="mt-3">
-          <Link href="/forgot-password" className="text-sm text-gray-700 hover:text-gray-900">
-            Forgot Password
+          <Link 
+            href="/forgot-password" 
+            className="text-sm text-gray-700 hover:text-gray-900 transition-colors hover:underline"
+          >
+            Forgot Password?
           </Link>
         </div>
 

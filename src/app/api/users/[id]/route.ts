@@ -26,16 +26,21 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       );
     }
 
-    const user = await FirebaseAdminService.getDocument(Collections.USERS, id);
+    // Use client-side Firebase SDK instead of admin service
+    const { doc, getDoc } = await import('firebase/firestore');
+    const { db } = await import('@/lib/firebase');
+    
+    const userDocRef = doc(db, Collections.USERS, id);
+    const userDoc = await getDoc(userDocRef);
 
-    if (!user) {
+    if (!userDoc.exists()) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 } 
       );
     }
 
-    return NextResponse.json({ user: { id: user.id, ...user.data() } });
+    return NextResponse.json({ user: { id: userDoc.id, ...userDoc.data() } });
   } catch (error) {
     console.error('Error fetching user:', error);
     return NextResponse.json(
@@ -73,19 +78,31 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       delete body.role;
     }
 
-    // If role was updated by admin, update custom claims
+    // If role was updated by admin, try to update custom claims (skip if admin service fails)
     if (body.role && session.user.role === 'admin') {
-      await FirebaseAdminService.updateUserRole(id, body.role);
+      try {
+        await FirebaseAdminService.updateUserRole(id, body.role);
+      } catch (adminError) {
+        console.log('⚠️ Admin service unavailable, skipping role update');
+      }
     }
 
-    const updatedUser = await FirebaseAdminService.updateDocument(
-      Collections.USERS,
-      id,
-      {
-        ...body,
-        updatedAt: new Date()
-      }
-    );
+    // Use client-side Firebase SDK instead of admin service
+    const { doc, updateDoc } = await import('firebase/firestore');
+    const { db } = await import('@/lib/firebase');
+    
+    const userDocRef = doc(db, Collections.USERS, id);
+    const updateData = {
+      ...body,
+      updatedAt: new Date()
+    };
+    
+    await updateDoc(userDocRef, updateData);
+    
+    // Get updated document to return
+    const { getDoc } = await import('firebase/firestore');
+    const updatedDoc = await getDoc(userDocRef);
+    const updatedUser = { id: updatedDoc.id, ...updatedDoc.data() };
 
     return NextResponse.json({ user: updatedUser });
   } catch (error) {

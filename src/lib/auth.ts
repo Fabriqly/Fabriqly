@@ -3,10 +3,6 @@ import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from './firebase';
-import { Collections } from '@/services/firebase';
-
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
@@ -16,6 +12,9 @@ import { auth, db } from './firebase';
 import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { Collections } from '@/services/firebase';
 import bcrypt from 'bcryptjs';
+
+// Type definitions
+type UserRole = 'customer' | 'admin' | 'vendor';
 
 // Utility function to check if email already exists
 async function checkEmailExists(email: string): Promise<boolean> {
@@ -42,15 +41,6 @@ async function checkEmailExists(email: string): Promise<boolean> {
 
 
 
-// Validate environment variables on startup
-(async () => {
-  try {
-    await validateEnvironment();
-  } catch (error) {
-    console.error('❌ Environment validation failed:', error);
-    throw error;
-  }
-})();
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -77,13 +67,6 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-
-          // Get user by email from Firebase Auth
-          const userRecord = await FirebaseAdminService.getUserByEmail(credentials.email);
-          
-          if (!userRecord) {
-            return null;
-
           if (credentials.action === 'signup') {
             // Check if email already exists
             const emailExists = await checkEmailExists(credentials.email);
@@ -145,17 +128,7 @@ export const authOptions: NextAuthOptions = {
               role: (userData?.role || 'customer') as UserRole,
               ...userData
             };
-
           }
-
-          // Return user data for NextAuth session
-          return {
-            id: userRecord.uid,
-            email: userRecord.email || '',
-            name: userRecord.displayName || (userRecord as any).firstName + ' ' + (userRecord as any).lastName || userRecord.email,
-            image: userRecord.photoURL || '',
-            role: (userRecord as any).role as UserRole
-          };
         } catch (error) {
           console.error('Credentials verification error:', error);
           return null;
@@ -168,13 +141,8 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google') {
         try {
-
           if (!user.email) {
-            const authError = AuthErrorHandler.createError(
-              AuthErrorCode.GOOGLE_AUTH_FAILED,
-              { reason: 'No email provided by Google' }
-            );
-            AuthErrorHandler.logError(authError, 'Google signIn callback');
+            console.error('Google signIn callback: No email provided by Google');
             return false;
           }
 
@@ -183,8 +151,7 @@ export const authOptions: NextAuthOptions = {
 
           return true;
         } catch (error) {
-          const authError = AuthErrorHandler.handleError(error);
-          AuthErrorHandler.logError(authError, 'Google signIn callback');
+          console.error('Google signIn callback error:', error);
           return false;
         }
       }
@@ -223,20 +190,11 @@ export const authOptions: NextAuthOptions = {
       
       // Handle initial login
       if (account && user) {
-
         try {
           const userId = user.id || token.sub!;
           console.log('JWT: Processing initial login for user:', userId);
           
           if (account.provider === 'google') {
-            const userDocRef = doc(db, Collections.USERS, userId);
-            const userDoc = await getDoc(userDocRef);
-            
-            if (!userDoc.exists()) {
-
-        // First time JWT callback is run, user object is available
-        if (account.provider === 'google') {
-          try {
             console.log('Processing JWT for Google user:', user.email, 'with ID:', user.id);
             
             // First check if there's an existing user with this email
@@ -261,12 +219,12 @@ export const authOptions: NextAuthOptions = {
             }
             
             // No existing user found, create new one with Google ID
-            const userDoc = await getDoc(doc(db, Collections.USERS, user.id!));
+            const userDocRef = doc(db, Collections.USERS, userId);
+            const userDoc = await getDoc(userDocRef);
             
             if (!userDoc.exists()) {
               console.log('Creating new user document for Google user:', user.id);
               
-
               // Create new user document
               const userData = {
                 email: user.email!,
@@ -295,6 +253,8 @@ export const authOptions: NextAuthOptions = {
               await setDoc(userDocRef, userData);
               console.log('JWT: New Google user created:', userId);
               token.role = 'customer' as UserRole;
+              token.firstName = userData.profile?.firstName;
+              token.lastName = userData.profile?.lastName;
             } else {
               // Update existing user's last login and get current role
               const userData = userDoc.data();
@@ -312,6 +272,8 @@ export const authOptions: NextAuthOptions = {
             token.displayName = user.name;
             token.photoURL = user.image;
             token.provider = 'google';
+            token.firstName = userData.profile?.firstName;
+            token.lastName = userData.profile?.lastName;
           } else if (account.provider === 'credentials') {
             // Handle credentials provider (email/password login)
             console.log('JWT: Processing credentials login for user:', userId);
@@ -322,6 +284,19 @@ export const authOptions: NextAuthOptions = {
             token.displayName = user.name;
             token.photoURL = user.image;
             token.provider = 'credentials';
+            
+            // Get additional user data from Firestore
+            try {
+              const userDocRef = doc(db, Collections.USERS, userId);
+              const userDoc = await getDoc(userDocRef);
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                token.firstName = userData.profile?.firstName;
+                token.lastName = userData.profile?.lastName;
+              }
+            } catch (error) {
+              console.error('JWT: Error fetching user profile data:', error);
+            }
             
             // Update last login time in Firestore (but don't override the role)
             try {
@@ -337,8 +312,7 @@ export const authOptions: NextAuthOptions = {
             }
           }
         } catch (error) {
-          const authError = AuthErrorHandler.handleError(error);
-          AuthErrorHandler.logError(authError, 'JWT callback');
+          console.error('JWT callback error:', error);
           token.role = 'customer' as UserRole;
         }
       }
@@ -354,11 +328,15 @@ export const authOptions: NextAuthOptions = {
         // Add custom properties if available
         if (token.displayName) session.user.name = token.displayName as string;
         if (token.photoURL) session.user.image = token.photoURL as string;
+        if (token.firstName) session.user.firstName = token.firstName as string;
+        if (token.lastName) session.user.lastName = token.lastName as string;
         
         console.log('Session callback: Final session data:', {
           userId: session.user.id,
           role: session.user.role,
-          email: session.user.email
+          email: session.user.email,
+          firstName: session.user.firstName,
+          lastName: session.user.lastName
         });
       }
       return session;

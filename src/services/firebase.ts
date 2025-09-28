@@ -155,5 +155,8 @@ export const Collections = {
   MESSAGES: 'messages',
   BUSINESS_OWNERS: 'businessOwners',
   CUSTOMERS: 'customers',
-  DESIGNERS: 'designers'
+  DESIGNERS: 'designers',
+  
+  // Password Reset System
+  PASSWORD_RESET_TOKENS: 'passwordResetTokens'
 } as const;
