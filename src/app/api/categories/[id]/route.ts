@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { FirebaseAdminService } from '@/services/firebase-admin';
-import { Collections } from '@/services/firebase';
-import { Category, UpdateCategoryData } from '@/types/products';
+import { ServiceContainer } from '@/container/ServiceContainer';
+import { CategoryService } from '@/services/CategoryService';
+import { UpdateCategoryData } from '@/types/products';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
 interface RouteParams {
   params: {
@@ -18,29 +20,27 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (!categoryId) {
       return NextResponse.json(
-        { error: 'Category ID is required' },
+        ResponseBuilder.error(ErrorHandler.handle(new Error('Category ID is required'))),
         { status: 400 }
       );
     }
 
-    const category = await FirebaseAdminService.getDocument(
-      Collections.PRODUCT_CATEGORIES,
-      categoryId
-    );
+    const categoryService = ServiceContainer.getInstance().get<CategoryService>('categoryService');
+    const category = await categoryService.getCategory(categoryId);
 
     if (!category) {
       return NextResponse.json(
-        { error: 'Category not found' },
+        ResponseBuilder.error(ErrorHandler.handle(new Error('Category not found'))),
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ category });
+    return NextResponse.json(ResponseBuilder.success(category));
   } catch (error) {
-    console.error('Error fetching category:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -62,148 +62,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     if (!categoryId) {
       return NextResponse.json(
-        { error: 'Category ID is required' },
+        ResponseBuilder.error(ErrorHandler.handle(new Error('Category ID is required'))),
         { status: 400 }
       );
     }
 
-    // Get the existing category
-    const existingCategory = await FirebaseAdminService.getDocument(
-      Collections.PRODUCT_CATEGORIES,
-      categoryId
-    );
+    const categoryService = ServiceContainer.getInstance().get<CategoryService>('categoryService');
+    const updatedCategory = await categoryService.updateCategory(categoryId, body, session.user.id);
 
-    if (!existingCategory) {
-      return NextResponse.json(
-        { error: 'Category not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check if slug is being changed and if it already exists
-    if (body.slug && body.slug !== existingCategory.slug) {
-      const existingSlug = await FirebaseAdminService.queryDocuments(
-        Collections.PRODUCT_CATEGORIES,
-        [{ field: 'slug', operator: '==' as const, value: body.slug }]
-      );
-
-      if (existingSlug.length > 0) {
-        return NextResponse.json(
-          { error: 'Category with this slug already exists' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Handle parent category changes
-    let level = existingCategory.level;
-    let path = existingCategory.path;
-    
-    if (body.parentId !== undefined && body.parentId !== (existingCategory.parentId || existingCategory.parentCategoryId)) {
-      // Prevent self-parenting
-      if (body.parentId === categoryId) {
-        return NextResponse.json(
-          { error: 'Category cannot be its own parent' },
-          { status: 400 }
-        );
-      }
-
-      // Check if new parent exists
-      if (body.parentId) {
-        const newParent = await FirebaseAdminService.getDocument(
-          Collections.PRODUCT_CATEGORIES,
-          body.parentId
-        );
-        
-        if (!newParent) {
-          return NextResponse.json(
-            { error: 'Parent category not found' },
-            { status: 400 }
-          );
-        }
-
-        // Check for circular reference
-        if (newParent.path.includes(existingCategory.name || existingCategory.categoryName)) {
-          return NextResponse.json(
-            { error: 'Cannot create circular category reference' },
-            { status: 400 }
-          );
-        }
-
-        level = newParent.level + 1;
-        path = [...newParent.path, body.name || existingCategory.name || existingCategory.categoryName];
-        
-        // Prevent too deep nesting
-        if (level > 5) {
-          return NextResponse.json(
-            { error: 'Maximum category depth exceeded (5 levels max)' },
-            { status: 400 }
-          );
-        }
-      } else {
-        // Moving to root level
-        level = 0;
-        path = [body.name || existingCategory.name || existingCategory.categoryName];
-      }
-    }
-
-    // Prepare update data - transform to old field format for database compatibility
-    const updateData = {
-      ...(body.name && { categoryName: body.name }),
-      ...(body.description !== undefined && { description: body.description }),
-      ...(body.slug && { slug: body.slug }),
-      ...(body.parentId !== undefined && { parentCategoryId: body.parentId }),
-      ...(body.isActive !== undefined && { isActive: body.isActive }),
-      level,
-      path,
-      updatedAt: new Date()
-    };
-
-    // Remove id from update data if it exists
-    delete updateData.id;
-
-    const updatedCategory = await FirebaseAdminService.updateDocument(
-      Collections.PRODUCT_CATEGORIES,
-      categoryId,
-      updateData
-    );
-
-    // If parent changed, update all children's paths
-    if (body.parentCategoryId !== undefined && body.parentCategoryId !== existingCategory.parentCategoryId) {
-      await updateChildrenPaths(categoryId, path);
-    }
-
-    return NextResponse.json({ category: updatedCategory });
-  } catch (error: any) {
-    console.error('Error updating category:', error);
+    return NextResponse.json(ResponseBuilder.success(updatedCategory));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
-  }
-}
-
-// Helper function to update children paths recursively
-async function updateChildrenPaths(parentId: string, parentPath: string[]) {
-  const children = await FirebaseAdminService.queryDocuments(
-    Collections.PRODUCT_CATEGORIES,
-    [{ field: 'parentCategoryId', operator: '==' as const, value: parentId }]
-  );
-
-  for (const child of children) {
-    const newPath = [...parentPath, child.name || child.categoryName];
-    await FirebaseAdminService.updateDocument(
-      Collections.PRODUCT_CATEGORIES,
-      child.id,
-      { 
-        path: newPath,
-        level: newPath.length - 1,
-        updatedAt: new Date()
-      }
-    );
-
-    // Recursively update grandchildren
-    await updateChildrenPaths(child.id, newPath);
   }
 }
 
@@ -223,63 +96,20 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     if (!categoryId) {
       return NextResponse.json(
-        { error: 'Category ID is required' },
+        ResponseBuilder.error(ErrorHandler.handle(new Error('Category ID is required'))),
         { status: 400 }
       );
     }
 
-    // Check if category exists
-    const existingCategory = await FirebaseAdminService.getDocument(
-      Collections.PRODUCT_CATEGORIES,
-      categoryId
-    );
+    const categoryService = ServiceContainer.getInstance().get<CategoryService>('categoryService');
+    await categoryService.deleteCategory(categoryId, session.user.id);
 
-    if (!existingCategory) {
-      return NextResponse.json(
-        { error: 'Category not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check if there are products using this category
-    const productsInCategory = await FirebaseAdminService.queryDocuments(
-      Collections.PRODUCTS,
-      [{ field: 'categoryId', operator: '==' as const, value: categoryId }]
-    );
-
-    if (productsInCategory.length > 0) {
-      return NextResponse.json(
-        { error: 'Cannot delete category that has products. Please reassign or delete products first.' },
-        { status: 400 }
-      );
-    }
-
-    // Check if there are subcategories
-    const subcategories = await FirebaseAdminService.queryDocuments(
-      Collections.PRODUCT_CATEGORIES,
-      [{ field: 'parentCategoryId', operator: '==' as const, value: categoryId }]
-    );
-
-    if (subcategories.length > 0) {
-      return NextResponse.json(
-        { error: 'Cannot delete category that has subcategories. Please delete subcategories first.' },
-        { status: 400 }
-      );
-    }
-
-    // Delete the category
-    await FirebaseAdminService.deleteDocument(
-      Collections.PRODUCT_CATEGORIES,
-      categoryId
-    );
-
-    return NextResponse.json({ message: 'Category deleted successfully' });
-  } catch (error: any) {
-    console.error('Error deleting category:', error);
+    return NextResponse.json(ResponseBuilder.success({ message: 'Category deleted successfully' }));
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
-

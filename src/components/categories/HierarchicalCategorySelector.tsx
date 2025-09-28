@@ -39,16 +39,28 @@ export function HierarchicalCategorySelector({
     try {
       const response = await fetch('/api/categories?format=tree&includeChildren=true');
       const data = await response.json();
-      setCategories(data.categories || []);
+      // Handle the new standardized response structure
+      if (data.success && data.data) {
+        // New ResponseBuilder format: { success: true, data: { categories: [...] } }
+        setCategories(data.data.categories || []);
+      } else if (data.categories) {
+        // Legacy format: { categories: [...] }
+        setCategories(data.categories || []);
+      } else if (Array.isArray(data)) {
+        // Direct array response
+        setCategories(data);
+      } else {
+        setCategories([]);
+      }
     } catch (error) {
-      console.error('Error loading categories:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading categories:', error);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const selectedCategory = findCategoryById(categories, value);
-  
   const findCategoryById = (nodes: CategoryNode[], id: string): CategoryNode | null => {
     for (const node of nodes) {
       if (node.id === id) return node;
@@ -59,6 +71,8 @@ export function HierarchicalCategorySelector({
     }
     return null;
   };
+
+  const selectedCategory = findCategoryById(categories, value);
 
   const toggleExpanded = (categoryId: string) => {
     setExpandedNodes(prev => {
@@ -74,6 +88,11 @@ export function HierarchicalCategorySelector({
 
   const handleSelect = (categoryId: string) => {
     onChange(categoryId);
+    setIsOpen(false);
+  };
+
+  const handleSelectNone = () => {
+    onChange('');
     setIsOpen(false);
   };
 
@@ -95,16 +114,11 @@ export function HierarchicalCategorySelector({
             isSelected ? 'bg-blue-50 text-blue-700' : 'text-gray-900'
           }`}
           style={{ paddingLeft: `${depth * 20 + 12}px` }}
-          onClick={() => {
-            if (hasChildren) {
-              toggleExpanded(node.id);
-            } else {
-              handleSelect(node.id);
-            }
-          }}
+          onClick={() => handleSelect(node.id)}
         >
           {hasChildren ? (
             <button
+              type="button"
               className="mr-2 p-1 hover:bg-gray-200 rounded"
               onClick={(e) => {
                 e.stopPropagation();
@@ -133,8 +147,8 @@ export function HierarchicalCategorySelector({
             )}
             
             <div className="flex-1">
-              <div className="font-medium">{node.name}</div>
-              {showPath && node.path.length > 1 && (
+              <div className="font-medium">{node.categoryName}</div>
+              {showPath && node.path && node.path.length > 1 && (
                 <div className="text-xs text-gray-500">
                   {node.path.join(' > ')}
                 </div>
@@ -173,15 +187,20 @@ export function HierarchicalCategorySelector({
         }`}
       >
         <div className="flex items-center justify-between">
-          <span className={selectedCategory ? 'text-gray-900' : 'text-gray-500'}>
+          <span className={selectedCategory || value === '' ? 'text-gray-900' : 'text-gray-500'}>
             {selectedCategory ? (
               <div>
-                <div>{selectedCategory.name}</div>
-                {showPath && selectedCategory.path.length > 1 && (
+                <div>{selectedCategory.categoryName}</div>
+                {showPath && selectedCategory.path && selectedCategory.path.length > 1 && (
                   <div className="text-xs text-gray-500">
                     {selectedCategory.path.join(' > ')}
                   </div>
                 )}
+              </div>
+            ) : value === '' ? (
+              <div>
+                <div>All Categories</div>
+                <div className="text-xs text-gray-500">Show products from all categories</div>
               </div>
             ) : (
               placeholder
@@ -194,6 +213,20 @@ export function HierarchicalCategorySelector({
       {isOpen && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-y-auto">
           <div className="py-2">
+            {/* All Categories option */}
+            <div
+              className={`flex items-center py-2 px-3 hover:bg-gray-50 cursor-pointer ${
+                value === '' ? 'bg-blue-50 text-blue-700' : 'text-gray-900'
+              }`}
+              onClick={handleSelectNone}
+            >
+              <div className="w-6 mr-2" />
+              <div className="flex-1">
+                <div className="font-medium">All Categories</div>
+                <div className="text-xs text-gray-500">Show products from all categories</div>
+              </div>
+            </div>
+            
             {categories.length === 0 ? (
               <div className="px-3 py-2 text-sm text-gray-500">
                 No categories available

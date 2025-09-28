@@ -13,14 +13,22 @@ import {
   ChevronRight,
   ChevronDown
 } from 'lucide-react';
+import { HierarchicalCategorySelector } from '@/components/categories/HierarchicalCategorySelector';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 
 interface Category {
   id: string;
-  name: string;
-  description: string;
+  categoryName: string; // API returns categoryName, not name
+  name?: string; // Keep for backward compatibility
+  description?: string;
   slug: string;
   parentId?: string;
+  parentCategoryId?: string; // API uses parentCategoryId
+  iconUrl?: string;
   isActive: boolean;
+  level?: number;
+  path?: string[];
+  sortOrder?: number;
   createdAt: string;
   updatedAt: string;
   children?: Category[];
@@ -39,6 +47,7 @@ export default function AdminCategoriesPage() {
     description: '',
     slug: '',
     parentId: '',
+    iconUrl: '',
     isActive: true
   });
 
@@ -49,13 +58,26 @@ export default function AdminCategoriesPage() {
   const loadCategories = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/categories?format=tree&includeChildren=true');
+      // Fetch all categories first to get the complete list
+      const response = await fetch('/api/categories?includeInactive=true');
       const data = await response.json();
       
       if (response.ok) {
-        setCategories(data.categories || []);
+        // Handle the new standardized response structure
+        if (data.success && data.data) {
+          // New ResponseBuilder format: { success: true, data: { categories: [...] } }
+          setCategories(data.data.categories || []);
+        } else if (data.categories) {
+          // Legacy format: { categories: [...] }
+          setCategories(data.categories || []);
+        } else if (Array.isArray(data)) {
+          // Direct array response
+          setCategories(data);
+        } else {
+          setCategories([]);
+        }
       } else {
-        console.error('Error loading categories:', data.error);
+        console.error('Error loading categories:', data.error?.message || data.error);
       }
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -64,8 +86,44 @@ export default function AdminCategoriesPage() {
     }
   };
 
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  };
+
+  const validateForm = () => {
+    const errors: string[] = [];
+    
+    if (!formData.name.trim()) {
+      errors.push('Category name is required');
+    }
+    
+    if (!formData.slug.trim()) {
+      errors.push('Slug is required');
+    }
+    
+    if (formData.slug && !/^[a-z0-9-]+$/.test(formData.slug)) {
+      errors.push('Slug must contain only lowercase letters, numbers, and hyphens');
+    }
+    
+    if (formData.iconUrl && !formData.iconUrl.startsWith('data:image/') && !/^https?:\/\/.+/.test(formData.iconUrl)) {
+      errors.push('Icon must be a valid image file or HTTP/HTTPS URL');
+    }
+    
+    return errors;
+  };
+
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const validationErrors = validateForm();
+    if (validationErrors.length > 0) {
+      alert(validationErrors.join('\n'));
+      return;
+    }
+    
     try {
       const response = await fetch('/api/categories', {
         method: 'POST',
@@ -84,12 +142,14 @@ export default function AdminCategoriesPage() {
           description: '',
           slug: '',
           parentId: '',
+          iconUrl: '',
           isActive: true
         });
         loadCategories();
+        alert('Category created successfully!');
       } else {
         console.error('Error creating category:', data.error);
-        alert(data.error);
+        alert(data.error || 'Failed to create category');
       }
     } catch (error) {
       console.error('Error creating category:', error);
@@ -100,6 +160,12 @@ export default function AdminCategoriesPage() {
   const handleUpdateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCategory) return;
+
+    const validationErrors = validateForm();
+    if (validationErrors.length > 0) {
+      alert(validationErrors.join('\n'));
+      return;
+    }
 
     try {
       const response = await fetch(`/api/categories/${editingCategory.id}`, {
@@ -119,12 +185,14 @@ export default function AdminCategoriesPage() {
           description: '',
           slug: '',
           parentId: '',
+          iconUrl: '',
           isActive: true
         });
         loadCategories();
+        alert('Category updated successfully!');
       } else {
         console.error('Error updating category:', data.error);
-        alert(data.error);
+        alert(data.error || 'Failed to update category');
       }
     } catch (error) {
       console.error('Error updating category:', error);
@@ -156,10 +224,11 @@ export default function AdminCategoriesPage() {
   const startEdit = (category: Category) => {
     setEditingCategory(category);
     setFormData({
-      name: category.name,
-      description: category.description,
-      slug: category.slug,
-      parentId: category.parentId || '',
+      name: category.categoryName || category.name || '',
+      description: category.description || '',
+      slug: category.slug || '',
+      parentId: category.parentCategoryId || category.parentId || '',
+      iconUrl: category.iconUrl || '',
       isActive: category.isActive
     });
   };
@@ -174,67 +243,154 @@ export default function AdminCategoriesPage() {
     setExpandedCategories(newExpanded);
   };
 
-  const filteredCategories = categories.filter(category =>
-    category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    category.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Build tree structure from flat categories
+  const buildCategoryTree = (categories: Category[]): Category[] => {
+    const categoryMap = new Map<string, Category>();
+    const rootCategories: Category[] = [];
+
+    // First pass: create a map of all categories
+    categories.forEach(category => {
+      categoryMap.set(category.id, { ...category, children: [] });
+    });
+
+    // Second pass: build the tree structure
+    categories.forEach(category => {
+      const parentId = category.parentCategoryId || category.parentId;
+      if (parentId && categoryMap.has(parentId)) {
+        const parent = categoryMap.get(parentId)!;
+        if (!parent.children) parent.children = [];
+        parent.children.push(categoryMap.get(category.id)!);
+      } else {
+        rootCategories.push(categoryMap.get(category.id)!);
+      }
+    });
+
+    return rootCategories;
+  };
+
+  // Filter categories recursively
+  const filterCategories = (categories: Category[], searchTerm: string): Category[] => {
+    if (!searchTerm) return categories;
+    
+    return categories.filter(category => {
+      const name = category.categoryName || category.name || '';
+      const description = category.description || '';
+      const matches = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                     description.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // If this category matches, include it and all its children
+      if (matches) return true;
+      
+      // If any child matches, include this category
+      if (category.children && category.children.length > 0) {
+        const filteredChildren = filterCategories(category.children, searchTerm);
+        if (filteredChildren.length > 0) {
+          category.children = filteredChildren;
+          return true;
+        }
+      }
+      
+      return false;
+    });
+  };
+
+  const categoryTree = buildCategoryTree(categories);
+  const filteredCategories = filterCategories(categoryTree, searchTerm);
 
   const renderCategoryTree = (categories: Category[], level = 0) => {
-    return categories.map((category) => (
-      <div key={category.id} className="border border-gray-200 rounded-lg mb-2">
-        <div className="flex items-center justify-between p-4 bg-gray-50">
-          <div className="flex items-center space-x-3">
-            {category.children && category.children.length > 0 && (
-              <button
-                onClick={() => toggleExpanded(category.id)}
-                className="p-1 hover:bg-gray-200 rounded"
-              >
-                {expandedCategories.has(category.id) ? (
-                  <ChevronDown className="h-4 w-4" />
+    return categories.map((category) => {
+      const hasChildren = category.children && category.children.length > 0;
+      const isExpanded = expandedCategories.has(category.id);
+      
+      return (
+        <div key={category.id} className="mb-2">
+          <div 
+            className={`border border-gray-200 rounded-lg ${
+              level > 0 ? 'ml-6' : ''
+            }`}
+            style={{ marginLeft: `${level * 24}px` }}
+          >
+            <div className="flex items-center justify-between p-4 bg-gray-50">
+              <div className="flex items-center space-x-3">
+                {hasChildren ? (
+                  <button
+                    onClick={() => toggleExpanded(category.id)}
+                    className="p-1 hover:bg-gray-200 rounded"
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-gray-500" />
+                    )}
+                  </button>
                 ) : (
-                  <ChevronRight className="h-4 w-4" />
+                  <div className="w-6" />
                 )}
-              </button>
-            )}
-            <FolderOpen className="h-5 w-5 text-gray-500" />
-            <div>
-              <h3 className="font-medium text-gray-900">{category.name}</h3>
-              <p className="text-sm text-gray-500">{category.description}</p>
-              <div className="flex items-center space-x-4 text-xs text-gray-400">
-                <span className={`px-2 py-1 rounded ${
-                  category.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  {category.isActive ? 'Active' : 'Inactive'}
-                </span>
+                
+                <FolderOpen className="h-5 w-5 text-gray-400" />
+                
+                {category.iconUrl && (
+                  <img
+                    src={category.iconUrl}
+                    alt={category.categoryName || category.name || 'Category icon'}
+                    className="w-8 h-8 object-cover rounded-md"
+                  />
+                )}
+                
+                <div>
+                  <h3 className="font-medium text-gray-900">
+                    {category.categoryName || category.name || 'Unnamed Category'}
+                    {hasChildren && (
+                      <span className="ml-2 text-xs text-gray-500">
+                        ({category.children?.length} subcategories)
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-sm text-gray-500">{category.description || 'No description'}</p>
+                  <div className="flex items-center space-x-4 text-xs text-gray-400">
+                    <span className={`px-2 py-1 rounded ${
+                      category.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {category.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                    <span>Level: {category.level || 0}</span>
+                    <span>Slug: {category.slug}</span>
+                    {category.sortOrder !== undefined && (
+                      <span>Order: {category.sortOrder}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Button
+                  onClick={() => startEdit(category)}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={() => handleDeleteCategory(category.id)}
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              onClick={() => startEdit(category)}
-              size="sm"
-              variant="outline"
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-            <Button
-              onClick={() => handleDeleteCategory(category.id)}
-              size="sm"
-              variant="outline"
-              className="text-red-600 hover:text-red-700"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+          
+          {/* Render children if expanded */}
+          {hasChildren && isExpanded && (
+            <div className="mt-2">
+              {renderCategoryTree(category.children!, level + 1)}
+            </div>
+          )}
         </div>
-      </div>
-        
-        {category.children && category.children.length > 0 && expandedCategories.has(category.id) && (
-          <div className="pl-8 pr-4 pb-4">
-            {renderCategoryTree(category.children, level + 1)}
-          </div>
-        )}
-      </div>
-    ));
+      );
+    });
   };
 
   if (loading) {
@@ -290,7 +446,13 @@ export default function AdminCategoriesPage() {
                 <Input
                   label="Category Name"
                   value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => {
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      name: e.target.value,
+                      slug: !editingCategory ? generateSlug(e.target.value) : prev.slug
+                    }));
+                  }}
                   required
                 />
                 <Input
@@ -309,6 +471,30 @@ export default function AdminCategoriesPage() {
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Parent Category
+                </label>
+                <HierarchicalCategorySelector
+                  value={formData.parentId}
+                  onChange={(categoryId) => setFormData(prev => ({ ...prev, parentId: categoryId }))}
+                  placeholder="Select parent category (optional)"
+                  showPath={true}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Category Image/Icon
+                </label>
+                <ImageUpload
+                  value={formData.iconUrl}
+                  onChange={(url) => setFormData(prev => ({ ...prev, iconUrl: url }))}
+                  placeholder="Upload category image"
+                  maxSize={5}
+                  uploadType="category"
+                  entityId={editingCategory?.id}
                 />
               </div>
               <div className="flex items-center space-x-4">
@@ -334,6 +520,7 @@ export default function AdminCategoriesPage() {
                       description: '',
                       slug: '',
                       parentId: '',
+                      iconUrl: '',
                       isActive: true
                     });
                   }}
@@ -352,7 +539,7 @@ export default function AdminCategoriesPage() {
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-              Categories ({filteredCategories.length})
+              Categories ({categories.length} total, {filteredCategories.length} shown)
             </h3>
             {filteredCategories.length === 0 ? (
               <div className="text-center py-8">

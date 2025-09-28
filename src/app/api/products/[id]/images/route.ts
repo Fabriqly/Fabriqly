@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
 import { ProductImage } from '@/types/products';
+import { Timestamp } from 'firebase/firestore';
+import { SupabaseStorageService, StorageBuckets } from '@/lib/supabase-storage';
 
 interface RouteParams {
   params: {
@@ -99,12 +101,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         // Generate unique filename
         const timestamp = Date.now();
         const fileExtension = file.name.split('.').pop();
-        const fileName = `products/${productId}/${timestamp}-${i}.${fileExtension}`;
+        const fileName = `${timestamp}-${i}.${fileExtension}`;
 
-        // Upload to Firebase Storage (this would need Firebase Admin Storage setup)
-        // For now, we'll simulate the upload and store the URL
-        const imageUrl = `https://storage.googleapis.com/your-bucket/${fileName}`;
-        const thumbnailUrl = `https://storage.googleapis.com/your-bucket/thumbnails/${fileName}`;
+        // Upload to Supabase Storage
+        const uploadResult = await SupabaseStorageService.uploadFileFromServer(
+          Buffer.from(buffer),
+          fileName,
+          file.type,
+          {
+            bucket: StorageBuckets.PRODUCTS,
+            folder: productId,
+            upsert: false
+          }
+        );
 
         // Get current sort order - fetch all and filter in memory to avoid index requirements
         const allImages = await FirebaseAdminService.queryDocuments(
@@ -118,15 +127,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const sortOrder = existingImages.length + i;
 
         // Create image document
-        const imageData: Omit<ProductImage, 'id'> = {
+        const imageData = {
           productId,
-          imageUrl,
-          thumbnailUrl,
+          imageUrl: uploadResult.url,
+          thumbnailUrl: uploadResult.url, // You can create thumbnails later
           altText: altText || file.name,
           isPrimary: isPrimary && i === 0, // Only first image can be primary
           sortOrder,
-          createdAt: new Date()
-        };
+          createdAt: Timestamp.now(),
+          // Store Supabase metadata for future operations
+          storagePath: uploadResult.path,
+          storageBucket: StorageBuckets.PRODUCTS
+        } as Omit<ProductImage, 'id'>;
 
         console.log('Creating image document:', imageData);
 

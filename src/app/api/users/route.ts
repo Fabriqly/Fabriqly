@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { FirebaseAdminService } from '@/services/firebase-admin';
-import { Collections } from '@/services/firebase';
+import { ServiceContainer } from '@/container/ServiceContainer';
+import { UserService } from '@/services/UserService';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
 // GET /api/users - List all users (admin only)
 export async function GET(request: NextRequest) {
@@ -19,48 +21,31 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get('role');
     const limit = parseInt(searchParams.get('limit') || '50');
-    const offset = parseInt(searchParams.get('offset') || '0');
 
-    // Build query constraints
-    const constraints = [];
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
     
+    let users;
     if (role) {
-      constraints.push({ field: 'role', operator: '==' as const, value: role });
+      users = await userService.getUsersByRole(role);
+    } else {
+      users = await userService.getUsers();
     }
 
-    const users = await FirebaseAdminService.queryDocuments(
-      Collections.USERS,
-      constraints,
-      { field: 'createdAt', direction: 'desc' },
-      limit
-    );
+    // Apply limit
+    const limitedUsers = users.slice(0, limit);
 
-    // Map user documents to the expected frontend structure
-    const mappedUsers = users.map(user => ({
-      id: user.id,
-      email: user.email,
-      name: user.displayName || 
-            `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim() ||
-            'No name',
-      role: user.role,
-      isVerified: user.isVerified,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      profile: user.profile
-    }));
-
-    return NextResponse.json({ users: mappedUsers });
+    return NextResponse.json(ResponseBuilder.success({ users: limitedUsers }));
   } catch (error) {
-    console.error('Error fetching users:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
 
-// PUT /api/users/[id] - Update user (admin only)
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+// POST /api/users - Create a new user (admin only)
+export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -72,75 +57,16 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     const body = await request.json();
-    const { id } = params;
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
 
-    // Validate required fields
-    if (!body.name || !body.email || !body.role) {
-      return NextResponse.json(
-        { error: 'Missing required fields: name, email, role' },
-        { status: 400 }
-      );
-    }
+    const user = await userService.createUser(body);
 
-    // Update user document
-    const updatedUser = await FirebaseAdminService.updateDocument(
-      Collections.USERS,
-      id,
-      {
-        name: body.name,
-        email: body.email,
-        role: body.role,
-        isVerified: body.isVerified || false,
-        updatedAt: new Date()
-      }
-    );
-
-    // Update user role in Firebase Auth if needed
-    if (body.role) {
-      await FirebaseAdminService.updateUserRole(id, body.role);
-    }
-
-    return NextResponse.json({ user: updatedUser });
+    return NextResponse.json(ResponseBuilder.created(user), { status: 201 });
   } catch (error) {
-    console.error('Error updating user:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE /api/users/[id] - Delete user (admin only)
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Unauthorized - Admin access required' },
-        { status: 401 }
-      );
-    }
-
-    const { id } = params;
-
-    // Prevent admin from deleting themselves
-    if (id === session.user.id) {
-      return NextResponse.json(
-        { error: 'Cannot delete your own account' },
-        { status: 400 }
-      );
-    }
-
-    // Delete user
-    await FirebaseAdminService.deleteUser(id);
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }

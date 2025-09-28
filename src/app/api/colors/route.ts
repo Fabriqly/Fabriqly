@@ -101,7 +101,14 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
+    console.log('Color creation - Session check:', {
+      hasSession: !!session,
+      userRole: session?.user?.role,
+      userId: session?.user?.id
+    });
+    
     if (!session || !['admin', 'business_owner'].includes(session.user.role)) {
+      console.log('Color creation - Unauthorized access attempt');
       return NextResponse.json(
         { error: 'Unauthorized - Admin or business owner access required' },
         { status: 401 }
@@ -157,6 +164,43 @@ export async function POST(request: NextRequest) {
       Collections.COLORS,
       colorData
     );
+
+    // Log activity
+    try {
+      console.log('Logging color creation activity...');
+      console.log('Session user:', session.user);
+      console.log('Color data:', color);
+      console.log('Body data:', body);
+      
+      const activityData = {
+        type: 'color_created',
+        title: 'Color Created',
+        description: `New color "${body.colorName}" has been added`,
+        priority: 'low',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: color.id,
+        targetType: 'color',
+        targetName: body.colorName,
+        metadata: {
+          colorName: body.colorName,
+          hexCode: body.hexCode,
+          rgbCode: body.rgbCode,
+          createdBy: session.user.role,
+          ...(session.user.role === 'business_owner' && { businessOwnerId: session.user.id })
+        }
+      };
+      
+      console.log('Activity data to create:', activityData);
+      
+      const activity = await FirebaseAdminService.createDocument(Collections.ACTIVITIES, activityData);
+      console.log('✅ Color creation activity logged successfully:', activity.id);
+    } catch (activityError: any) {
+      console.error('❌ Error logging color creation activity:', activityError);
+      console.error('Activity error details:', activityError.message);
+      console.error('Activity error stack:', activityError.stack);
+      // Don't fail the creation if activity logging fails
+    }
 
     return NextResponse.json({ color }, { status: 201 });
   } catch (error: any) {

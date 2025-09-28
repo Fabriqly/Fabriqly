@@ -6,8 +6,12 @@ import { Collections } from '@/services/firebase';
 import { 
   Product, 
   UpdateProductData, 
-  ProductWithDetails 
+  ProductWithDetails,
+  ProductImage
 } from '@/types/products';
+import { Timestamp } from 'firebase/firestore';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
 interface RouteParams {
   params: {
@@ -96,15 +100,12 @@ export async function GET(
       productColors
     };
 
-    return NextResponse.json({ product: productWithDetails });
+    return NextResponse.json(ResponseBuilder.success(productWithDetails));
   } catch (error) {
-    console.error('Error fetching product:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: 'Failed to fetch product', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -224,7 +225,7 @@ export async function PUT(
 
     // Prepare update data - only include fields that are being updated
     const updateData: Partial<Product> = {
-      updatedAt: new Date()
+      updatedAt: Timestamp.now()
     };
 
     // Update fields only if they're provided
@@ -245,7 +246,7 @@ export async function PUT(
       if (body.weight > 0) {
         updateData.weight = Number(body.weight);
       } else {
-        updateData.weight = null; // Remove weight if set to 0 or negative
+        updateData.weight = undefined; // Remove weight if set to 0 or negative
       }
     }
     
@@ -264,6 +265,60 @@ export async function PUT(
     );
 
     console.log('Product updated successfully');
+
+    // Log activity
+    try {
+      const changedFields = Object.keys(updateData).filter(key => key !== 'updatedAt');
+      
+      // Determine activity type based on status change
+      let activityType = 'product_updated';
+      let activityTitle = 'Product Updated';
+      let activityDescription = `Product "${existingProduct.name}" has been updated`;
+      
+      if (updateData.status && updateData.status !== existingProduct.status) {
+        if (updateData.status === 'inactive' && existingProduct.status === 'active') {
+          activityType = 'product_unpublished';
+          activityTitle = 'Product Unpublished';
+          activityDescription = `Product "${existingProduct.name}" has been unpublished and is no longer visible to customers`;
+        } else if (updateData.status === 'active' && existingProduct.status === 'inactive') {
+          activityType = 'product_republished';
+          activityTitle = 'Product Republished';
+          activityDescription = `Product "${existingProduct.name}" has been republished and is now visible to customers`;
+        }
+      }
+      
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+        type: activityType,
+        title: activityTitle,
+        description: activityDescription,
+        priority: updateData.status === 'inactive' ? 'medium' : 'low',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: productId,
+        targetType: 'product',
+        targetName: existingProduct.name,
+        metadata: {
+          productName: existingProduct.name,
+          changedFields: changedFields,
+          updatedBy: session.user.role,
+          updatedAt: new Date().toISOString(),
+          previousValues: Object.fromEntries(
+            changedFields
+              .map(field => [field, existingProduct[field as keyof Product]])
+              .filter(([_, value]) => value !== undefined)
+          ),
+          newValues: Object.fromEntries(
+            changedFields
+              .map(field => [field, updateData[field as keyof Product]])
+              .filter(([_, value]) => value !== undefined)
+          ),
+          ...(updateData.status && { statusChange: { from: existingProduct.status, to: updateData.status } })
+        }
+      });
+    } catch (activityError) {
+      console.error('Error logging product update activity:', activityError);
+      // Don't fail the update if activity logging fails
+    }
 
     // Clear relevant caches
     categoryCache.clear();
@@ -285,16 +340,12 @@ export async function PUT(
       businessOwner
     };
 
-    return NextResponse.json({ product: productWithDetails });
+    return NextResponse.json(ResponseBuilder.success(productWithDetails));
   } catch (error: any) {
-    console.error('Error updating product:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { 
-        error: 'Failed to update product', 
-        details: error.message || 'Unknown error',
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -355,6 +406,42 @@ export async function DELETE(
     await FirebaseAdminService.deleteDocument(Collections.PRODUCTS, productId);
 
     console.log('Product deleted successfully');
+
+    // Log activity
+    try {
+      console.log('Attempting to log product deletion activity...');
+      console.log('Session user:', session.user);
+      console.log('Existing product:', existingProduct);
+      
+      const activityData = {
+        type: 'product_deleted',
+        title: 'Product Deleted',
+        description: `Product "${existingProduct.name}" has been deleted`,
+        priority: 'high',
+        status: 'active',
+        actorId: session.user.id,
+        targetId: productId,
+        targetType: 'product',
+        targetName: existingProduct.name,
+        metadata: {
+          productName: existingProduct.name,
+          businessOwnerId: existingProduct.businessOwnerId,
+          categoryId: existingProduct.categoryId,
+          deletedBy: session.user.role,
+          deletedAt: new Date().toISOString()
+        }
+      };
+      
+      console.log('Activity data to create:', activityData);
+      
+      const activity = await FirebaseAdminService.createDocument(Collections.ACTIVITIES, activityData);
+      console.log('✅ Activity logged successfully:', activity.id);
+    } catch (activityError: any) {
+      console.error('❌ Error logging product deletion activity:', activityError);
+      console.error('Activity error details:', activityError.message);
+      console.error('Activity error stack:', activityError.stack);
+      // Don't fail the deletion if activity logging fails
+    }
 
     // Clear caches
     categoryCache.clear();
@@ -490,7 +577,7 @@ async function deleteProductImages(productId: string) {
   try {
     const images = await fetchProductImages(productId);
     await Promise.all(
-      images.map(image => 
+      images.map((image: ProductImage) => 
         FirebaseAdminService.deleteDocument(Collections.PRODUCT_IMAGES, image.id)
       )
     );

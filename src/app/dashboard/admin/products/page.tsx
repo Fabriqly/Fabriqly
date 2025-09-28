@@ -61,18 +61,41 @@ export default function AdminProductsPage() {
 
   useEffect(() => {
     loadProducts();
-  }, []);
+  }, [statusFilter]);
 
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/products?limit=100');
+      // Build query parameters based on current filters
+      const params = new URLSearchParams();
+      params.append('limit', '100');
+      
+      // Only add status filter if not 'all'
+      if (statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      } else {
+        params.append('status', 'all');
+      }
+      
+      const response = await fetch(`/api/products?${params.toString()}`);
       const data = await response.json();
       
       if (response.ok) {
-        setProducts(data.products || []);
+        // Handle the new standardized response structure
+        if (data.success && data.data) {
+          // New ResponseBuilder format: { success: true, data: { products: [...] } }
+          setProducts(data.data.products || []);
+        } else if (data.products) {
+          // Legacy format: { products: [...] }
+          setProducts(data.products || []);
+        } else if (Array.isArray(data)) {
+          // Direct array response
+          setProducts(data);
+        } else {
+          setProducts([]);
+        }
       } else {
-        console.error('Error loading products:', data.error);
+        console.error('Error loading products:', data.error?.message || data.error);
       }
     } catch (error) {
       console.error('Error loading products:', error);
@@ -188,8 +211,7 @@ export default function AdminProductsPage() {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || product.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
   if (loading) {
@@ -457,3 +479,4 @@ export default function AdminProductsPage() {
     </AdminLayout>
   );
 }
+

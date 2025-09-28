@@ -27,7 +27,7 @@ interface ProductColorManagerProps {
   onColorChange?: () => void;
 }
 
-interface ProductColorWithDetails extends ProductColor {
+export interface ProductColorWithDetails extends ProductColor {
   color: Color;
 }
 

@@ -81,10 +81,25 @@ export function ProductCatalog() {
       const data = await response.json();
       
       if (response.ok) {
-        setProducts(data.products || []);
-        setSearchResult(data);
+        // Handle the new standardized response structure
+        if (data.success && data.data) {
+          // New ResponseBuilder format: { success: true, data: { products: [...], total: ..., hasMore: ..., filters: {...} } }
+          setProducts(data.data.products || []);
+          setSearchResult(data.data);
+        } else if (data.products) {
+          // Legacy format: { products: [...] }
+          setProducts(data.products || []);
+          setSearchResult(data);
+        } else if (Array.isArray(data)) {
+          // Direct array response
+          setProducts(data);
+          setSearchResult({ products: data, total: data.length, hasMore: false, filters: {} });
+        } else {
+          setProducts([]);
+          setSearchResult({ products: [], total: 0, hasMore: false, filters: {} });
+        }
       } else {
-        console.error('Error loading products:', data.error);
+        console.error('Error loading products:', data.error?.message || data.error);
       }
     } catch (error) {
       console.error('Error loading products:', error);
