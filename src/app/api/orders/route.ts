@@ -49,14 +49,27 @@ export async function GET(request: NextRequest) {
       searchOptions.customerId = session.user.id;
     }
 
+    // Try to get cached orders first
+    const cacheKey = `orders-${JSON.stringify(searchOptions)}-${session.user.id}`;
+    const cached = await CacheService.get(cacheKey);
+    
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const result = await orderService.getOrders(searchOptions, session.user.id);
 
-    return NextResponse.json({ 
+    const response = { 
       orders: result.orders,
       totalRevenue: result.totalRevenue,
       total: result.total,
       hasMore: result.hasMore
-    });
+    };
+    
+    // Cache the response for 3 minutes (orders change moderately)
+    await CacheService.set(cacheKey, response, 3 * 60 * 1000);
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error fetching orders:', error);
     return NextResponse.json(

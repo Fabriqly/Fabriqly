@@ -120,14 +120,41 @@ export function ProductDetail() {
     return totalPrice;
   };
 
-  const handleBuyNow = () => {
-    // TODO: Implement buy now functionality
-    console.log('Buy now:', {
-      productId,
+  const handleBuyNow = async () => {
+    if (!product) return;
+    
+    try {
+      // Create a temporary cart item for buy now
+      const buyNowItem = {
+        id: `buy-now-${Date.now()}`,
+        productId: product.id,
+        product: {
+          id: product.id,
+          name: product.name,
+          images: product.images || [],
+        },
       quantity,
-      variants: selectedVariants,
-      price: calculatePrice()
-    });
+        unitPrice: calculatePrice(),
+        totalPrice: calculatePrice() * quantity,
+        selectedVariants,
+        selectedColorId,
+        colorPriceAdjustment,
+        businessOwnerId: product.businessOwnerId,
+      };
+
+      // Store the item in sessionStorage for bulk checkout
+      const itemsToStore = [buyNowItem];
+      sessionStorage.setItem('bulkCheckoutItems', JSON.stringify(itemsToStore));
+      
+      // Debug: Verify the item was stored
+      const stored = sessionStorage.getItem('bulkCheckoutItems');
+      console.log('Stored buy now items:', stored);
+      
+      // Navigate to checkout with bulk parameter
+      router.push('/checkout?bulk=true');
+    } catch (error) {
+      console.error('Error with buy now:', error);
+    }
   };
 
   const handleShare = async () => {

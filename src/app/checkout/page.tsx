@@ -47,6 +47,8 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bulkCheckoutItems, setBulkCheckoutItems] = useState<any[]>([]);
+  const [isBulkCheckout, setIsBulkCheckout] = useState(false);
 
   // Form states
   const [shippingAddress, setShippingAddress] = useState<Address>({
@@ -86,12 +88,42 @@ export default function CheckoutPage() {
   const [useSameAddress, setUseSameAddress] = useState(true);
   const [orderNotes, setOrderNotes] = useState('');
 
-  // Redirect if cart is empty
+  // Check for bulk checkout items
   useEffect(() => {
-    if (!cartState.cart || cartState.cart.items.length === 0) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isBulk = urlParams.get('bulk') === 'true';
+    
+    console.log('Checkout page - isBulk:', isBulk);
+    
+    if (isBulk) {
+      const storedItems = sessionStorage.getItem('bulkCheckoutItems');
+      console.log('Checkout page - storedItems:', storedItems);
+      
+      if (storedItems) {
+        try {
+          const items = JSON.parse(storedItems);
+          console.log('Checkout page - parsed items:', items);
+          setBulkCheckoutItems(items);
+          setIsBulkCheckout(true);
+          // Clear the stored items
+          sessionStorage.removeItem('bulkCheckoutItems');
+        } catch (error) {
+          console.error('Error parsing bulk checkout items:', error);
+          router.push('/products');
+        }
+      } else {
+        console.log('No stored items found, redirecting to products');
+        router.push('/products');
+      }
+    }
+  }, [router]);
+
+  // Redirect if cart is empty (for regular checkout)
+  useEffect(() => {
+    if (!isBulkCheckout && (!cartState.cart || cartState.cart.items.length === 0)) {
       router.push('/products');
     }
-  }, [cartState.cart?.items.length, router]);
+  }, [cartState.cart?.items.length, router, isBulkCheckout]);
 
   // Load user data if available
   useEffect(() => {
@@ -114,6 +146,9 @@ export default function CheckoutPage() {
   };
 
   const calculateSubtotal = () => {
+    if (isBulkCheckout) {
+      return bulkCheckoutItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    }
     return cartState.cart?.items.reduce((sum, item) => sum + item.totalPrice, 0) || 0;
   };
 
@@ -174,13 +209,14 @@ export default function CheckoutPage() {
 
     try {
       // Group items by business owner
-      const ordersByBusinessOwner = cartState.cart?.items.reduce((acc, item) => {
+      const itemsToProcess = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+      const ordersByBusinessOwner = itemsToProcess.reduce((acc, item) => {
         if (!acc[item.businessOwnerId]) {
           acc[item.businessOwnerId] = [];
         }
         acc[item.businessOwnerId].push(item);
         return acc;
-      }, {} as Record<string, typeof cartState.cart.items>) || {};
+      }, {} as Record<string, typeof itemsToProcess>) || {};
 
       // Create orders for each business owner
       const orderPromises = Object.entries(ordersByBusinessOwner).map(async ([businessOwnerId, items]) => {
@@ -220,8 +256,10 @@ export default function CheckoutPage() {
 
       const orders = await Promise.all(orderPromises);
       
-      // Clear cart and redirect to success page
-      clearCart();
+      // Clear cart and redirect to success page (only for regular checkout)
+      if (!isBulkCheckout) {
+        clearCart();
+      }
       router.push(`/orders/success?orders=${orders.map(o => o.order.id).join(',')}`);
       
     } catch (error) {
@@ -232,7 +270,7 @@ export default function CheckoutPage() {
     }
   };
 
-  if (!cartState.cart || cartState.cart.items.length === 0) {
+  if (!isBulkCheckout && (!cartState.cart || cartState.cart.items.length === 0)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -521,7 +559,7 @@ export default function CheckoutPage() {
               
               {/* Order Items */}
               <div className="space-y-3 mb-6">
-                {cartState.cart?.items.map((item) => (
+                {(isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || []).map((item) => (
                   <div key={item.id} className="flex space-x-3">
                     <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                       {item.product.images && item.product.images.length > 0 ? (

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
 import { ActivityStats, ActivityType, ActivityPriority } from '@/types/activity';
+import { CacheService } from '@/services/CacheService';
 
 // GET /api/activities/stats - Get activity statistics
 export async function GET(request: NextRequest) {
@@ -24,6 +25,14 @@ export async function GET(request: NextRequest) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
+    // Try to get cached stats first
+    const cacheKey = `activity-stats-${days}`;
+    const cached = await CacheService.get(cacheKey);
+    
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const activities = await FirebaseAdminService.queryDocuments(
       Collections.ACTIVITIES,
       [
@@ -31,7 +40,7 @@ export async function GET(request: NextRequest) {
         { field: 'createdAt', operator: '>=' as const, value: cutoffDate }
       ],
       { field: 'createdAt', direction: 'desc' },
-      1000 // Reasonable limit for stats
+      500 // Reduced limit for stats
     );
 
     // Calculate statistics
@@ -86,7 +95,12 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    return NextResponse.json({ stats });
+    const response = { stats };
+    
+    // Cache the response for 5 minutes
+    await CacheService.set(cacheKey, response, 5 * 60 * 1000);
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error fetching activity statistics:', error);
     return NextResponse.json(

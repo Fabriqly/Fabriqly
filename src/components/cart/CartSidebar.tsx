@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -11,13 +11,15 @@ import {
   Minus, 
   Trash2,
   ArrowRight,
-  Package
+  Package,
+  Trash
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
 export function CartSidebar() {
   const { state, removeItem, updateQuantity, closeCart, getTotalAmount } = useCart();
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
   const handleQuantityChange = (itemId: string, newQuantity: number) => {
     if (newQuantity < 1) {
@@ -25,6 +27,45 @@ export function CartSidebar() {
     } else {
       updateQuantity(itemId, newQuantity);
     }
+  };
+
+  const handleItemSelect = (itemId: string) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedItems.size === state.cart?.items.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(state.cart?.items.map(item => item.id) || []));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const itemsToDelete = Array.from(selectedItems);
+    for (const itemId of itemsToDelete) {
+      await removeItem(itemId);
+    }
+    setSelectedItems(new Set());
+  };
+
+  const handleBulkCheckout = () => {
+    if (selectedItems.size === 0) return;
+    
+    // Create a temporary cart with only selected items
+    const selectedCartItems = state.cart?.items.filter(item => selectedItems.has(item.id)) || [];
+    
+    // Store selected items in sessionStorage for checkout page
+    sessionStorage.setItem('bulkCheckoutItems', JSON.stringify(selectedCartItems));
+    
+    // Navigate to checkout
+    window.location.href = '/checkout?bulk=true';
   };
 
   const formatPrice = (price: number) => {
@@ -63,6 +104,43 @@ export function CartSidebar() {
           </button>
         </div>
 
+        {/* Bulk Actions */}
+        {state.cart && state.cart.items.length > 0 && (
+          <div className="p-4 border-b bg-gray-50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={selectedItems.size === state.cart.items.length && state.cart.items.length > 0}
+                  onChange={handleSelectAll}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm text-gray-600">
+                  Select All ({selectedItems.size} selected)
+                </span>
+              </div>
+              {selectedItems.size > 0 && (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleBulkCheckout}
+                    className="flex items-center space-x-1 bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    <span>Checkout Selected</span>
+                  </button>
+                  <button
+                    onClick={handleBulkDelete}
+                    className="flex items-center space-x-1 text-red-600 hover:text-red-700 text-sm"
+                  >
+                    <Trash className="w-4 h-4" />
+                    <span>Delete Selected</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Cart Items */}
         <div className="flex-1 overflow-y-auto p-4">
           {!state.cart || state.cart.items.length === 0 ? (
@@ -78,37 +156,51 @@ export function CartSidebar() {
             <div className="space-y-4">
               {state.cart?.items.map((item) => (
                 <div key={item.id} className="flex space-x-3 p-3 border rounded-lg">
+                  {/* Checkbox */}
+                  <div className="flex-shrink-0 flex items-start pt-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.has(item.id)}
+                      onChange={() => handleItemSelect(item.id)}
+                      className="rounded border-gray-300"
+                    />
+                  </div>
+
                   {/* Product Image */}
                   <div className="flex-shrink-0">
-                    <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden">
-                      {item.product.images && item.product.images.length > 0 ? (
-                        <img
-                          src={item.product.images[0].imageUrl}
-                          alt={item.product.name}
-                          className="w-full h-full object-cover"
-                          onLoad={() => {
-                            console.log('Cart image loaded successfully:', item.product.images?.[0]?.imageUrl);
-                          }}
-                          onError={(e) => {
-                            console.error('Cart image failed to load:', item.product.images?.[0]?.imageUrl || 'No image URL');
-                            console.error('Full image data:', item.product.images?.[0]);
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Package className="w-6 h-6 text-gray-400" />
-                        </div>
-                      )}
-                    </div>
+                    <Link href={`/products/${item.productId}`} onClick={closeCart}>
+                      <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
+                        {item.product.images && item.product.images.length > 0 ? (
+                          <img
+                            src={item.product.images[0].imageUrl}
+                            alt={item.product.name}
+                            className="w-full h-full object-cover"
+                            onLoad={() => {
+                              console.log('Cart image loaded successfully:', item.product.images?.[0]?.imageUrl);
+                            }}
+                            onError={(e) => {
+                              console.error('Cart image failed to load:', item.product.images?.[0]?.imageUrl || 'No image URL');
+                              console.error('Full image data:', item.product.images?.[0]);
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Package className="w-6 h-6 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                    </Link>
                   </div>
 
                   {/* Product Details */}
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm text-gray-900 truncate">
-                      {item.product.name}
-                    </h4>
+                    <Link href={`/products/${item.productId}`} onClick={closeCart}>
+                      <h4 className="font-medium text-sm text-gray-900 truncate hover:text-blue-600 cursor-pointer">
+                        {item.product.name}
+                      </h4>
+                    </Link>
                     
                     {/* Variants */}
                     {Object.keys(item.selectedVariants).length > 0 && (

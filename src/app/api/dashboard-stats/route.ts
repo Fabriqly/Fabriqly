@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
+import { CacheService } from '@/services/CacheService';
 
 interface DashboardSnapshot {
   id?: string;
@@ -37,12 +38,20 @@ export async function GET(request: NextRequest) {
     const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
     comparisonDate.setDate(comparisonDate.getDate() - days);
 
-    // Load current data directly from database
+    // Try to get cached data first
+    const cacheKey = `dashboard-stats-${period}`;
+    const cached = await CacheService.get(cacheKey);
+    
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
+    // Load current data directly from database with limits
     const [users, products, categories, orders] = await Promise.all([
-      FirebaseAdminService.queryDocuments(Collections.USERS),
-      FirebaseAdminService.queryDocuments(Collections.PRODUCTS),
-      FirebaseAdminService.queryDocuments(Collections.PRODUCT_CATEGORIES),
-      FirebaseAdminService.queryDocuments(Collections.ORDERS)
+      FirebaseAdminService.queryDocuments(Collections.USERS, [], { field: 'createdAt', direction: 'desc' }, 1000),
+      FirebaseAdminService.queryDocuments(Collections.PRODUCTS, [], { field: 'createdAt', direction: 'desc' }, 1000),
+      FirebaseAdminService.queryDocuments(Collections.PRODUCT_CATEGORIES, [], { field: 'createdAt', direction: 'desc' }, 100),
+      FirebaseAdminService.queryDocuments(Collections.ORDERS, [], { field: 'createdAt', direction: 'desc' }, 1000)
     ]);
 
     // Calculate current stats
@@ -65,12 +74,17 @@ export async function GET(request: NextRequest) {
     // Save current snapshot for future comparisons
     await saveCurrentSnapshot(currentStats);
 
-    return NextResponse.json({
+    const response = {
       current: currentStats,
       changes: percentageChanges,
       period,
       comparisonDate: comparisonDate.toISOString().split('T')[0]
-    });
+    };
+
+    // Cache the response for 5 minutes
+    await CacheService.set(cacheKey, response, 5 * 60 * 1000);
+
+    return NextResponse.json(response);
 
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
