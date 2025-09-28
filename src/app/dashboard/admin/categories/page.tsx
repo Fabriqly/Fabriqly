@@ -493,6 +493,8 @@ export default function AdminCategoriesPage() {
                   onChange={(url) => setFormData(prev => ({ ...prev, iconUrl: url }))}
                   placeholder="Upload category image"
                   maxSize={5}
+                  uploadType="category"
+                  entityId={editingCategory?.id}
                 />
               </div>
               <div className="flex items-center space-x-4">

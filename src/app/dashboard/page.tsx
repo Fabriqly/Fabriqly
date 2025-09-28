@@ -1,48 +1,81 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useAuth } from '@/hooks/useAuth';
-import { signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/Button';
-import { User, LogOut, Settings, Bell, Palette } from 'lucide-react';
+import { DashboardHeader, DashboardSidebar } from '@/components/layout';
+import { Product } from '@/types/products';
+import { User, Settings, Palette } from 'lucide-react';
 
 function DashboardContent() {
   const { user, isCustomer, isDesigner, isBusinessOwner, isAdmin, isLoading } = useAuth();
+  const router = useRouter();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
 
-  // Dashboard now displays whatever role is stored in the database
-  // No more automatic redirects to role selection
+  // Redirect customers to customer page
+  useEffect(() => {
+    if (!isLoading && isCustomer) {
+      router.push('/customer');
+    }
+  }, [isCustomer, isLoading, router]);
 
-  const handleSignOut = () => {
-    signOut({ callbackUrl: '/' });
+  // Fetch products for business owners
+  useEffect(() => {
+    if (isBusinessOwner && user?.id) {
+      fetchProducts();
+    }
+  }, [isBusinessOwner, user?.id]);
+
+  const fetchProducts = async () => {
+    try {
+      setProductsLoading(true);
+      const response = await fetch(`/api/products?businessOwnerId=${user?.id}&limit=100`);
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setProducts(data.data.products || []);
+      } else {
+        console.error('Error fetching products:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setProductsLoading(false);
+    }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm">
-                <Bell className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => window.location.href = '/role-selection'}>
-                <Settings className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleSignOut}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+  // Calculate product stats
+  const getProductStats = () => {
+    const totalProducts = products.length;
+    const activeProducts = products.filter(p => p.status === 'active').length;
+    const draftProducts = products.filter(p => p.status === 'draft').length;
+    const outOfStockProducts = products.filter(p => p.status === 'out_of_stock').length;
+    
+    return {
+      total: totalProducts,
+      active: activeProducts,
+      draft: draftProducts,
+      outOfStock: outOfStockProducts
+    };
+  };
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  const productStats = getProductStats();
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Dashboard Header */}
+      <DashboardHeader user={user} />
+
+      <div className="flex flex-1">
+        {/* Dashboard Sidebar */}
+        <DashboardSidebar user={user} />
+
+        {/* Main Content */}
+        <div className="flex-1">
+          <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
         {/* Welcome Section */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <div className="flex items-center">
@@ -122,16 +155,6 @@ function DashboardContent() {
                 <Button size="sm">Manage Shop</Button>
               </div>
               
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Product Colors</h3>
-                <p className="text-gray-600 text-sm mb-4">
-                  Create and manage colors for your products.
-                </p>
-                <Button size="sm" onClick={() => window.location.href = '/dashboard/products/colors'}>
-                  <Palette className="w-4 h-4 mr-2" />
-                  Manage Colors
-                </Button>
-              </div>
               
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Orders</h3>
@@ -178,31 +201,61 @@ function DashboardContent() {
           <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Stats</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">0</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {isBusinessOwner ? (
+                  productsLoading ? '...' : productStats.total
+                ) : (
+                  isCustomer ? '0' : isDesigner ? '0' : '0'
+                )}
+              </div>
               <div className="text-sm text-gray-600">
-                {isCustomer ? 'Orders' : isDesigner ? 'Designs' : isBusinessOwner ? 'Products' : 'Total Users'}
+                {isCustomer ? 'Orders' : isDesigner ? 'Designs' : isBusinessOwner ? 'Total Products' : 'Total Users'}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">$0</div>
+              <div className="text-2xl font-bold text-green-600">
+                {isBusinessOwner ? (
+                  productsLoading ? '...' : productStats.active
+                ) : (
+                  isCustomer ? '$0' : '0'
+                )}
+              </div>
               <div className="text-sm text-gray-600">
-                {isCustomer ? 'Spent' : 'Earnings'}
+                {isCustomer ? 'Spent' : isBusinessOwner ? 'Active Products' : 'Earnings'}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">0</div>
-              <div className="text-sm text-gray-600">Reviews</div>
+              <div className="text-2xl font-bold text-purple-600">
+                {isBusinessOwner ? (
+                  productsLoading ? '...' : productStats.draft
+                ) : (
+                  '0'
+                )}
+              </div>
+              <div className="text-sm text-gray-600">
+                {isBusinessOwner ? 'Draft Products' : 'Reviews'}
+              </div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">0</div>
-              <div className="text-sm text-gray-600">Messages</div>
+              <div className="text-2xl font-bold text-orange-600">
+                {isBusinessOwner ? (
+                  productsLoading ? '...' : productStats.outOfStock
+                ) : (
+                  '0'
+                )}
+              </div>
+              <div className="text-sm text-gray-600">
+                {isBusinessOwner ? 'Out of Stock' : 'Messages'}
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+           </div>
+         </div>
+           </div>
+         </div>
+       </div>
+     </div>
+   );
+ }
 
 export default function DashboardPage() {
   return (

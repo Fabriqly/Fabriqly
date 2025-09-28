@@ -31,6 +31,7 @@ export function ImageUploader({
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (files: FileList) => {
@@ -254,11 +255,41 @@ export function ImageUploader({
             {existingImages.map((image, index) => (
               <div key={image.id} className="relative group">
                 <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-                  <img
-                    src={image.imageUrl}
-                    alt={image.altText || `Product image ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
+                  {!imageErrors.has(image.id) ? (
+                    <img
+                      src={image.imageUrl}
+                      alt={image.altText || `Product image ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={() => {
+                        console.error('Image failed to load:', image.imageUrl);
+                        console.error('Image data:', image);
+                        setImageErrors(prev => new Set(prev).add(image.id));
+                      }}
+                      onLoad={() => {
+                        console.log('Image loaded successfully:', image.imageUrl);
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                      <div className="text-center p-2">
+                        <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-xs text-gray-500 break-words">{image.altText}</p>
+                        <p className="text-xs text-gray-400 break-all mt-1">{image.imageUrl}</p>
+                        <button
+                          onClick={() => {
+                            setImageErrors(prev => {
+                              const newSet = new Set(prev);
+                              newSet.delete(image.id);
+                              return newSet;
+                            });
+                          }}
+                          className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Image Actions */}

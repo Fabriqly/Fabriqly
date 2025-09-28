@@ -393,21 +393,6 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
 
   const isEditMode = !!currentProductId;
 
-  // Update currentProductId when productId prop changes
-  useEffect(() => {
-    setCurrentProductId(productId);
-  }, [productId]);
-
-  // Load product data if editing
-  useEffect(() => {
-    if (currentProductId) {
-      loadProduct();
-    } else {
-      setLoadingProduct(false);
-    }
-    loadCategories();
-  }, [currentProductId]);
-
   const loadProduct = useCallback(async () => {
     setLoadingProduct(true);
     setError(null);
@@ -422,7 +407,13 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
       }
       
       const data = await response.json();
-      const productData = data.product;
+      debugApiResponse(data, 'loadProduct');
+      
+      const productData = data.data;
+      
+      if (!productData) {
+        throw new Error('Product data not found in response');
+      }
       
       console.log('Product loaded:', productData);
       
@@ -464,6 +455,21 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
       console.error('Error loading categories:', error);
     }
   }, []);
+
+  // Update currentProductId when productId prop changes
+  useEffect(() => {
+    setCurrentProductId(productId);
+  }, [productId]);
+
+  // Load product data if editing
+  useEffect(() => {
+    if (isEditMode && currentProductId) {
+      loadProduct();
+    } else {
+      setLoadingProduct(false);
+    }
+    loadCategories();
+  }, [isEditMode, currentProductId]);
 
   const handleInputChange = useCallback((field: keyof CreateProductData, value: any) => {
     setFormData(prev => ({
@@ -514,6 +520,13 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
     });
   }, []);
 
+  // Debug helper for API responses
+  const debugApiResponse = (response: any, context: string) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`API Response (${context}):`, response);
+    }
+  };
+
   // Create draft product for image uploads
   const createDraftProduct = useCallback(async () => {
     if (isDraftCreated || currentProductId) return currentProductId;
@@ -545,7 +558,14 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
       }
 
       const data = await response.json();
-      const draftProduct = data.product;
+      debugApiResponse(data, 'createDraftProduct');
+      
+      // Handle ResponseBuilder structure: { success: true, data: product, meta: {...} }
+      const draftProduct = data.data;
+      
+      if (!draftProduct || !draftProduct.id) {
+        throw new Error('Invalid response: Product ID not found');
+      }
       
       console.log('Draft product created:', draftProduct.id);
       setIsDraftCreated(true);
@@ -606,7 +626,7 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
         throw new Error(data.error || `Failed to ${isEditMode ? 'update' : 'create'} product`);
       }
 
-      const savedProduct = data.product;
+      const savedProduct = data.data;
       console.log(`Product ${isEditMode ? 'updated' : 'created'} successfully:`, savedProduct.id);
       
       if (onSave) {
@@ -640,13 +660,13 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
       }
 
       const data = await response.json();
-      console.log('Product published successfully:', data.product.id);
+      console.log('Product published successfully:', data.data.id);
       
       // Update local state
       setFormData(prev => ({ ...prev, status: 'active' }));
       
       if (onSave) {
-        onSave(data.product);
+        onSave(data.data);
       } else {
         router.push('/dashboard/products');
       }

@@ -228,7 +228,7 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
 
-    async redirect({ url, baseUrl }) {
+    async redirect({ url, baseUrl, token }) {
       // Handle role-based redirects after authentication
       if (url.startsWith('/')) {
         return `${baseUrl}${url}`;
@@ -236,8 +236,17 @@ export const authOptions: NextAuthOptions = {
         return url;
       }
       
-      // Default redirect to dashboard
-      return `${baseUrl}/dashboard`;
+      // Role-based redirect after authentication
+      if (token?.role === 'customer') {
+        return `${baseUrl}/customer`;
+      } else if (token?.role === 'admin') {
+        return `${baseUrl}/dashboard/admin`;
+      } else if (['business_owner', 'designer'].includes(token?.role as string)) {
+        return `${baseUrl}/dashboard`;
+      }
+      
+      // Default redirect to customer page for safety
+      return `${baseUrl}/customer`;
     }
   },
   

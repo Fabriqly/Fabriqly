@@ -21,7 +21,7 @@ import {
   Eye,
   Download,
   Star
-} from 'lucide-react';
+import { SupabaseStorageService, StorageBuckets } from '@/lib/supabase-storage';
 
 interface DesignFormProps {
   design?: Design;
@@ -119,16 +119,29 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
   };
 
   const handleFileUpload = async (file: File, type: 'design' | 'thumbnail' | 'preview') => {
-    // TODO: Implement actual file upload to Firebase Storage
-    // For now, we'll simulate the upload
-    const mockUrl = `https://storage.googleapis.com/your-bucket/${type}-${Date.now()}.${file.name.split('.').pop()}`;
-    
-    if (type === 'design') {
-      handleInputChange('designFileUrl', mockUrl);
-    } else if (type === 'thumbnail') {
-      handleInputChange('thumbnailUrl', mockUrl);
-    } else if (type === 'preview') {
-      handleInputChange('previewUrl', mockUrl);
+    try {
+      setLoading(true);
+      
+      const uploadResult = await SupabaseStorageService.uploadFile(file, {
+        bucket: StorageBuckets.DESIGNS,
+        folder: `designs/${Date.now()}`,
+        upsert: false
+      });
+      
+      if (type === 'design') {
+        handleInputChange('designFileUrl', uploadResult.url);
+      } else if (type === 'thumbnail') {
+        handleInputChange('thumbnailUrl', uploadResult.url);
+      } else if (type === 'preview') {
+        handleInputChange('previewUrl', uploadResult.url);
+      }
+      
+      console.log(`${type} uploaded successfully:`, uploadResult.url);
+    } catch (error: any) {
+      console.error(`Error uploading ${type}:`, error);
+      alert(`Failed to upload ${type}: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
