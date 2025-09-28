@@ -25,6 +25,7 @@ import {
   Minus,
   Image as ImageIcon
 } from 'lucide-react';
+import { AddToCartButton } from '@/components/cart/AddToCartButton';
 
 export function ProductDetail() {
   const params = useParams();
@@ -117,16 +118,6 @@ export function ProductDetail() {
     });
     
     return totalPrice;
-  };
-
-  const handleAddToCart = () => {
-    // TODO: Implement add to cart functionality
-    console.log('Add to cart:', {
-      productId,
-      quantity,
-      variants: selectedVariants,
-      price: calculatePrice()
-    });
   };
 
   const handleBuyNow = () => {
@@ -421,14 +412,15 @@ export function ProductDetail() {
               </div>
 
               <div className="flex space-x-4">
-                <Button
-                  onClick={handleAddToCart}
-                  disabled={product.stockQuantity === 0}
+                <AddToCartButton
+                  product={product}
+                  quantity={quantity}
+                  selectedVariants={selectedVariants}
+                  selectedColorId={selectedColorId}
+                  colorPriceAdjustment={colorPriceAdjustment}
+                  businessOwnerId={product.businessOwnerId}
                   className="flex-1"
-                >
-                  <ShoppingCart className="w-4 h-4 mr-2" />
-                  Add to Cart
-                </Button>
+                />
                 <Button
                   onClick={handleBuyNow}
                   disabled={product.stockQuantity === 0}
