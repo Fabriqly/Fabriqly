@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown } from 'lucide-react';
+import { CartButton } from '@/components/cart/CartButton';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { signOut } from 'next-auth/react';
@@ -75,13 +76,7 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
           {/* Right Side Icons */}
           <div className="flex items-center space-x-4">
             {/* Shopping Cart */}
-            <button className="relative p-2 text-white hover:bg-white/10 rounded-lg transition-colors">
-              <ShoppingCart className="w-5 h-5" />
-              {/* Cart Badge */}
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                0
-              </span>
-            </button>
+            <CartButton />
 
             {/* Messages */}
             <button className="relative p-2 text-white hover:bg-white/10 rounded-lg transition-colors">

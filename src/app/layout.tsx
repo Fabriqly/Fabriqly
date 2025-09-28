@@ -1,5 +1,7 @@
 import { Inter } from 'next/font/google';
 import { SessionProvider } from '@/components/auth/SessionProvider';
+import { CartProvider } from '@/contexts/CartContext';
+import { CartSidebar } from '@/components/cart/CartSidebar';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -18,7 +20,10 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <SessionProvider>
-          {children}
+          <CartProvider>
+            {children}
+            <CartSidebar />
+          </CartProvider>
         </SessionProvider>
       </body>
     </html>
