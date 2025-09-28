@@ -64,7 +64,6 @@ export function LoginForm() {
       const result = await signIn('credentials', {
         email: formData.email,
         password: formData.password,
-        action: 'signin',
         redirect: false
       });
 
@@ -87,9 +86,10 @@ export function LoginForm() {
     setGeneralError('');
     
     try {
-      // Direct redirect to role selection
+      // Let NextAuth handle the redirect based on user's existing role
+      // The auth callback will determine the appropriate redirect
       await signIn('google', { 
-        callbackUrl: `${window.location.origin}/role-selection`
+        callbackUrl: `${window.location.origin}/dashboard`
       });
     } catch (error) {
       console.error('Google sign-in error:', error);
@@ -99,11 +99,10 @@ export function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="bg-white rounded-lg shadow-md p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Welcome Back</h1>
-          <p className="text-gray-600 mt-2">Sign in to your Fabriqly account</p>
+    <div className="w-full max-w-md">
+      <div className="bg-white rounded-lg shadow-md p-8 border border-gray-100">
+        <div className="mb-6">
+          <h1 className="text-3xl font-semibold text-gray-900">Log in</h1>
         </div>
 
         {generalError && (
@@ -114,66 +113,54 @@ export function LoginForm() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            label="Email"
             type="email"
             name="email"
             value={formData.email}
             onChange={handleInputChange}
             error={errors.email}
             icon={<Mail size={18} />}
-            placeholder="Enter your email"
+            placeholder="Email"
             autoComplete="email"
           />
 
           <div className="relative">
             <Input
-              label="Password"
               type={showPassword ? 'text' : 'password'}
               name="password"
               value={formData.password}
               onChange={handleInputChange}
               error={errors.password}
               icon={<Lock size={18} />}
-              placeholder="Enter your password"
+              placeholder="Password"
               autoComplete="current-password"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
 
-          <div className="flex items-center justify-between">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-600">Remember me</span>
-            </label>
-            <Link
-              href="/forgot-password"
-              className="text-sm text-blue-600 hover:text-blue-500"
-            >
-              Forgot password?
-            </Link>
-          </div>
-
-          <Button type="submit" loading={loading} className="w-full">
-            Sign In
+          <Button type="submit" loading={loading} className="w-full bg-sky-100 hover:bg-sky-200 text-gray-800">
+            Log in
           </Button>
         </form>
+
+        <div className="mt-3">
+          <Link href="/forgot-password" className="text-sm text-gray-700 hover:text-gray-900">
+            Forgot Password
+          </Link>
+        </div>
 
         <div className="mt-6">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300" />
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Or continue with</span>
+            <div className="relative flex justify-center text-sm text-gray-500">
+              <span className="px-2 bg-white">OR</span>
             </div>
           </div>
 

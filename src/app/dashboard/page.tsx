@@ -4,10 +4,13 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useAuth } from '@/hooks/useAuth';
 import { signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/Button';
-import { User, LogOut, Settings, Bell } from 'lucide-react';
+import { User, LogOut, Settings, Bell, Palette } from 'lucide-react';
 
 function DashboardContent() {
-  const { user, isCustomer, isDesigner, isBusinessOwner, isAdmin } = useAuth();
+  const { user, isCustomer, isDesigner, isBusinessOwner, isAdmin, isLoading } = useAuth();
+
+  // Dashboard now displays whatever role is stored in the database
+  // No more automatic redirects to role selection
 
   const handleSignOut = () => {
     signOut({ callbackUrl: '/' });
@@ -26,7 +29,7 @@ function DashboardContent() {
               <Button variant="ghost" size="sm">
                 <Bell className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" onClick={() => window.location.href = '/role-selection'}>
                 <Settings className="h-4 w-4" />
               </Button>
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
@@ -50,9 +53,19 @@ function DashboardContent() {
               <h2 className="text-xl font-semibold text-gray-900">
                 Welcome back, {user?.name || user?.email}!
               </h2>
-              <p className="text-gray-600">
-                Role: <span className="capitalize font-medium">{user?.role}</span>
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-gray-600">
+                  Role: <span className="capitalize font-medium">{user?.role}</span>
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => window.location.href = '/role-selection'}
+                  className="ml-2"
+                >
+                  Change Role
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -107,6 +120,17 @@ function DashboardContent() {
                   Manage your shop settings and products.
                 </p>
                 <Button size="sm">Manage Shop</Button>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Product Colors</h3>
+                <p className="text-gray-600 text-sm mb-4">
+                  Create and manage colors for your products.
+                </p>
+                <Button size="sm" onClick={() => window.location.href = '/dashboard/products/colors'}>
+                  <Palette className="w-4 h-4 mr-2" />
+                  Manage Colors
+                </Button>
               </div>
               
               <div className="bg-white rounded-lg shadow p-6">

@@ -126,10 +126,37 @@ export class FirebaseService {
 // Collection-specific services
 export const Collections = {
   USERS: 'users',
+  
+  // Enhanced Product System
   PRODUCTS: 'products',
-  ORDERS: 'orders',
+  PRODUCT_CATEGORIES: 'productCategories',
+  PRODUCT_IMAGES: 'productImages',
+  PRODUCT_VARIANTS: 'productVariants',
+  PRODUCT_COLORS: 'productColors',
+  
+  // Designer & Design System
+  DESIGNER_PROFILES: 'designerProfiles',
   DESIGNS: 'designs',
-  SHOPS: 'shops',
+  DESIGN_ANALYTICS: 'designAnalytics',
+  
+  // Shop System
+  SHOP_PROFILES: 'shopProfiles',
+  
+  // Color & Size Management
+  COLORS: 'colors',
+  SIZE_CHARTS: 'sizeCharts',
+  
+  // Analytics
+  PRODUCT_ANALYTICS: 'productAnalytics',
+  
+  // Activity System
+  ACTIVITIES: 'activities',
+  
+  // Dashboard Analytics
+  DASHBOARD_SNAPSHOTS: 'dashboardSnapshots',
+  
+  // Existing Collections
+  ORDERS: 'orders',
   REVIEWS: 'reviews',
   MESSAGES: 'messages',
   BUSINESS_OWNERS: 'businessOwners',

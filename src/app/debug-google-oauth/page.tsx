@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { DebugPage, debug } from '@/utils/debug';
 
 export default function GoogleOAuthDebug() {
   const [debugInfo, setDebugInfo] = useState<string>('');
@@ -37,22 +38,24 @@ NODE_ENV: ${process.env.NODE_ENV}
   const testGoogleOAuth = async () => {
     try {
       setDebugInfo('Testing Google OAuth...');
+      debug.userAction('test-google-oauth');
       
       // Try to initiate Google OAuth
       const response = await fetch('/api/auth/providers');
       const providers = await response.json();
       
+      debug.api('/api/auth/providers', 'GET', providers);
       setDebugInfo(prev => prev + `\n\nOAuth Providers:\n${JSON.stringify(providers, null, 2)}`);
     } catch (error) {
+      debug.api('/api/auth/providers', 'GET', undefined, error);
       setDebugInfo(prev => prev + `\n\nError testing OAuth: ${error}`);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <DebugPage title="Google OAuth Debug">
       <div className="max-w-4xl mx-auto px-4">
         <div className="bg-white rounded-lg shadow-md p-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8">🔍 Google OAuth Debug</h1>
           
           <div className="space-y-6">
             <div className="p-4 bg-blue-50 rounded-lg">
@@ -92,6 +95,6 @@ NODE_ENV: ${process.env.NODE_ENV}
           </div>
         </div>
       </div>
-    </div>
+    </DebugPage>
   );
 }
