@@ -239,7 +239,9 @@ export const authOptions: NextAuthOptions = {
       // Role-based redirect after authentication
       if (token?.role === 'customer') {
         return `${baseUrl}/customer`;
-      } else if (['admin', 'business_owner', 'designer'].includes(token?.role as string)) {
+      } else if (token?.role === 'admin') {
+        return `${baseUrl}/dashboard/admin`;
+      } else if (['business_owner', 'designer'].includes(token?.role as string)) {
         return `${baseUrl}/dashboard`;
       }
       
