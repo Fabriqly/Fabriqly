@@ -76,8 +76,11 @@ export function LoginForm() {
         
         if (session?.user?.role === 'customer') {
           router.push('/customer');
+        } else if (session?.user?.role === 'admin') {
+          // Admin goes to admin dashboard
+          router.push('/dashboard/admin');
         } else {
-          // Admin, business_owner, and designer go to dashboard
+          // Business_owner and designer go to regular dashboard
           router.push('/dashboard');
         }
         router.refresh();

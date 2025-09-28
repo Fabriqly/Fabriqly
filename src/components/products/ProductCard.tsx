@@ -101,10 +101,10 @@ export function ProductCard({
             )}
             
             {/* Discount badge - if applicable */}
-            {product.compareAtPrice && product.compareAtPrice > product.price && (
+            {(product as any).compareAtPrice && (product as any).compareAtPrice > product.price && (
               <div className="absolute top-2 left-2">
                 <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
-                  -{Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)}%
+                  -{Math.round((((product as any).compareAtPrice - product.price) / (product as any).compareAtPrice) * 100)}%
                 </span>
               </div>
             )}
@@ -144,9 +144,9 @@ export function ProductCard({
               <span className="text-lg font-bold text-indigo-600">
                 {formatPrice(product.price)}
               </span>
-              {product.compareAtPrice && product.compareAtPrice > product.price && (
+              {(product as any).compareAtPrice && (product as any).compareAtPrice > product.price && (
                 <span className="text-sm text-gray-500 line-through">
-                  {formatPrice(product.compareAtPrice)}
+                  {formatPrice((product as any).compareAtPrice)}
                 </span>
               )}
             </div>

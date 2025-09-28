@@ -22,8 +22,9 @@ export default function CustomerMainPage() {
       const response = await fetch('/api/products?limit=8&status=active');
       const data = await response.json();
       
-      if (response.ok) {
-        setProducts(data.products || []);
+      if (response.ok && data.success) {
+        // The API returns { success: true, data: { products: [...] } }
+        setProducts(data.data.products || []);
       } else {
         console.error('Error loading products:', data.error);
       }

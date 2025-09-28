@@ -10,6 +10,7 @@ interface DashboardHeaderProps {
   user?: {
     name?: string | null;
     email?: string | null;
+    role?: string | null;
   } | null;
   onMenuClick?: () => void;
   showMobileMenu?: boolean;
@@ -17,7 +18,9 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ user, onMenuClick, showMobileMenu = false }: DashboardHeaderProps) {
   const handleSignOut = () => {
-    signOut({ callbackUrl: '/business/login' });
+    // Redirect admins to login page, others to business login
+    const redirectUrl = user?.role === 'admin' ? '/login' : '/business/login';
+    signOut({ callbackUrl: redirectUrl });
   };
 
   return (
