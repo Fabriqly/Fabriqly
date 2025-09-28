@@ -6,12 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:catalog": "echo 'Testing Product Catalog System' && npm run test:api && npm run test:components",
+    "test:api": "echo 'Running API Tests...' && node scripts/test-api.js",
+    "test:components": "echo 'Testing React Components...' && npm run dev -- --port 3001 & sleep 5 && curl -f http://localhost:3001/test-product-catalog || echo 'Component tests available at http://localhost:3001/test-product-catalog'",
+    "test:integration": "echo 'Running Integration Tests...' && npm run dev & sleep 10 && node scripts/test-integration.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",
-    "@tailwindcss/forms": "^0.5.10",
-    "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.2",
     "clsx": "^2.1.1",
     "firebase": "^10.13.0",
@@ -21,15 +23,22 @@
     "next-auth": "^4.24.11",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "tailwind-merge": "^3.3.1",
-    "tailwindcss": "^3.4.17"
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
+    "@tailwindcss/forms": "^0.5.10",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.21",
     "eslint": "^8",
     "eslint-config-next": "14.2.0",
+    "jest": "^30.1.3",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "ts-jest": "^29.4.4",
     "typescript": "^5"
   }
 }

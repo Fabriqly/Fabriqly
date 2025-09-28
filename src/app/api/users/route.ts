@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { FirebaseAdminService } from '@/services/firebase-admin';
+import { ServiceContainer } from '@/container/ServiceContainer';
+import { UserService } from '@/services/UserService';
+import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { ErrorHandler } from '@/errors/ErrorHandler';
 
-// GET /api/users - Get all users (admin only)
+// GET /api/users - List all users (admin only)
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
     if (!session || session.user.role !== 'admin') {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - Admin access required' },
         { status: 401 }
       );
     }
@@ -19,21 +22,24 @@ export async function GET(request: NextRequest) {
     const role = searchParams.get('role');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    const filters = role ? [{ field: 'role', operator: '==' as const, value: role }] : [];
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
     
-    const users = await FirebaseAdminService.queryDocuments(
-      'users',
-      filters,
-      { field: 'createdAt', direction: 'desc' },
-      limit
-    );
+    let users;
+    if (role) {
+      users = await userService.getUsersByRole(role);
+    } else {
+      users = await userService.getUsers();
+    }
 
-    return NextResponse.json({ users });
+    // Apply limit
+    const limitedUsers = users.slice(0, limit);
+
+    return NextResponse.json(ResponseBuilder.success({ users: limitedUsers }));
   } catch (error) {
-    console.error('Error fetching users:', error);
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }
@@ -45,34 +51,22 @@ export async function POST(request: NextRequest) {
     
     if (!session || session.user.role !== 'admin') {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - Admin access required' },
         { status: 401 }
       );
     }
 
     const body = await request.json();
-    const { email, password, displayName, role } = body;
+    const userService = ServiceContainer.getInstance().get<UserService>('userService');
 
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
-    }
+    const user = await userService.createUser(body);
 
-    const user = await FirebaseAdminService.createUser({
-      email,
-      password,
-      displayName,
-      role
-    });
-
-    return NextResponse.json({ user }, { status: 201 });
-  } catch (error: any) {
-    console.error('Error creating user:', error);
+    return NextResponse.json(ResponseBuilder.created(user), { status: 201 });
+  } catch (error) {
+    const appError = ErrorHandler.handle(error);
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
+      ResponseBuilder.error(appError),
+      { status: appError.statusCode }
     );
   }
 }

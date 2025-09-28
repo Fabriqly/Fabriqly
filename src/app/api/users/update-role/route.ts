@@ -1,7 +1,9 @@
+// app/api/users/update-role/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { adminDb } from '@/lib/firebase-admin';
+import { getToken } from 'next-auth/jwt';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +22,6 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Updating role for user:', session.user.id, 'to role:', role);
-    console.log('Session user:', session.user);
 
     const userDocRef = adminDb.collection('users').doc(session.user.id);
     
@@ -28,17 +29,20 @@ export async function POST(request: NextRequest) {
       // Try to update first
       await userDocRef.update({
         role: role,
+        hasExplicitlySelectedRole: true,
+        profileCompleted: true,
         updatedAt: new Date()
       });
       console.log('Role updated successfully for existing user:', session.user.id);
     } catch (updateError) {
       console.log('User document does not exist, creating new one...');
       
-      // If update fails because document doesn't exist, create it
       const userData = {
         email: session.user.email,
         displayName: session.user.name,
         role: role,
+        hasExplicitlySelectedRole: true,
+        profileCompleted: true,
         isVerified: true,
         profile: {
           firstName: session.user.name?.split(' ')[0] || '',
@@ -60,7 +64,14 @@ export async function POST(request: NextRequest) {
       console.log('User document created successfully for:', session.user.id, 'with role:', role);
     }
 
-    return NextResponse.json({ success: true, role });
+    // Return success with instructions for client-side session refresh
+    return NextResponse.json({ 
+      success: true, 
+      role,
+      message: 'Role updated successfully',
+      // Tell client to refresh session
+      refreshSession: true
+    });
   } catch (error) {
     console.error('Error updating user role:', error);
     return NextResponse.json(
