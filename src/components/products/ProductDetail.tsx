@@ -23,7 +23,9 @@ import {
   ChevronRight,
   Plus,
   Minus,
-  Image as ImageIcon
+  Image as ImageIcon,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { AddToCartButton } from '@/components/cart/AddToCartButton';
 
@@ -73,6 +75,11 @@ export function ProductDetail() {
   };
 
   const handleQuantityChange = (newQuantity: number) => {
+    // Don't allow quantity changes if product is out of stock
+    if (product?.stockQuantity === 0) {
+      return;
+    }
+    
     if (newQuantity >= 1 && newQuantity <= (product?.stockQuantity || 1)) {
       setQuantity(newQuantity);
     }
@@ -405,6 +412,29 @@ export function ProductDetail() {
               />
             )}
 
+            {/* Stock Status */}
+            {product.stockQuantity === 0 ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center space-x-2">
+                  <X className="w-5 h-5 text-red-600" />
+                  <span className="text-red-800 font-medium">Out of Stock</span>
+                </div>
+                <p className="text-red-600 text-sm mt-1">
+                  This product is currently unavailable. Please check back later or contact us for restock updates.
+                </p>
+              </div>
+            ) : product.stockQuantity <= 5 ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                  <span className="text-yellow-800 font-medium">Low Stock</span>
+                </div>
+                <p className="text-yellow-600 text-sm mt-1">
+                  Only {product.stockQuantity} left in stock. Order soon to avoid disappointment!
+                </p>
+              </div>
+            ) : null}
+
             {/* Quantity and Actions */}
             <div className="space-y-4">
               <div className="flex items-center space-x-4">
@@ -412,29 +442,36 @@ export function ProductDetail() {
                 <div className="flex items-center border border-gray-300 rounded-md">
                   <button
                     onClick={() => handleQuantityChange(quantity - 1)}
-                    className="p-2 hover:bg-gray-50"
-                    disabled={quantity <= 1}
+                    className={`p-2 ${product.stockQuantity === 0 ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-50'}`}
+                    disabled={quantity <= 1 || product.stockQuantity === 0}
                   >
                     <Minus className="w-4 h-4" />
                   </button>
                   <Input
                     type="number"
-                    value={quantity}
-                    onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
-                    className="w-16 text-center border-0 focus:ring-0"
+                    value={product.stockQuantity === 0 ? 0 : quantity}
+                    onChange={(e) => {
+                      if (product.stockQuantity === 0) return;
+                      handleQuantityChange(parseInt(e.target.value) || 1);
+                    }}
+                    className={`w-16 text-center border-0 focus:ring-0 ${
+                      product.stockQuantity === 0 ? 'bg-gray-100 text-gray-400' : ''
+                    }`}
                     min="1"
                     max={product.stockQuantity}
+                    disabled={product.stockQuantity === 0}
+                    readOnly={product.stockQuantity === 0}
                   />
                   <button
                     onClick={() => handleQuantityChange(quantity + 1)}
-                    className="p-2 hover:bg-gray-50"
-                    disabled={quantity >= product.stockQuantity}
+                    className={`p-2 ${product.stockQuantity === 0 ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-50'}`}
+                    disabled={quantity >= product.stockQuantity || product.stockQuantity === 0}
                   >
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
-                <span className="text-sm text-gray-500">
-                  {product.stockQuantity} available
+                <span className={`text-sm ${product.stockQuantity === 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                  {product.stockQuantity === 0 ? 'Out of stock' : `${product.stockQuantity} available`}
                 </span>
               </div>
 
@@ -444,9 +481,11 @@ export function ProductDetail() {
                   quantity={quantity}
                   selectedVariants={selectedVariants}
                   selectedColorId={selectedColorId}
+                  selectedColorName={productColors.find(pc => pc.colorId === selectedColorId)?.color.colorName}
                   colorPriceAdjustment={colorPriceAdjustment}
                   businessOwnerId={product.businessOwnerId}
                   className="flex-1"
+                  disabled={product.stockQuantity === 0}
                 />
                 <Button
                   onClick={handleBuyNow}
@@ -454,13 +493,9 @@ export function ProductDetail() {
                   variant="outline"
                   className="flex-1"
                 >
-                  Buy Now
+                  {product.stockQuantity === 0 ? 'Out of Stock' : 'Buy Now'}
                 </Button>
               </div>
-
-              {product.stockQuantity === 0 && (
-                <p className="text-red-600 text-sm">This product is currently out of stock.</p>
-              )}
             </div>
 
             {/* Features */}

@@ -109,31 +109,22 @@ export default function CheckoutPage() {
           sessionStorage.removeItem('bulkCheckoutItems');
         } catch (error) {
           console.error('Error parsing bulk checkout items:', error);
-          router.push('/products');
         }
-      } else {
-        console.log('No stored items found, redirecting to products');
-        router.push('/products');
       }
     }
-  }, [router]);
+  }, []);
 
-  // Redirect if cart is empty (for regular checkout)
-  useEffect(() => {
-    if (!isBulkCheckout && (!cartState.cart || cartState.cart.items.length === 0)) {
-      router.push('/products');
-    }
-  }, [cartState.cart?.items.length, router, isBulkCheckout]);
+
+  // This effect is now handled in the main bulk checkout effect above
 
   // Load user data if available
   useEffect(() => {
-    if (user?.profile) {
+    if (user) {
       setShippingAddress(prev => ({
         ...prev,
-        firstName: user.profile.firstName || '',
-        lastName: user.profile.lastName || '',
-        phone: user.profile.phone || '',
-        ...user.profile.address,
+        firstName: user.name?.split(' ')[0] || '',
+        lastName: user.name?.split(' ')[1] || '',
+        phone: '',
       }));
     }
   }, [user]);
@@ -201,6 +192,43 @@ export default function CheckoutPage() {
     return true;
   };
 
+  const validateStock = async () => {
+    const itemsToProcess = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+    
+    const stockValidationRequest = {
+      items: itemsToProcess.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity
+      }))
+    };
+
+    try {
+      const response = await fetch('/api/cart/validate-stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(stockValidationRequest),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to validate stock');
+      }
+
+      if (!data.success || !data.data.isValid) {
+        const errorMessages = data.data.errors || ['Product validation failed'];
+        throw new Error(errorMessages.join('. '));
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Product validation error:', error);
+      throw error;
+    }
+  };
+
   const handlePlaceOrder = async () => {
     if (!validateForm()) return;
 
@@ -208,15 +236,18 @@ export default function CheckoutPage() {
     setError(null);
 
     try {
+      // Validate product availability and stock before proceeding
+      await validateStock();
+
       // Group items by business owner
       const itemsToProcess = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
-      const ordersByBusinessOwner = itemsToProcess.reduce((acc, item) => {
+      const ordersByBusinessOwner = itemsToProcess.reduce((acc: Record<string, any[]>, item: any) => {
         if (!acc[item.businessOwnerId]) {
           acc[item.businessOwnerId] = [];
         }
         acc[item.businessOwnerId].push(item);
         return acc;
-      }, {} as Record<string, typeof itemsToProcess>) || {};
+      }, {});
 
       // Create orders for each business owner
       const orderPromises = Object.entries(ordersByBusinessOwner).map(async ([businessOwnerId, items]) => {
@@ -270,15 +301,19 @@ export default function CheckoutPage() {
     }
   };
 
-  if (!isBulkCheckout && (!cartState.cart || cartState.cart.items.length === 0)) {
+  // Show loading state while determining checkout mode
+  const [isClient, setIsClient] = useState(false);
+  
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  if (!isClient) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Your cart is empty</h2>
-          <Link href="/products">
-            <Button>Continue Shopping</Button>
-          </Link>
+          <h2 className="text-xl font-semibold mb-2">Loading checkout...</h2>
         </div>
       </div>
     );
@@ -292,7 +327,7 @@ export default function CheckoutPage() {
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center space-x-4">
-            <Link href="/products">
+            <Link href="/customer">
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Shopping

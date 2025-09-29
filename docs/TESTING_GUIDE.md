@@ -479,6 +479,97 @@ node scripts/init-activities-collection.js
 curl -X GET "http://localhost:3000/api/activities?limit=5"
 ```
 
+## 🛒 Order System Testing
+
+### **Order System Tests**
+
+#### Test 1: Shopping Cart Functionality
+- **Add to Cart**: Add items to cart from product pages
+- **Update Quantities**: Modify item quantities in cart
+- **Remove Items**: Remove individual items from cart
+- **Clear Cart**: Clear entire cart
+- **Cart Persistence**: Cart persists across page refreshes
+- **Cart Sidebar**: Cart sidebar opens and displays items
+- **Cart Count**: Cart count updates in header
+- **Variant Selection**: Add items with different variants (size, color)
+
+#### Test 2: Checkout Process
+- **Proceed to Checkout**: Navigate from cart to checkout
+- **Shipping Address**: Fill and validate shipping address
+- **Payment Method**: Select payment method
+- **Order Summary**: Review order details and totals
+- **Place Order**: Submit order and receive confirmation
+- **Order Confirmation**: Order confirmation page displays correctly
+- **Email Notifications**: Order confirmation emails sent
+
+#### Test 3: Order Management
+- **View Orders**: Customer can view their orders
+- **Order Details**: Order details page shows all information
+- **Order Status**: Order status updates correctly
+- **Order Tracking**: Tracking information displays
+- **Order History**: Order history is maintained
+- **Order Search**: Search orders by date, status, etc.
+
+#### Test 4: Business Owner Order Management
+- **View Customer Orders**: Business owners see their customer orders
+- **Update Order Status**: Change order status (pending, shipped, delivered)
+- **Add Tracking**: Add tracking information to orders
+- **Order Analytics**: View order statistics and reports
+- **Order Communication**: Communicate with customers about orders
+
+### **Order System API Tests**
+- [ ] **GET /api/orders**: Get user's orders
+- [ ] **POST /api/orders**: Create new order
+- [ ] **GET /api/orders/[id]**: Get specific order
+- [ ] **PUT /api/orders/[id]**: Update order
+- [ ] **DELETE /api/orders/[id]**: Cancel order
+- [ ] **PUT /api/orders/[id]/status**: Update order status
+- [ ] **GET /api/orders/[id]/tracking**: Get tracking information
+- [ ] **POST /api/orders/[id]/tracking**: Add tracking information
+
+### **Order System Testing Commands**
+```bash
+# Test order creation
+curl -X POST "http://localhost:3000/api/orders" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "items": [
+      {
+        "productId": "product-1",
+        "quantity": 2,
+        "price": 25.00,
+        "customizations": { "size": "M", "color": "red" }
+      }
+    ],
+    "shippingAddress": {
+      "firstName": "John",
+      "lastName": "Doe",
+      "address1": "123 Main St",
+      "city": "Anytown",
+      "state": "CA",
+      "zipCode": "12345",
+      "country": "US",
+      "phone": "555-1234"
+    },
+    "paymentMethod": "card",
+    "shippingCost": 9.99
+  }'
+
+# Test order retrieval
+curl -X GET "http://localhost:3000/api/orders" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Test order status update
+curl -X PUT "http://localhost:3000/api/orders/ORDER_ID/status" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "status": "shipped",
+    "trackingNumber": "TRACK123456"
+  }'
+```
+
 ## 🚀 Next Steps After Testing
 
 1. **Fix any issues found**
