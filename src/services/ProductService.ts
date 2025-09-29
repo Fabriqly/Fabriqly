@@ -2,8 +2,8 @@ import { ProductRepository, ProductFilters } from '@/repositories/ProductReposit
 import { CategoryRepository } from '@/repositories/CategoryRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { Product, CreateProductData, UpdateProductData, ProductStatus, ProductSearchResult } from '@/types/products';
-import { FirebaseAdminService } from '@/services/firebase-admin';
-import { Collections } from '@/services/firebase';
+import { FirebaseAdminService } from '@/lib/firebase-admin';
+import { Collections } from '@/lib/firebase';
 import { ActivityType } from '@/types/activity';
 import { IProductService, ProductSearchOptions } from '@/services/interfaces/IProductService';
 import { AppError } from '@/errors/AppError';

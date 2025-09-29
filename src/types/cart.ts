@@ -17,6 +17,7 @@ export interface CartItem {
   quantity: number;
   selectedVariants: Record<string, string>;
   selectedColorId?: string;
+  selectedColorName?: string;
   colorPriceAdjustment?: number;
   unitPrice: number;
   totalPrice: number;
@@ -41,6 +42,7 @@ export interface AddToCartRequest {
   quantity: number;
   selectedVariants?: Record<string, string>;
   selectedColorId?: string;
+  selectedColorName?: string;
   colorPriceAdjustment?: number;
   businessOwnerId: string;
 }
