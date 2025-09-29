@@ -326,6 +326,10 @@ export interface CreateDesignData {
   pricing?: Design['pricing'];
 }
 
+export interface UpdateDesignData extends Partial<CreateDesignData> {
+  id: string;
+}
+
 export interface CreateColorData {
   colorName: string;
   hexCode: string;

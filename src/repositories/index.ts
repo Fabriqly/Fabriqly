@@ -4,3 +4,4 @@ export { CategoryRepository } from './CategoryRepository';
 export { UserRepository, type User } from './UserRepository';
 export { ActivityRepository } from './ActivityRepository';
 export { OrderRepository, type OrderFilters, type OrderStats } from './OrderRepository';
+export { DesignRepository } from './DesignRepository';

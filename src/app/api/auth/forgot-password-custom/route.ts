@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Collections } from '@/lib/firebase';
+import { Collections } from '@/services/firebase';
 import { Timestamp } from 'firebase/firestore';
 import nodemailer from 'nodemailer';
 

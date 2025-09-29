@@ -1,10 +1,10 @@
 import { OrderRepository } from '../OrderRepository';
-import { FirebaseAdminService } from '@/lib/firebase-admin';
-import { Collections } from '@/lib/firebase';
+import { FirebaseAdminService } from '@/services/firebase-admin';
+import { Collections } from '@/services/firebase';
 import { Order } from '@/types/firebase';
 
 // Mock FirebaseAdminService
-jest.mock('@/lib/firebase-admin');
+jest.mock('@/services/firebase-admin');
 
 describe('OrderRepository', () => {
   let orderRepository: OrderRepository;

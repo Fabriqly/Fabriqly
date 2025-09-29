@@ -56,7 +56,9 @@ export class SupabaseStorageService {
 
       if (error) {
         console.error('Supabase upload error:', error)
-        throw new Error(`Upload failed: ${error.message}`)
+        console.error('Upload details:', { bucket: options.bucket, path: filePath, fileType: file.type, fileSize: file.size })
+        console.error('Full error object:', JSON.stringify(error, null, 2))
+        throw new Error(`Upload failed: ${error.message || 'Unknown error'}`)
       }
 
       // Get public URL

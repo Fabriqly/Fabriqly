@@ -21,7 +21,9 @@ import {
   Eye,
   Download,
   Star
+} from 'lucide-react';
 import { SupabaseStorageService, StorageBuckets } from '@/lib/supabase-storage';
+import { CategorySelector } from '@/components/products/CategorySelector';
 
 interface DesignFormProps {
   design?: Design;
@@ -32,7 +34,6 @@ interface DesignFormProps {
 export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState<CreateDesignData>({
     designName: '',
     description: '',
@@ -54,8 +55,6 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
 
   // Load categories on mount
   useEffect(() => {
-    loadCategories();
-    
     // If editing existing design, populate form
     if (design) {
       setFormData({
@@ -74,16 +73,6 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
     }
   }, [design]);
 
-  const loadCategories = async () => {
-    try {
-      const response = await fetch('/api/categories');
-      const data = await response.json();
-      setCategories(data.categories || []);
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    }
-  };
-
   const handleInputChange = (field: keyof CreateDesignData, value: any) => {
     setFormData(prev => ({
       ...prev,
@@ -91,7 +80,7 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
     }));
   };
 
-  const handlePricingChange = (field: keyof CreateDesignData['pricing'], value: any) => {
+  const handlePricingChange = (field: keyof NonNullable<CreateDesignData['pricing']>, value: any) => {
     setFormData(prev => ({
       ...prev,
       pricing: {
@@ -118,25 +107,39 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
     }));
   };
 
+
   const handleFileUpload = async (file: File, type: 'design' | 'thumbnail' | 'preview') => {
     try {
+      console.log(`Starting ${type} upload:`, file.name, file.size, file.type);
       setLoading(true);
       
-      const uploadResult = await SupabaseStorageService.uploadFile(file, {
-        bucket: StorageBuckets.DESIGNS,
-        folder: `designs/${Date.now()}`,
-        upsert: false
+      // Upload via server-side API to avoid RLS issues
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', type);
+      
+      const response = await fetch('/api/designs/upload', {
+        method: 'POST',
+        body: formData
       });
       
-      if (type === 'design') {
-        handleInputChange('designFileUrl', uploadResult.url);
-      } else if (type === 'thumbnail') {
-        handleInputChange('thumbnailUrl', uploadResult.url);
-      } else if (type === 'preview') {
-        handleInputChange('previewUrl', uploadResult.url);
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed');
       }
       
-      console.log(`${type} uploaded successfully:`, uploadResult.url);
+      console.log(`Upload result for ${type}:`, result.data);
+      
+      if (type === 'design') {
+        handleInputChange('designFileUrl', result.data.url);
+      } else if (type === 'thumbnail') {
+        handleInputChange('thumbnailUrl', result.data.url);
+      } else if (type === 'preview') {
+        handleInputChange('previewUrl', result.data.url);
+      }
+      
+      console.log(`${type} uploaded successfully:`, result.data.url);
     } catch (error: any) {
       console.error(`Error uploading ${type}:`, error);
       alert(`Failed to upload ${type}: ${error.message}`);
@@ -218,19 +221,12 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Category *
                 </label>
-                <select
+                <CategorySelector
                   value={formData.categoryId}
-                  onChange={(e) => handleInputChange('categoryId', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={(categoryId) => handleInputChange('categoryId', categoryId)}
+                  placeholder="Select a category"
                   required
-                >
-                  <option value="">Select a category</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.categoryName}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             </div>
 
@@ -302,17 +298,34 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                   <input
                     type="file"
                     accept=".svg,.png,.jpg,.pdf,.ai,.psd"
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'design')}
+                    onChange={(e) => {
+                      console.log('Design file input changed:', e.target.files);
+                      if (e.target.files?.[0]) {
+                        handleFileUpload(e.target.files[0], 'design');
+                      }
+                    }}
                     className="hidden"
                     id="design-file"
                   />
-                  <label htmlFor="design-file" className="cursor-pointer">
-                    <Button type="button" variant="outline" size="sm">
-                      Choose File
-                    </Button>
-                  </label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => document.getElementById('design-file')?.click()}
+                  >
+                    Choose File
+                  </Button>
                   {formData.designFileUrl && (
-                    <p className="text-xs text-green-600 mt-2">✓ File uploaded</p>
+                    <div className="mt-2">
+                      <p className="text-xs text-green-600">✓ File uploaded</p>
+                      {formData.designFileUrl.match(/\.(jpg|jpeg|png|gif|svg)$/i) && (
+                        <img 
+                          src={formData.designFileUrl} 
+                          alt="Design preview" 
+                          className="mt-2 max-w-full h-32 object-contain border rounded"
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -327,17 +340,32 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'thumbnail')}
+                    onChange={(e) => {
+                      console.log('Thumbnail file input changed:', e.target.files);
+                      if (e.target.files?.[0]) {
+                        handleFileUpload(e.target.files[0], 'thumbnail');
+                      }
+                    }}
                     className="hidden"
                     id="thumbnail-file"
                   />
-                  <label htmlFor="thumbnail-file" className="cursor-pointer">
-                    <Button type="button" variant="outline" size="sm">
-                      Choose File
-                    </Button>
-                  </label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => document.getElementById('thumbnail-file')?.click()}
+                  >
+                    Choose File
+                  </Button>
                   {formData.thumbnailUrl && (
-                    <p className="text-xs text-green-600 mt-2">✓ Thumbnail uploaded</p>
+                    <div className="mt-2">
+                      <p className="text-xs text-green-600">✓ Thumbnail uploaded</p>
+                      <img 
+                        src={formData.thumbnailUrl} 
+                        alt="Thumbnail preview" 
+                        className="mt-2 max-w-full h-32 object-contain border rounded"
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -352,17 +380,32 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'preview')}
+                    onChange={(e) => {
+                      console.log('Preview file input changed:', e.target.files);
+                      if (e.target.files?.[0]) {
+                        handleFileUpload(e.target.files[0], 'preview');
+                      }
+                    }}
                     className="hidden"
                     id="preview-file"
                   />
-                  <label htmlFor="preview-file" className="cursor-pointer">
-                    <Button type="button" variant="outline" size="sm">
-                      Choose File
-                    </Button>
-                  </label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => document.getElementById('preview-file')?.click()}
+                  >
+                    Choose File
+                  </Button>
                   {formData.previewUrl && (
-                    <p className="text-xs text-green-600 mt-2">✓ Preview uploaded</p>
+                    <div className="mt-2">
+                      <p className="text-xs text-green-600">✓ Preview uploaded</p>
+                      <img 
+                        src={formData.previewUrl} 
+                        alt="Preview" 
+                        className="mt-2 max-w-full h-32 object-contain border rounded"
+                      />
+                    </div>
                   )}
                 </div>
               </div>

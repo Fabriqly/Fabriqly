@@ -3,7 +3,7 @@ import { fetchSignInMethodsForEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Collections } from '@/lib/firebase';
+import { Collections } from '@/services/firebase';
 
 export async function POST(request: NextRequest) {
   try {
