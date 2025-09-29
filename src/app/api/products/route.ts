@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { ServiceContainer } from '@/container/ServiceContainer';
 import { ProductService } from '@/services/ProductService';
+import { CacheService } from '@/services/CacheService';
 import { 
   Product, 
   CreateProductData, 
@@ -38,6 +39,14 @@ export async function GET(request: NextRequest) {
     const sortOrder = (searchParams.get('sortOrder') as any) || 'desc';
     const limit = parseInt(searchParams.get('limit') || '20');
 
+    // Try to get cached products first
+    const cacheKey = `products-${JSON.stringify({ filters, sortBy, sortOrder, limit })}`;
+    const cached = await CacheService.get(cacheKey);
+    
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const productService = ServiceContainer.getInstance().get<ProductService>('productService');
     const products = await productService.getProductsWithDetails({
       filters,
@@ -52,6 +61,9 @@ export async function GET(request: NextRequest) {
       hasMore: products.length === limit,
       filters
     };
+
+    // Cache the result for 2 minutes
+    await CacheService.set(cacheKey, ResponseBuilder.success(result), 2 * 60 * 1000);
 
     return NextResponse.json(ResponseBuilder.success(result));
   } catch (error) {

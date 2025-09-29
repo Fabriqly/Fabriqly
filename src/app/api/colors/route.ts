@@ -8,6 +8,7 @@ import {
   CreateColorData, 
   UpdateColorData 
 } from '@/types/enhanced-products';
+import { CacheService } from '@/services/CacheService';
 import { Timestamp } from 'firebase/firestore';
 
 // Helper function to convert Firestore Timestamps to JavaScript Dates
@@ -60,11 +61,19 @@ export async function GET(request: NextRequest) {
       constraints.push({ field: 'isActive', operator: '==' as const, value: isActive === 'true' });
     }
 
+    // Try to get cached colors first
+    const cacheKey = `colors-${JSON.stringify({ isActive, limit })}`;
+    const cached = await CacheService.get(cacheKey);
+    
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const rawColors = await FirebaseAdminService.queryDocuments(
       Collections.COLORS,
       constraints,
       undefined, // No sorting to avoid index requirements
-      limit
+      Math.min(limit, 200) // Cap at 200 colors
     );
 
     // Convert Firestore Timestamps to JavaScript Dates
@@ -86,7 +95,12 @@ export async function GET(request: NextRequest) {
       filteredColors = colors.filter(color => !color.businessOwnerId);
     }
 
-    return NextResponse.json({ colors: filteredColors });
+    const response = { colors: filteredColors };
+    
+    // Cache the response for 15 minutes (colors don't change often)
+    await CacheService.set(cacheKey, response, 15 * 60 * 1000);
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error fetching colors:', error);
     return NextResponse.json(

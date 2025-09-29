@@ -1,6 +1,7 @@
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
 import { Collections } from './firebase';
 import { Timestamp } from 'firebase-admin/firestore';
+import { prepareUpdateData, prepareCreateData } from '@/utils/firestore-helpers';
 
 // Server-side Firebase operations using Admin SDK
 export class FirebaseAdminService {
@@ -273,6 +274,11 @@ export class FirebaseAdminService {
     }
   }
 
+  // Alias for getDocument to match DashboardSummaryService expectations
+  static async getById(collection: string, docId: string) {
+    return this.getDocument(collection, docId);
+  }
+
   // Create a new document
   static async createDocument(collection: string, data: any, transaction?: FirebaseFirestore.Transaction) {
     try {
@@ -281,11 +287,8 @@ export class FirebaseAdminService {
       if (transaction) {
         // In transaction, we need to generate an ID first
         const docRef = collectionRef.doc();
-        transaction.set(docRef, {
-          ...data,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now()
-        });
+        const docData = prepareCreateData(data);
+        transaction.set(docRef, docData);
         return { id: docRef.id, ...data };
       } else {
         // Ensure collection exists by checking if it has any documents
@@ -294,28 +297,24 @@ export class FirebaseAdminService {
         // If collection is empty, add a temporary initialization document
         if (existingDocs.empty && collection === Collections.ACTIVITIES) {
           console.log(`Initializing ${collection} collection...`);
-          const initDoc = {
+          const initDocData = {
             type: 'system_event',
             title: `${collection} Collection Initialized`,
             description: `The ${collection} collection has been initialized`,
             priority: 'low',
             status: 'active',
             actorId: 'system',
-            metadata: { initialization: true },
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now()
+            metadata: { initialization: true }
           };
+          const initDoc = prepareCreateData(initDocData);
           
           // Add initialization document
           await collectionRef.add(initDoc);
           console.log(`${collection} collection initialized successfully`);
         }
         
-        const docRef = await collectionRef.add({
-          ...data,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now()
-        });
+        const docData = prepareCreateData(data);
+        const docRef = await collectionRef.add(docData);
         
         return { id: docRef.id, ...data };
       }
@@ -330,18 +329,14 @@ export class FirebaseAdminService {
     try {
       const docRef = adminDb.collection(collection).doc(docId);
       
+      const cleanData = prepareUpdateData(data);
+      
       if (transaction) {
-        transaction.update(docRef, {
-          ...data,
-          updatedAt: Timestamp.now()
-        });
-        return { id: docId, ...data };
+        transaction.update(docRef, cleanData);
+        return { id: docId, ...cleanData };
       } else {
-        await docRef.update({
-          ...data,
-          updatedAt: Timestamp.now()
-        });
-        return { id: docId, ...data };
+        await docRef.update(cleanData);
+        return { id: docId, ...cleanData };
       }
     } catch (error) {
       console.error('Error updating document:', error);

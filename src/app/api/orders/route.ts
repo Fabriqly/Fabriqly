@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { FirebaseAdminService } from '@/services/firebase-admin';
-import { Collections } from '@/services/firebase';
+import { OrderService } from '@/services/OrderService';
+import { OrderRepository } from '@/repositories/OrderRepository';
+import { ActivityRepository } from '@/repositories/ActivityRepository';
+import { ProductRepository } from '@/repositories/ProductRepository';
+import { CacheService } from '@/services/CacheService';
 
 // GET /api/orders - List orders
 export async function GET(request: NextRequest) {
@@ -17,44 +20,56 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
+    const status = searchParams.get('status') as any;
     const businessOwnerId = searchParams.get('businessOwnerId');
+    const customerId = searchParams.get('customerId');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    // Build query constraints
-    const constraints = [];
-    
-    if (status) {
-      constraints.push({ field: 'status', operator: '==' as const, value: status });
-    }
-    
-    if (businessOwnerId) {
-      constraints.push({ field: 'businessOwnerId', operator: '==' as const, value: businessOwnerId });
-    }
+    // Initialize services
+    const orderRepository = new OrderRepository();
+    const activityRepository = new ActivityRepository();
+    const productRepository = new ProductRepository();
+    const cacheService = new CacheService();
+    const orderService = new OrderService(orderRepository, activityRepository, productRepository, cacheService);
+
+    // Build search options
+    const searchOptions = {
+      status,
+      businessOwnerId,
+      customerId,
+      limit,
+      offset,
+      sortBy: 'createdAt',
+      sortOrder: 'desc' as const
+    };
 
     // Non-admin users can only see their own orders
     if (session.user.role !== 'admin') {
-      constraints.push({ field: 'customerId', operator: '==' as const, value: session.user.id });
+      searchOptions.customerId = session.user.id;
     }
 
-    const orders = await FirebaseAdminService.queryDocuments(
-      Collections.ORDERS,
-      constraints,
-      { field: 'createdAt', direction: 'desc' },
-      limit
-    );
+    // Try to get cached orders first
+    const cacheKey = `orders-${JSON.stringify(searchOptions)}-${session.user.id}`;
+    const cached = await CacheService.get(cacheKey);
+    
+    if (cached) {
+      return NextResponse.json(cached);
+    }
 
-    // Calculate total revenue for analytics
-    const totalRevenue = orders.reduce((sum, order) => {
-      return sum + (order.totalAmount || 0);
-    }, 0);
+    const result = await orderService.getOrders(searchOptions, session.user.id);
 
-    return NextResponse.json({ 
-      orders,
-      totalRevenue,
-      total: orders.length
-    });
+    const response = { 
+      orders: result.orders,
+      totalRevenue: result.totalRevenue,
+      total: result.total,
+      hasMore: result.hasMore
+    };
+    
+    // Cache the response for 3 minutes (orders change moderately)
+    await CacheService.set(cacheKey, response, 3 * 60 * 1000);
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error fetching orders:', error);
     return NextResponse.json(
@@ -78,44 +93,26 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     
-    // Validate required fields
-    if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
-      return NextResponse.json(
-        { error: 'Missing required fields: items' },
-        { status: 400 }
-      );
-    }
+    // Initialize services
+    const orderRepository = new OrderRepository();
+    const activityRepository = new ActivityRepository();
+    const productRepository = new ProductRepository();
+    const cacheService = new CacheService();
+    const orderService = new OrderService(orderRepository, activityRepository, productRepository, cacheService);
 
-    // Calculate totals
-    const subtotal = body.items.reduce((sum: number, item: any) => {
-      return sum + (item.price * item.quantity);
-    }, 0);
-
-    const tax = subtotal * 0.08; // 8% tax
-    const shipping = body.shippingCost || 0;
-    const totalAmount = subtotal + tax + shipping;
-
+    // Create order data
     const orderData = {
       customerId: session.user.id,
       businessOwnerId: body.businessOwnerId,
       items: body.items,
-      subtotal,
-      tax,
-      shippingCost: shipping,
-      totalAmount,
-      status: 'pending',
       shippingAddress: body.shippingAddress,
       billingAddress: body.billingAddress,
       paymentMethod: body.paymentMethod,
       notes: body.notes,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      shippingCost: body.shippingCost || 0
     };
 
-    const order = await FirebaseAdminService.createDocument(
-      Collections.ORDERS,
-      orderData
-    );
+    const order = await orderService.createOrder(orderData);
 
     return NextResponse.json({ order }, { status: 201 });
   } catch (error) {

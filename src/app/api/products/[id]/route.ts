@@ -12,6 +12,8 @@ import {
 import { Timestamp } from 'firebase/firestore';
 import { ResponseBuilder } from '@/utils/ResponseBuilder';
 import { ErrorHandler } from '@/errors/ErrorHandler';
+import { FieldValue } from 'firebase-admin/firestore';
+import { DashboardSummaryService } from '@/services/DashboardSummaryService';
 
 interface RouteParams {
   params: {
@@ -246,7 +248,8 @@ export async function PUT(
       if (body.weight > 0) {
         updateData.weight = Number(body.weight);
       } else {
-        updateData.weight = undefined; // Remove weight if set to 0 or negative
+        // Use Firestore FieldValue.delete() to remove field
+        updateData.weight = FieldValue.delete();
       }
     }
     
@@ -318,6 +321,21 @@ export async function PUT(
     } catch (activityError) {
       console.error('Error logging product update activity:', activityError);
       // Don't fail the update if activity logging fails
+    }
+
+    // Update dashboard summary
+    try {
+      await DashboardSummaryService.updateForOperation({
+        type: 'product_updated',
+        entityId: productId,
+        entityData: {
+          ...updatedProduct,
+          status: updateData.status || existingProduct.status
+        }
+      });
+    } catch (summaryError) {
+      console.warn('Failed to update dashboard summary for product update:', summaryError);
+      // Don't fail the product update if summary update fails
     }
 
     // Clear relevant caches
@@ -576,11 +594,23 @@ async function fetchProductColors(productId: string) {
 async function deleteProductImages(productId: string) {
   try {
     const images = await fetchProductImages(productId);
+    
+    // Delete images from Supabase storage first
+    const { ImageCleanupService } = await import('@/services/ImageCleanupService');
+    const cleanupResult = await ImageCleanupService.deleteProductImages(images);
+    
+    if (cleanupResult.failureCount > 0) {
+      console.warn(`Failed to delete ${cleanupResult.failureCount} images from Supabase storage`);
+    }
+    
+    // Delete image records from database
     await Promise.all(
       images.map((image: ProductImage) => 
         FirebaseAdminService.deleteDocument(Collections.PRODUCT_IMAGES, image.id)
       )
     );
+    
+    console.log(`✅ Deleted ${images.length} product images (${cleanupResult.successCount} from storage)`);
   } catch (error) {
     console.error('Error deleting product images:', error);
   }
