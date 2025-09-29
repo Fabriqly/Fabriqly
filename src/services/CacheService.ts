@@ -78,17 +78,20 @@ export class CacheService {
     return `${prefix}:${parts.join(':')}`;
   }
 
-  static productKey(id: string): string {
-    return this.generateKey('product', id);
+  // Specific key generators for common entities
+  static userKey(userId: string): string {
+    return `user:${userId}`;
   }
 
-  static userKey(id: string): string {
-    return this.generateKey('user', id);
+  static productKey(productId: string): string {
+    return `product:${productId}`;
   }
 
-  static categoryKey(id: string): string {
-    return this.generateKey('category', id);
+  static categoryKey(categoryId: string): string {
+    return `category:${categoryId}`;
   }
+
+
 
   static productsListKey(filters: Record<string, any>): string {
     const filterString = Object.entries(filters)

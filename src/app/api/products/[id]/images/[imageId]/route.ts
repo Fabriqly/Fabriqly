@@ -179,8 +179,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // TODO: Delete from Firebase Storage
-    // await storage.bucket().file(image.imageUrl).delete();
+    // Delete from Supabase storage
+    try {
+      const { ImageCleanupService } = await import('@/services/ImageCleanupService');
+      await ImageCleanupService.deleteImage(image.imageUrl, 'products');
+    } catch (error) {
+      console.warn('Failed to delete image from Supabase storage:', error);
+      // Continue with database deletion even if storage cleanup fails
+    }
 
     // Delete the image document
     await FirebaseAdminService.deleteDocument(

@@ -161,5 +161,9 @@ export const Collections = {
   MESSAGES: 'messages',
   BUSINESS_OWNERS: 'businessOwners',
   CUSTOMERS: 'customers',
-  DESIGNERS: 'designers'
+  DESIGNERS: 'designers',
+  
+  // Cart System
+  CARTS: 'carts',
+  CART_ITEMS: 'cartItems'
 } as const;
