@@ -121,6 +121,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(ResponseBuilder.error('Product not found'), { status: 404 });
     }
 
+    // Check if product is active
+    if (product.status !== 'active') {
+      return NextResponse.json(ResponseBuilder.error(`Product "${product.name}" is no longer available (product is ${product.status})`), { status: 400 });
+    }
+
+    // Check stock availability
+    if (product.stockQuantity < quantity) {
+      return NextResponse.json(ResponseBuilder.error(`Insufficient stock. Available: ${product.stockQuantity}, Requested: ${quantity}`), { status: 400 });
+    }
+
     // Fetch product images with limit
     let images: any[] = [];
     try {
