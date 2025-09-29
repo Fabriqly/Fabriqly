@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
 import { CacheService } from '@/services/CacheService';
+import { DashboardSummaryService } from '@/services/DashboardSummaryService';
 
 // GET /api/analytics - Get real analytics data
 export async function GET(request: NextRequest) {
@@ -29,31 +30,64 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(cached);
     }
 
-    // Get data with limits to reduce quota usage
-    const [users, products, categories, orders] = await Promise.all([
-      FirebaseAdminService.queryDocuments(Collections.USERS, [], { field: 'createdAt', direction: 'desc' }, 1000),
-      FirebaseAdminService.queryDocuments(Collections.PRODUCTS, [], { field: 'createdAt', direction: 'desc' }, 1000),
-      FirebaseAdminService.queryDocuments(Collections.PRODUCT_CATEGORIES, [], { field: 'createdAt', direction: 'desc' }, 100),
-      FirebaseAdminService.queryDocuments(Collections.ORDERS, [], { field: 'createdAt', direction: 'desc' }, 1000)
+    // Get summary data instead of querying collections directly
+    const summary = await DashboardSummaryService.getSummary();
+    
+    if (!summary) {
+      console.log('No summary found, refreshing for analytics...');
+      await DashboardSummaryService.refreshSummary();
+      const freshSummary = await DashboardSummaryService.getSummary();
+      
+      if (!freshSummary) {
+        throw new Error('Failed to create dashboard summary for analytics');
+      }
+      
+      return await generateAnalyticsResponse(freshSummary, timeRange, days);
+    }
+
+    return await generateAnalyticsResponse(summary, timeRange, days);
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+async function generateAnalyticsResponse(summary: any, timeRange: string, days: number) {
+  try {
+    const cacheKey = `analytics-${timeRange}`;
+    // For analytics, we still need to fetch some specific data for charts
+    // but use summary for basic counts to minimize reads
+    const [recentUsers, recentProducts, categories] = await Promise.all([
+      FirebaseAdminService.queryDocuments(Collections.USERS, [], { field: 'createdAt', direction: 'desc' }, 50), // Only for growth visualization
+      FirebaseAdminService.queryDocuments(Collections.PRODUCTS, [{field: 'status', operator: '==', value: 'active'}], { field: 'createdAt', direction: 'desc' }, 100), // For trend analysis
+      FirebaseAdminService.queryDocuments(Collections.PRODUCT_CATEGORIES, [], { field: 'createdAt', direction: 'desc' }, 50)
     ]);
+    
+    // Get recent orders for top products analysis (limited scope)
+    const recentOrders = await FirebaseAdminService.queryDocuments(Collections.ORDERS, [], { field: 'createdAt', direction: 'desc' }, 100);
 
-    // Calculate user growth over time
-    const userGrowth = await calculateUserGrowth(users, days);
-
-    // Calculate product stats by category
-    const productStats = await calculateProductStats(products, categories);
-
-    // Calculate revenue over time
-    const revenueData = await calculateRevenueData(orders, days);
-
-    // Get top performing products
-    const topProducts = await calculateTopProducts(products, orders);
+    // Use summary data for base metrics and recent data for trends
+    const userGrowth = await calculateUserGrowth(recentUsers, days);
+    const productStats = await calculateProductStats(recentProducts, categories);
+    const revenueData = await calculateRevenueData(recentOrders, days);
+    const topProducts = await calculateTopProducts(recentProducts, recentOrders);
 
     const response = {
       userGrowth,
       productStats,
       revenueData,
-      topProducts
+      topProducts,
+      summaryMetrics: {
+        totalUsers: summary.totalUsers,
+        totalProducts: summary.totalProducts,
+        totalOrders: summary.totalOrders,
+        totalRevenue: summary.totalRevenue,
+        lastUpdated: summary.lastUpdated
+      },
+      dataSource: 'summary-enhanced' // Indicate we used summary + targeted queries
     };
 
     // Cache the response for 10 minutes

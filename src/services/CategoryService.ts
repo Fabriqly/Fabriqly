@@ -6,6 +6,7 @@ import { ActivityType } from '@/types/activity';
 import { ICategoryService, CategoryHierarchy } from '@/services/interfaces/ICategoryService';
 import { AppError } from '@/errors/AppError';
 import { CacheService } from '@/services/CacheService';
+import { ImageCleanupService } from '@/services/ImageCleanupService';
 
 export interface CategoryValidationResult {
   isValid: boolean;
@@ -59,6 +60,7 @@ export class CategoryService implements ICategoryService {
       parentCategoryId: data.parentId,
       parentId: data.parentId, // Keep for backward compatibility
       slug: data.slug.trim(),
+      iconUrl: data.iconUrl, // Include iconUrl from data
       isActive: data.isActive,
       level,
       path,
@@ -138,6 +140,7 @@ export class CategoryService implements ICategoryService {
       }),
       ...(data.description !== undefined && { description: data.description.trim() }),
       ...(data.slug && { slug: data.slug.trim() }),
+      ...(data.iconUrl !== undefined && { iconUrl: data.iconUrl }),
       ...(data.parentId !== undefined && { 
         parentCategoryId: data.parentId,
         parentId: data.parentId // Keep for backward compatibility
@@ -181,7 +184,20 @@ export class CategoryService implements ICategoryService {
       throw new Error('Cannot delete category that has subcategories. Please delete subcategories first.');
     }
 
+    // Clean up category image from Supabase storage
+    if (category.iconUrl) {
+      try {
+        await ImageCleanupService.deleteCategoryImage(category.iconUrl);
+      } catch (error) {
+        console.warn('Failed to delete category image during category deletion:', error);
+        // Don't fail the deletion if image cleanup fails
+      }
+    }
+
     await this.categoryRepository.delete(categoryId);
+
+    // Invalidate cache
+    CacheService.invalidate('categories');
 
     // Log activity
     await this.logCategoryActivity('category_deleted', categoryId, userId, {

@@ -108,10 +108,7 @@ if (privateKey) {
 if (!privateKey || !envVars.FIREBASE_CLIENT_EMAIL || !envVars.FIREBASE_PROJECT_ID) {
   console.error('❌ Firebase Admin SDK environment variables are not set');
   console.error('Required variables: FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL, FIREBASE_PROJECT_ID');
-  console.error('Current values:');
-  console.error(`  FIREBASE_PRIVATE_KEY: ${privateKey ? 'Set' : 'Not set'}`);
-  console.error(`  FIREBASE_CLIENT_EMAIL: ${envVars.FIREBASE_CLIENT_EMAIL ? 'Set' : 'Not set'}`);
-  console.error(`  FIREBASE_PROJECT_ID: ${envVars.FIREBASE_PROJECT_ID ? 'Set' : 'Not set'}`);
+  console.error('Please check your .env.local file');
   process.exit(1);
 }
 

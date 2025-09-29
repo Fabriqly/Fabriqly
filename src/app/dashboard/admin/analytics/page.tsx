@@ -71,22 +71,16 @@ export default function AdminAnalyticsPage() {
     try {
       setLoading(true);
       
-      // Use the dashboard-stats API for overview data
-      const [statsResponse, analyticsResponse] = await Promise.all([
-        fetch(`/api/dashboard-stats?period=${timeRange}`),
-        fetch(`/api/analytics?timeRange=${timeRange}`)
-      ]);
+      // Get dashboard stats first (includes all overview data)
+      const statsResponse = await fetch(`/api/dashboard-stats?period=${timeRange}`);
       
-      if (!statsResponse.ok || !analyticsResponse.ok) {
-        throw new Error('Failed to fetch analytics data');
+      if (!statsResponse.ok) {
+        throw new Error('Failed to fetch dashboard stats');
       }
 
-      const [statsData, analyticsData] = await Promise.all([
-        statsResponse.json(),
-        analyticsResponse.json()
-      ]);
+      const statsData = await statsResponse.json();
       
-      // Calculate overview stats from real data
+      // Extract overview stats from dashboard-stats to avoid duplicate queries
       const overview = {
         totalUsers: statsData.current.totalUsers,
         totalProducts: statsData.current.totalProducts,
@@ -95,7 +89,17 @@ export default function AdminAnalyticsPage() {
         activeProducts: statsData.current.activeProducts,
         pendingOrders: statsData.current.pendingOrders
       };
-
+      
+      // Only fetch analytics-specific data if we need charts
+      const analyticsResponse = await fetch(`/api/analytics?timeRange=${timeRange}`);
+      
+      if (!analyticsResponse.ok) {
+        throw new Error('Failed to fetch analytics data');
+      }
+      
+      const analyticsData = await analyticsResponse.json();
+      
+      // Combine the data instead of duplicating queries
       setAnalytics({
         overview,
         userGrowth: analyticsData.userGrowth,
@@ -111,7 +115,18 @@ export default function AdminAnalyticsPage() {
   };
 
 
-  const [percentageChanges, setPercentageChanges] = useState({
+  interface PercentageChange {
+    value: number | null;
+    type: 'positive' | 'negative' | 'neutral' | 'unavailable';
+    label?: string;
+  }
+
+  const [percentageChanges, setPercentageChanges] = useState<{
+    totalUsers: PercentageChange;
+    totalProducts: PercentageChange;
+    totalOrders: PercentageChange;
+    totalRevenue: PercentageChange;
+  }>({
     totalUsers: { value: 0, type: 'neutral' },
     totalProducts: { value: 0, type: 'neutral' },
     totalOrders: { value: 0, type: 'neutral' },
@@ -126,10 +141,10 @@ export default function AdminAnalyticsPage() {
         if (response.ok) {
           const data = await response.json();
           setPercentageChanges({
-            totalUsers: data.changes.totalUsers,
-            totalProducts: data.changes.totalProducts,
-            totalOrders: data.changes.totalOrders,
-            totalRevenue: data.changes.totalRevenue
+            totalUsers: data.percentageChanges?.totalUsers || { value: 0, type: 'neutral' },
+            totalProducts: data.percentageChanges?.totalProducts || { value: 0, type: 'neutral' },
+            totalOrders: data.percentageChanges?.totalOrders || { value: 0, type: 'neutral' },
+            totalRevenue: data.percentageChanges?.totalRevenue || { value: 0, type: 'neutral' }
           });
         }
       } catch (error) {
@@ -140,8 +155,11 @@ export default function AdminAnalyticsPage() {
     loadPercentageChanges();
   }, [timeRange]);
 
-  const formatChange = (change: { value: number; type: string }) => {
-    if (change.value === 0) return '0%';
+  const formatChange = (change: PercentageChange) => {
+    if (change.type === 'unavailable') {
+      return change.label || 'No data';
+    }
+    if (change.value === 0 || change.value === null) return '0%';
     const sign = change.type === 'positive' ? '+' : change.type === 'negative' ? '-' : '';
     return `${sign}${change.value}%`;
   };
@@ -236,7 +254,8 @@ export default function AdminAnalyticsPage() {
                   </p>
                   <p className={`ml-2 flex items-baseline text-sm font-semibold ${
                     stat.changeType === 'positive' ? 'text-green-600' : 
-                    stat.changeType === 'negative' ? 'text-red-600' : 'text-gray-500'
+                    stat.changeType === 'negative' ? 'text-red-600' : 
+                    stat.changeType === 'unavailable' ? 'text-amber-600' : 'text-gray-500'
                   }`}>
                     {stat.change}
                   </p>
