@@ -4,11 +4,11 @@ import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import { Collections } from '@/services/firebase';
+import { Collections } from '@/lib/firebase';
 import { UserRole } from '@/types/next-auth';
 import { validateEnvironment } from './env-validation';
 import { AuthErrorHandler, AuthErrorCode } from './auth-errors';
-import { FirebaseAdminService } from '@/services/firebase-admin';
+import { FirebaseAdminService } from '@/lib/firebase-admin';
 
 // Validate environment variables on startup
 (async () => {
