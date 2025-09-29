@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
 import { CacheService } from '@/services/CacheService';
+import { DashboardSummaryService } from '@/services/DashboardSummaryService';
 
 interface DashboardSnapshot {
   id?: string;
@@ -37,49 +38,74 @@ export async function GET(request: NextRequest) {
     const comparisonDate = new Date();
     const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
     comparisonDate.setDate(comparisonDate.getDate() - days);
-
-    // Try to get cached data first
-    const cacheKey = `dashboard-stats-${period}`;
-    const cached = await CacheService.get(cacheKey);
     
-    if (cached) {
-      return NextResponse.json(cached);
+    const cacheKey = `dashboard-stats-${period}`;
+
+    // Get dashboard summary instead of querying all collections
+    const summary = await DashboardSummaryService.getSummary();
+    
+    if (!summary) {
+      console.log('No summary found, refreshing...');
+      await DashboardSummaryService.refreshSummary();
+      const freshSummary = await DashboardSummaryService.getSummary();
+      
+      if (!freshSummary) {
+        throw new Error('Failed to create dashboard summary');
+      }
+      
+      return await generateDashboardResponse(freshSummary, period);
     }
 
-    // Load current data directly from database with limits
-    const [users, products, categories, orders] = await Promise.all([
-      FirebaseAdminService.queryDocuments(Collections.USERS, [], { field: 'createdAt', direction: 'desc' }, 1000),
-      FirebaseAdminService.queryDocuments(Collections.PRODUCTS, [], { field: 'createdAt', direction: 'desc' }, 1000),
-      FirebaseAdminService.queryDocuments(Collections.PRODUCT_CATEGORIES, [], { field: 'createdAt', direction: 'desc' }, 100),
-      FirebaseAdminService.queryDocuments(Collections.ORDERS, [], { field: 'createdAt', direction: 'desc' }, 1000)
-    ]);
+    return await generateDashboardResponse(summary, period);
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
 
-    // Calculate current stats
+async function generateDashboardResponse(summary: any, period: string) {
+  try {
+    const cacheKey = `dashboard-stats-${period}`;
+    
+    // Calculate the comparison date based on period
+    const comparisonDate = new Date();
+    const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
+    comparisonDate.setDate(comparisonDate.getDate() - days);
+
     const currentStats = {
-      totalUsers: users.length,
-      totalProducts: products.length,
-      totalCategories: categories.length,
-      totalOrders: orders.length,
-      totalRevenue: orders.reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0),
-      activeProducts: products.filter((p: any) => p.status === 'active').length,
-      pendingOrders: orders.filter((o: any) => o.status === 'pending').length
+      totalUsers: summary.totalUsers,
+      totalProducts: summary.totalProducts,
+      totalCategories: summary.totalCategories,
+      totalOrders: summary.totalOrders,
+      totalRevenue: summary.totalRevenue,
+      activeProducts: summary.activeProducts,
+      pendingOrders: summary.pendingOrders
     };
 
     // Get historical data for comparison
-    const historicalData = await getHistoricalData(comparisonDate);
+    const historicalResult = await getHistoricalData(comparisonDate, period);
+    const { snapshot: historicalData, hasHistorical, searchDate } = historicalResult;
 
     // Calculate percentage changes
-    const percentageChanges = calculatePercentageChanges(currentStats, historicalData);
-
-    // Save current snapshot for future comparisons
-    await saveCurrentSnapshot(currentStats);
+    const { percentageChanges, simulatedData } = calculatePercentageChanges(currentStats, historicalData, hasHistorical);
 
     const response = {
       current: currentStats,
-      changes: percentageChanges,
+      historical: historicalData,
+      percentageChanges,
       period,
-      comparisonDate: comparisonDate.toISOString().split('T')[0]
+      comparisonDate: comparisonDate.toISOString().split('T')[0],
+      actualComparisonDate: searchDate,
+      hasHistorical,
+      lastUpdated: summary.lastUpdated,
+      dataSource: 'summary' // Indicate we're using summary data
     };
+
+    // Save current snapshot for future percentage calculations
+    await saveCurrentSnapshot(currentStats);
 
     // Cache the response for 5 minutes
     await CacheService.set(cacheKey, response, 5 * 60 * 1000);
@@ -96,49 +122,82 @@ export async function GET(request: NextRequest) {
 }
 
 // Helper function to get historical data
-async function getHistoricalData(comparisonDate: Date): Promise<DashboardSnapshot | null> {
+async function getHistoricalData(comparisonDate: Date, period: string): Promise<{ snapshot: DashboardSnapshot | null, hasHistorical: boolean, searchDate: string }> {
   try {
     const dateString = comparisonDate.toISOString().split('T')[0];
     
-    // Try to get exact date first
-    let snapshots = await FirebaseAdminService.queryDocuments(
-      Collections.DASHBOARD_SNAPSHOTS,
-      [{ field: 'date', operator: '==' as const, value: dateString }]
-    );
-
-    // If no exact match, get the closest previous date
-    if (snapshots.length === 0) {
-      snapshots = await FirebaseAdminService.queryDocuments(
+    try {
+      // Try to query the collection - this will fail if collection doesn't exist
+      let snapshots = await FirebaseAdminService.queryDocuments(
         Collections.DASHBOARD_SNAPSHOTS,
-        [{ field: 'date', operator: '<=' as const, value: dateString }],
-        { field: 'date', direction: 'desc' },
-        1
+        [{ field: 'date', operator: '==' as const, value: dateString }]
       );
-    }
 
-    return snapshots.length > 0 ? snapshots[0] as DashboardSnapshot : null;
+      // If no exact match, get the closest previous date (Option 3)
+      let hasHistorical = true;
+      let searchDate = dateString;
+      
+      if (snapshots.length === 0) {
+        snapshots = await FirebaseAdminService.queryDocuments(
+          Collections.DASHBOARD_SNAPSHOTS,
+          [{ field: 'date', operator: '<=' as const, value: dateString }],
+          { field: 'date', direction: 'desc' },
+          1
+        );
+        
+        // If we found older data, mark as "approximate comparison"
+        if (snapshots.length > 0) {
+          searchDate = snapshots[0].date;
+          // Don't override hasHistorical - we do have data, even if from a different date
+        } else {
+          hasHistorical = false;
+        }
+      }
+
+      return {
+        snapshot: snapshots.length > 0 ? snapshots[0] as DashboardSnapshot : null,
+        hasHistorical,
+        searchDate
+      };
+      
+    } catch (collectionError) {
+      console.log('⚠️ dashboardSnapshots collection does not exist');
+      return {
+        snapshot: null,
+        hasHistorical: false,
+        searchDate: dateString
+      };
+    }
+    
   } catch (error) {
     console.error('Error fetching historical data:', error);
-    return null;
+    return {
+      snapshot: null,
+      hasHistorical: false,
+      searchDate: comparisonDate.toISOString().split('T')[0]
+    };
   }
 }
 
 // Helper function to calculate percentage changes
-function calculatePercentageChanges(current: any, historical: DashboardSnapshot | null) {
-  if (!historical) {
-    // If no historical data, return neutral values
+function calculatePercentageChanges(current: any, historical: DashboardSnapshot | null, hasHistorical: boolean = true) {
+  if (!historical || !hasHistorical) {
+    // Option 2: Return special "comparison not available" values instead of 0%
     return {
-      totalUsers: { value: 0, type: 'neutral' },
-      totalProducts: { value: 0, type: 'neutral' },
-      totalCategories: { value: 0, type: 'neutral' },
-      totalOrders: { value: 0, type: 'neutral' },
-      totalRevenue: { value: 0, type: 'neutral' },
-      activeProducts: { value: 0, type: 'neutral' },
-      pendingOrders: { value: 0, type: 'neutral' }
+      percentageChanges: {
+        totalUsers: { value: null, type: 'unavailable', label: 'No comparison data' },
+        totalProducts: { value: null, type: 'unavailable', label: 'No comparison data' },
+        totalCategories: { value: null, type: 'unavailable', label: 'No comparison data' },
+        totalOrders: { value: null, type: 'unavailable', label: 'No comparison data' },
+        totalRevenue: { value: null, type: 'unavailable', label: 'No comparison data' },
+        activeProducts: { value: null, type: 'unavailable', label: 'No comparison data' },
+        pendingOrders: { value: null, type: 'unavailable', label: 'No comparison data' }
+      },
+      simulatedData: null
     };
   }
-
-  const calculateChange = (currentVal: number, historicalVal: number) => {
+    
+  const calculateChange = (currentVal: number, historicalVal: number, fieldName: string) => {
     if (historicalVal === 0) {
       return currentVal > 0 ? { value: 100, type: 'positive' as const } : { value: 0, type: 'neutral' as const };
     }
@@ -152,15 +211,17 @@ function calculatePercentageChanges(current: any, historical: DashboardSnapshot 
     };
   };
 
-  return {
-    totalUsers: calculateChange(current.totalUsers, historical.totalUsers),
-    totalProducts: calculateChange(current.totalProducts, historical.totalProducts),
-    totalCategories: calculateChange(current.totalCategories, historical.totalCategories),
-    totalOrders: calculateChange(current.totalOrders, historical.totalOrders),
-    totalRevenue: calculateChange(current.totalRevenue, historical.totalRevenue),
-    activeProducts: calculateChange(current.activeProducts, historical.activeProducts),
-    pendingOrders: calculateChange(current.pendingOrders, historical.pendingOrders)
+  const percentageChanges = {
+    totalUsers: calculateChange(current.totalUsers, historical.totalUsers, 'Users'),
+    totalProducts: calculateChange(current.totalProducts, historical.totalProducts, 'Products'),
+    totalCategories: calculateChange(current.totalCategories, historical.totalCategories, 'Categories'),
+    totalOrders: calculateChange(current.totalOrders, historical.totalOrders, 'Orders'),
+    totalRevenue: calculateChange(current.totalRevenue, historical.totalRevenue, 'Revenue'),
+    activeProducts: calculateChange(current.activeProducts, historical.activeProducts, 'Active Products'),
+    pendingOrders: calculateChange(current.pendingOrders, historical.pendingOrders, 'Pending Orders')
   };
+
+  return { percentageChanges, simulatedData: null };
 }
 
 // Helper function to save current snapshot
@@ -168,12 +229,6 @@ async function saveCurrentSnapshot(stats: any) {
   try {
     const today = new Date().toISOString().split('T')[0];
     
-    // Check if snapshot already exists for today
-    const existingSnapshots = await FirebaseAdminService.queryDocuments(
-      Collections.DASHBOARD_SNAPSHOTS,
-      [{ field: 'date', operator: '==' as const, value: today }]
-    );
-
     const snapshotData: DashboardSnapshot = {
       date: today,
       totalUsers: stats.totalUsers,
@@ -186,20 +241,42 @@ async function saveCurrentSnapshot(stats: any) {
       createdAt: new Date()
     };
 
-    if (existingSnapshots.length > 0) {
-      // Update existing snapshot
-      await FirebaseAdminService.updateDocument(
+    try {
+      // Check if snapshot already exists for today
+      const existingSnapshots = await FirebaseAdminService.queryDocuments(
         Collections.DASHBOARD_SNAPSHOTS,
-        existingSnapshots[0].id,
-        snapshotData
+        [{ field: 'date', operator: '==' as const, value: today }]
       );
-    } else {
-      // Create new snapshot
+
+      if (existingSnapshots.length > 0) {
+        // Update existing snapshot
+        console.log('📸 Updating existing snapshot for', today);
+        await FirebaseAdminService.updateDocument(
+          Collections.DASHBOARD_SNAPSHOTS,
+          existingSnapshots[0].id,
+          snapshotData
+        );
+      } else {
+        // Create new snapshot
+        console.log('📸 Creating new snapshot for', today);
+        await FirebaseAdminService.createDocument(
+          Collections.DASHBOARD_SNAPSHOTS,
+          snapshotData
+        );
+      }
+      
+      console.log('✅ Snapshot saved successfully');
+      
+    } catch (collectionError) {
+      console.log('⚠️ dashboardSnapshots collection will be created on first document write');
+      // Create new snapshot - this will create the collection automatically
       await FirebaseAdminService.createDocument(
         Collections.DASHBOARD_SNAPSHOTS,
         snapshotData
       );
+      console.log('✅ Created dashboardSnapshots collection and first snapshot');
     }
+    
   } catch (error) {
     console.error('Error saving dashboard snapshot:', error);
     // Don't fail the main request if snapshot saving fails

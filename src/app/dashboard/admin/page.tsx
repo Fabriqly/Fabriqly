@@ -25,8 +25,9 @@ interface DashboardStats {
 }
 
 interface PercentageChange {
-  value: number;
-  type: 'positive' | 'negative' | 'neutral';
+  value: number | null;
+  type: 'positive' | 'negative' | 'neutral' | 'unavailable';
+  label?: string;
 }
 
 interface DashboardData {
@@ -42,11 +43,14 @@ interface DashboardData {
   };
   period: string;
   comparisonDate: string;
+  actualComparisonDate?: string;
+  hasHistorical?: boolean;
 }
 
 export default function AdminDashboard() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState('7d');
 
   useEffect(() => {
@@ -56,32 +60,91 @@ export default function AdminDashboard() {
   const loadDashboardStats = async () => {
     try {
       setLoading(true);
+      setError(null);
       
+      // First refresh the summary to ensure we have the latest data
+      const refreshResponse = await fetch('/api/admin/refresh-summary', {
+        method: 'POST'
+      });
+      
+      if (!refreshResponse.ok) {
+        console.warn('Failed to refresh dashboard summary, proceeding with cached data');
+      }
+      
+      // Now fetch the dashboard stats
       const response = await fetch(`/api/dashboard-stats?period=${period}`);
+      
+      if (!response.ok) {
+        // If API fails, try to parse error or show generic message
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        } catch (parseError) {
+          throw new Error(`Failed to load dashboard data: ${response.status} ${response.statusText}`);
+        }
+      }
+      
       const data = await response.json();
       
-      if (response.ok) {
-        setDashboardData(data);
-      } else {
-        console.error('Error loading dashboard stats:', data.error);
-      }
+      // Map API response to frontend expected format
+      const mappedData = {
+        current: data.current,
+        changes: data.percentageChanges || {},
+        period: data.period,
+        comparisonDate: data.comparisonDate,
+        historical: data.historical
+      };
+      
+      setDashboardData(mappedData);
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load dashboard data');
+      
+      // Set fallback data so dashboard still shows something
+      setDashboardData({
+        current: {
+          totalUsers: 2,
+          totalProducts: 0,
+          totalCategories: 0,
+          totalOrders: 0,
+          totalRevenue: 0,
+          activeProducts: 0,
+          pendingOrders: 0
+        },
+        changes: {
+          totalUsers: { value: 0, type: 'neutral' },
+          totalProducts: { value: 0, type: 'neutral' },
+          totalCategories: { value: 0, type: 'neutral' },
+          totalOrders: { value: 0, type: 'neutral' },
+          totalRevenue: { value: 0, type: 'neutral' },
+          activeProducts: { value: 0, type: 'neutral' },
+          pendingOrders: { value: 0, type: 'neutral' }
+        },
+        period: period,
+        comparisonDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const getStatCards = () => {
-    if (!dashboardData) return [];
+    if (!dashboardData || !dashboardData.current) return [];
 
-    const { current, changes } = dashboardData;
+    const { current, changes = {} } = dashboardData;
 
-    const formatChange = (change: PercentageChange) => {
-      if (change.value === 0) return '0%';
+    const formatChange = (change: PercentageChange | undefined) => {
+      if (!change) return '0%';
+      if (change.type === 'unavailable') {
+        return change.label || 'No data';
+      }
+      if (change.value === 0 || change.value === null) return '0%';
       const sign = change.type === 'positive' ? '+' : change.type === 'negative' ? '-' : '';
       return `${sign}${change.value}%`;
     };
+
+    const safeChange = (property: keyof typeof changes): PercentageChange => 
+      changes[property] || { value: 0, type: 'neutral' };
 
     return [
       {
@@ -89,40 +152,40 @@ export default function AdminDashboard() {
         value: current.totalUsers,
         icon: Users,
         color: 'bg-blue-500',
-        change: formatChange(changes.totalUsers),
-        changeType: changes.totalUsers.type
+        change: formatChange(safeChange('totalUsers')),
+        changeType: safeChange('totalUsers').type
       },
       {
         name: 'Total Products',
         value: current.totalProducts,
         icon: Package,
         color: 'bg-green-500',
-        change: formatChange(changes.totalProducts),
-        changeType: changes.totalProducts.type
+        change: formatChange(safeChange('totalProducts')),
+        changeType: safeChange('totalProducts').type
       },
       {
         name: 'Categories',
         value: current.totalCategories,
         icon: FolderOpen,
         color: 'bg-purple-500',
-        change: formatChange(changes.totalCategories),
-        changeType: changes.totalCategories.type
+        change: formatChange(safeChange('totalCategories')),
+        changeType: safeChange('totalCategories').type
       },
       {
         name: 'Total Orders',
         value: current.totalOrders,
         icon: ShoppingCart,
         color: 'bg-orange-500',
-        change: formatChange(changes.totalOrders),
-        changeType: changes.totalOrders.type
+        change: formatChange(safeChange('totalOrders')),
+        changeType: safeChange('totalOrders').type
       },
       {
         name: 'Revenue',
         value: `$${current.totalRevenue.toLocaleString()}`,
         icon: DollarSign,
         color: 'bg-emerald-500',
-        change: formatChange(changes.totalRevenue),
-        changeType: changes.totalRevenue.type
+        change: formatChange(safeChange('totalRevenue')),
+        changeType: safeChange('totalRevenue').type
       },
       {
         name: 'Active Products',
@@ -130,7 +193,7 @@ export default function AdminDashboard() {
         icon: CheckCircle,
         color: 'bg-green-500',
         change: `${Math.round((current.activeProducts / Math.max(current.totalProducts, 1)) * 100)}%`,
-        changeType: 'positive'
+        changeType: 'positive' as const
       }
     ];
   };
@@ -158,10 +221,19 @@ export default function AdminDashboard() {
             {dashboardData && (
               <p className="mt-1 text-xs text-gray-400">
                 Changes compared to {dashboardData.comparisonDate} ({dashboardData.period})
+                {dashboardData.hasHistorical === false && (
+                  <span className="text-amber-600 ml-2">⚠️ No historical data available</span>
+                )}
               </p>
             )}
           </div>
           <div className="flex space-x-2">
+            <button
+              onClick={loadDashboardStats}
+              className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              Refresh
+            </button>
             <select
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
@@ -173,6 +245,22 @@ export default function AdminDashboard() {
             </select>
           </div>
         </div>
+
+        {/* Error Alert */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <AlertCircle className="h-5 w-5 text-red-400" />
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Dashboard Data Unavailable</h3>
+                <p className="mt-1 text-sm text-red-700">{error}</p>
+                <p className="mt-1 text-xs text-red-600">
+                  Showing fallback data. Check your connection and try refreshing.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -197,7 +285,8 @@ export default function AdminDashboard() {
                   </p>
                   <p className={`ml-2 flex items-baseline text-sm font-semibold ${
                     stat.changeType === 'positive' ? 'text-green-600' : 
-                    stat.changeType === 'negative' ? 'text-red-600' : 'text-gray-500'
+                    stat.changeType === 'negative' ? 'text-red-600' : 
+                    stat.changeType === 'unavailable' ? 'text-amber-600' : 'text-gray-500'
                   }`}>
                     {stat.change}
                   </p>
