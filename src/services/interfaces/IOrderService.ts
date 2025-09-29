@@ -116,3 +116,5 @@ export interface IOrderService {
   getOrdersByDateRange(dateFrom: Date, dateTo: Date): Promise<Order[]>;
   getOrdersByAmountRange(minAmount: number, maxAmount: number): Promise<Order[]>;
 }
+
+
