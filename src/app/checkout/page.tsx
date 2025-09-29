@@ -201,6 +201,43 @@ export default function CheckoutPage() {
     return true;
   };
 
+  const validateStock = async () => {
+    const itemsToProcess = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+    
+    const stockValidationRequest = {
+      items: itemsToProcess.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity
+      }))
+    };
+
+    try {
+      const response = await fetch('/api/cart/validate-stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(stockValidationRequest),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to validate stock');
+      }
+
+      if (!data.success || !data.data.isValid) {
+        const errorMessages = data.data.errors || ['Product validation failed'];
+        throw new Error(errorMessages.join('. '));
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Product validation error:', error);
+      throw error;
+    }
+  };
+
   const handlePlaceOrder = async () => {
     if (!validateForm()) return;
 
@@ -208,6 +245,9 @@ export default function CheckoutPage() {
     setError(null);
 
     try {
+      // Validate product availability and stock before proceeding
+      await validateStock();
+
       // Group items by business owner
       const itemsToProcess = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
       const ordersByBusinessOwner = itemsToProcess.reduce((acc, item) => {

@@ -388,7 +388,10 @@ export class OrderService implements IOrderService {
     }
 
     if (data.items) {
-      data.items.forEach((item, index) => {
+      // Validate stock availability for each item
+      for (let index = 0; index < data.items.length; index++) {
+        const item = data.items[index];
+        
         if (!item.productId) {
           errors.push(`Item ${index + 1}: Product ID is required`);
         }
@@ -398,7 +401,24 @@ export class OrderService implements IOrderService {
         if (!item.price || item.price < 0) {
           errors.push(`Item ${index + 1}: Valid price is required`);
         }
-      });
+
+        // Check stock availability and product status
+        if (item.productId && item.quantity > 0) {
+          try {
+            const product = await this.productRepository.findById(item.productId);
+            if (!product) {
+              errors.push(`Item ${index + 1}: Product not found`);
+            } else if (product.status !== 'active') {
+              errors.push(`Item ${index + 1}: "${product.name}" is no longer available (product is ${product.status})`);
+            } else if (product.stockQuantity < item.quantity) {
+              errors.push(`Item ${index + 1}: "${product.name}" is out of stock. Available: ${product.stockQuantity}, Requested: ${item.quantity}`);
+            }
+          } catch (error) {
+            console.error(`Error checking product ${item.productId}:`, error);
+            errors.push(`Item ${index + 1}: Unable to verify product availability`);
+          }
+        }
+      }
     }
 
     if (!data.shippingAddress) {

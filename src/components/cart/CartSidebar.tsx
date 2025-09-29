@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -12,7 +12,8 @@ import {
   Trash2,
   ArrowRight,
   Package,
-  Trash
+  Trash,
+  AlertTriangle
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -20,6 +21,67 @@ import Link from 'next/link';
 export function CartSidebar() {
   const { state, removeItem, updateQuantity, closeCart, getTotalAmount } = useCart();
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [stockWarnings, setStockWarnings] = useState<Record<string, { available: number; requested: number }>>({});
+  const [inactiveWarnings, setInactiveWarnings] = useState<Record<string, { status: string }>>({});
+
+  // Check stock availability for cart items
+  useEffect(() => {
+    const checkStock = async () => {
+      if (!state.cart?.items || state.cart.items.length === 0) {
+        setStockWarnings({});
+        setInactiveWarnings({});
+        return;
+      }
+
+      try {
+        const stockValidationRequest = {
+          items: state.cart.items.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity
+          }))
+        };
+
+        const response = await fetch('/api/cart/validate-stock', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(stockValidationRequest),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          const stockWarnings: Record<string, { available: number; requested: number }> = {};
+          const inactiveWarnings: Record<string, { status: string }> = {};
+          
+          if (data.data.outOfStockItems) {
+            data.data.outOfStockItems.forEach((item: any) => {
+              stockWarnings[item.productId] = {
+                available: item.availableQuantity,
+                requested: item.requestedQuantity
+              };
+            });
+          }
+          
+          if (data.data.inactiveItems) {
+            data.data.inactiveItems.forEach((item: any) => {
+              inactiveWarnings[item.productId] = {
+                status: item.status
+              };
+            });
+          }
+          
+          setStockWarnings(stockWarnings);
+          setInactiveWarnings(inactiveWarnings);
+        }
+      } catch (error) {
+        console.error('Error checking stock:', error);
+      }
+    };
+
+    checkStock();
+  }, [state.cart?.items]);
 
   const handleQuantityChange = (itemId: string, newQuantity: number) => {
     if (newQuantity < 1) {
@@ -217,6 +279,26 @@ export function CartSidebar() {
                     {item.selectedColorId && (
                       <div className="text-xs text-gray-500">
                         Color: {item.selectedColorId}
+                      </div>
+                    )}
+
+                    {/* Inactive Product Warning */}
+                    {inactiveWarnings[item.productId] && (
+                      <div className="flex items-center space-x-1 mt-1">
+                        <AlertTriangle className="w-3 h-3 text-red-500" />
+                        <p className="text-xs text-red-600">
+                          Product is {inactiveWarnings[item.productId].status}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Stock Warning */}
+                    {stockWarnings[item.productId] && (
+                      <div className="flex items-center space-x-1 mt-1">
+                        <AlertTriangle className="w-3 h-3 text-red-500" />
+                        <p className="text-xs text-red-600">
+                          Only {stockWarnings[item.productId].available} available
+                        </p>
                       </div>
                     )}
 
