@@ -464,3 +464,5 @@ for (let i = 0; i < args.length; i++) {
 
 // Run tests
 runAllTests();
+
+
