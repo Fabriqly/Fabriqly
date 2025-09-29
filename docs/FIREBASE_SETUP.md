@@ -396,6 +396,360 @@ The `/api/users/update-role` endpoint includes automatic user document creation:
 - If document doesn't exist, creates new document with Google OAuth data
 - Ensures all Google OAuth users have proper Firestore documents
 
+## 🔧 Firebase Email Troubleshooting
+
+### Password Reset Email Not Received
+
+If users are not receiving password reset emails from Firebase, follow these steps:
+
+#### 1. Check Firebase Console Configuration
+1. **Go to Firebase Console** → Your Project → Authentication → Templates
+2. **Verify Email Templates are enabled**:
+   - Password reset template should be active
+   - Check if custom templates are configured
+3. **Check Authorized Domains**:
+   - Go to Authentication → Settings → Authorized domains
+   - Ensure your domain is listed (localhost:3000 for development)
+
+#### 2. Common Issues and Solutions
+
+**Issue: Email goes to spam**
+- Check spam/junk folder
+- Add `noreply@firebaseapp.com` to contacts
+- Configure email filters to allow Firebase emails
+
+**Issue: User not found error**
+- Verify the email address exists in Firebase Auth
+- Check for typos in email address
+- Ensure user account was created properly
+
+**Issue: Too many requests**
+- Wait 5-10 minutes before retrying
+- Implement rate limiting on frontend
+- Check for multiple rapid requests
+
+**Issue: Invalid email format**
+- Validate email format on frontend
+- Check for special characters or spaces
+- Ensure proper email validation
+
+#### 3. Firebase Configuration Checklist
+- [ ] Firebase project is active and not suspended
+- [ ] Authentication is enabled
+- [ ] Email/Password sign-in method is enabled
+- [ ] Authorized domains include your domain
+- [ ] Email templates are configured
+- [ ] No billing issues (if using paid features)
+
+#### 4. Testing Steps
+1. **Test with a known working email**:
+   ```bash
+   # Use a Gmail or other reliable email service
+   # Test with the same email used for account creation
+   ```
+2. **Check browser console**:
+   - Look for Firebase errors
+   - Check network requests
+   - Verify API responses
+3. **Check server logs**:
+   - Look for Firebase error codes
+   - Check for rate limiting
+   - Verify email sending status
+
+#### 5. Alternative Solutions
+If Firebase email continues to fail:
+1. **Use custom email service**:
+   - Configure SMTP in environment variables
+   - Use the custom forgot-password endpoint
+   - Send emails through your own service
+2. **Manual password reset**:
+   - Admin can reset passwords through Firebase Console
+   - Create admin interface for password management
+3. **Contact Firebase Support**:
+   - If issues persist, contact Firebase support
+   - Provide project ID and error details
+
+#### 6. Common Error Codes
+- `auth/user-not-found`: Email doesn't exist in Firebase
+- `auth/invalid-email`: Email format is invalid
+- `auth/too-many-requests`: Rate limit exceeded
+- `auth/network-request-failed`: Network connectivity issue
+- `auth/internal-error`: Firebase internal error
+
+#### 7. Best Practices
+1. **Always check spam folder** in user instructions
+2. **Implement proper error handling** for all Firebase errors
+3. **Add rate limiting** to prevent abuse
+4. **Provide clear user feedback** about email delivery
+5. **Test with multiple email providers** (Gmail, Yahoo, Outlook)
+6. **Monitor email delivery rates** in Firebase Console
+7. **Keep Firebase SDK updated** to latest version
+
+## 🔥 Firebase Indexes Required for Optimized Queries
+
+### Current Issue
+The optimized product queries are failing because Firebase requires composite indexes for queries that combine filtering and sorting.
+
+### Required Indexes to Create
+
+#### 1. Business Owner + CreatedAt (Most Important)
+**Collection:** `products`
+**Fields:**
+- `businessOwnerId` (Ascending)
+- `createdAt` (Descending)
+
+**Purpose:** Enables fast queries for business owner products sorted by creation date
+
+#### 2. Business Owner + Price
+**Collection:** `products`
+**Fields:**
+- `businessOwnerId` (Ascending)
+- `price` (Descending)
+
+**Purpose:** Enables price-based sorting for business owner products
+
+#### 3. Business Owner + Name
+**Collection:** `products`
+**Fields:**
+- `businessOwnerId` (Ascending)
+- `name` (Ascending)
+
+**Purpose:** Enables name-based sorting for business owner products
+
+#### 4. Status + CreatedAt
+**Collection:** `products`
+**Fields:**
+- `status` (Ascending)
+- `createdAt` (Descending)
+
+**Purpose:** Enables public queries filtered by status
+
+#### 5. Category + CreatedAt
+**Collection:** `products`
+**Fields:**
+- `categoryId` (Ascending)
+- `createdAt` (Descending)
+
+**Purpose:** Enables category-based queries with sorting
+
+#### 6. Business Owner + Status + CreatedAt
+**Collection:** `products`
+**Fields:**
+- `businessOwnerId` (Ascending)
+- `status` (Ascending)
+- `createdAt` (Descending)
+
+**Purpose:** Enables complex filtering for business owners
+
+### How to Create Indexes in Firebase Console
+
+#### Method 1: Automatic (Recommended)
+1. Go to Firebase Console → Firestore Database
+2. Try to run a query that needs an index
+3. Firebase will show an error with a link to create the index
+4. Click the link and Firebase will auto-generate the index
+
+#### Method 2: Manual
+1. Go to Firebase Console → Firestore Database
+2. Click on "Indexes" tab
+3. Click "Add index"
+4. Select collection: `products`
+5. Add fields in order:
+   - Field: `businessOwnerId`, Order: `Ascending`
+   - Field: `createdAt`, Order: `Descending`
+6. Click "Create"
+
+### Quick Fix (Temporary)
+The system will now:
+1. **Try the optimized query first**
+2. **If it fails** (missing index), fall back to basic query
+3. **Apply sorting in memory** instead of Firestore
+4. **Log a warning** so you know indexes are needed
+
+### Performance Impact
+
+#### With Indexes (Optimal)
+- ✅ Query time: ~100-300ms
+- ✅ Scales well with data growth
+- ✅ Efficient database usage
+
+#### Without Indexes (Fallback)
+- ⚠️ Query time: ~500-1000ms
+- ⚠️ Fetches all products then filters
+- ⚠️ Less efficient but still works
+
+### Priority Order
+Create indexes in this order:
+1. **HIGH PRIORITY**: `businessOwnerId` + `createdAt`
+2. **HIGH PRIORITY**: `businessOwnerId` + `price`
+3. **MEDIUM PRIORITY**: `status` + `createdAt`
+4. **MEDIUM PRIORITY**: `categoryId` + `createdAt`
+5. **LOW PRIORITY**: `businessOwnerId` + `name`
+6. **LOW PRIORITY**: `businessOwnerId` + `status` + `createdAt`
+
+### Testing After Creating Indexes
+1. **Create the first index** (`businessOwnerId` + `createdAt`)
+2. **Test the products page** - should be much faster
+3. **Check browser console** - should see no more warnings
+4. **Create additional indexes** as needed
+
+### Index Creation Commands (Firebase CLI)
+If you prefer using Firebase CLI:
+```bash
+# Install Firebase CLI if not already installed
+npm install -g firebase-tools
+
+# Login to Firebase
+firebase login
+
+# Initialize Firebase in your project
+firebase init firestore
+
+# Create indexes using firestore.indexes.json
+firebase deploy --only firestore:indexes
+```
+
+### Expected Results
+After creating the indexes:
+- ✅ **No more 500 errors**
+- ✅ **Faster product loading** (2-5x improvement)
+- ✅ **Better scalability**
+- ✅ **Reduced database costs**
+
+## 🔥 Firebase Quota Optimization
+
+### Current Quota Issues
+Your Firebase project has reached quota limits. This guide outlines implemented optimizations to reduce Firebase usage.
+
+### Implemented Optimizations
+
+#### 1. Aggressive Caching Strategy
+- **Dashboard Stats**: 5-minute cache for dashboard statistics
+- **Analytics**: 10-minute cache for analytics data
+- **Products**: 2-minute cache for product listings
+- **Individual Entities**: Cached with TTL for users, products, categories
+
+#### 2. Query Limits
+- **Users**: Limited to 1000 most recent records
+- **Products**: Limited to 1000 most recent records
+- **Categories**: Limited to 100 most recent records
+- **Orders**: Limited to 1000 most recent records
+- **Activities**: Limited to 500 most recent records for stats
+- **Colors**: Limited to 200 most recent records
+- **Product Images**: Limited to 10 images per product
+
+#### 3. Optimized Data Fetching
+- All queries now use `orderBy` with `limit` to reduce data transfer
+- Cached responses prevent repeated database calls
+- Smart cache invalidation on data updates
+
+### Expected Quota Reduction
+
+#### Before Optimization:
+- Dashboard stats: ~4 full collection reads per request
+- Analytics: ~4 full collection reads per request
+- Products: Full product collection read per request
+- **Total**: ~8-12 full collection reads per page load
+
+#### After Optimization:
+- Dashboard stats: 1 read every 5 minutes (cached)
+- Analytics: 1 read every 10 minutes (cached)
+- Products: 1 read every 2 minutes (cached)
+- **Total**: ~1-2 reads per page load (90%+ reduction)
+
+### Additional Recommendations
+
+#### 1. Implement Pagination
+```typescript
+// Use pagination for large datasets
+const products = await FirebaseAdminService.queryDocuments(
+  Collections.PRODUCTS,
+  [],
+  { field: 'createdAt', direction: 'desc' },
+  20 // Limit to 20 items per page
+);
+```
+
+#### 2. Use Composite Indexes
+Create indexes for common query patterns:
+- `businessOwnerId + createdAt`
+- `status + createdAt`
+- `categoryId + createdAt`
+
+#### 3. Implement Offline Support
+- Cache frequently accessed data locally
+- Use service workers for offline functionality
+- Implement background sync for updates
+
+#### 4. Monitor Usage
+```typescript
+// Add usage monitoring
+console.log('Firebase reads:', readCount);
+console.log('Cache hits:', cacheHits);
+console.log('Cache miss rate:', (cacheMisses / totalRequests) * 100);
+```
+
+### Cache Configuration
+
+#### Cache TTL Settings:
+- **Dashboard Stats**: 5 minutes
+- **Analytics**: 10 minutes
+- **Products**: 2 minutes
+- **Users**: 15 minutes
+- **Categories**: 30 minutes
+- **Activities**: 1 minute (frequently changing)
+- **Activity Stats**: 5 minutes
+- **Colors**: 15 minutes (rarely changing)
+- **Cart**: 2 minutes (frequently changing)
+- **Orders**: 3 minutes (moderately changing)
+
+#### Cache Size Limits:
+- Maximum 1000 entries
+- LRU eviction policy
+- Automatic cleanup of expired entries
+
+### Monitoring & Alerts
+
+#### Key Metrics to Track:
+1. **Read Operations**: Monitor daily read counts
+2. **Cache Hit Rate**: Aim for >80% hit rate
+3. **Response Times**: Should improve with caching
+4. **Error Rates**: Monitor for cache-related issues
+
+#### Firebase Console Monitoring:
+- Go to Firebase Console → Usage
+- Monitor Firestore reads/writes
+- Set up billing alerts for quota limits
+
+### Next Steps
+1. **Deploy Changes**: Deploy the optimized code
+2. **Monitor Usage**: Check Firebase Console for reduced usage
+3. **Fine-tune Cache**: Adjust TTL based on usage patterns
+4. **Implement More Caching**: Add caching to other endpoints
+5. **Consider Upgrading**: If still hitting limits, consider Firebase Blaze plan
+
+### Pro Tips
+1. **Use Firebase Emulator**: Test locally without quota usage
+2. **Batch Operations**: Group multiple operations together
+3. **Optimize Queries**: Use specific field selections
+4. **Implement CDN**: Use Cloudflare or similar for static assets
+5. **Database Design**: Normalize data to reduce document size
+
+### Troubleshooting
+
+#### If Still Hitting Quota:
+1. Check for real-time listeners (`onSnapshot`)
+2. Look for infinite loops in data fetching
+3. Verify cache is working (check network tab)
+4. Consider implementing request deduplication
+5. Use Firebase Performance Monitoring
+
+#### Cache Issues:
+1. Clear cache: `CacheService.clear()`
+2. Check cache size: `CacheService.getStats()`
+3. Verify TTL settings
+4. Monitor memory usage
+
 ## 🔮 Future Enhancements
 
 1. **Advanced Analytics**: Firebase Analytics integration
