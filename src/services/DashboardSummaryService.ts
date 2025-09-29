@@ -15,8 +15,8 @@ export class DashboardSummaryService {
     try {
       // Try cache first
       const cached = await CacheService.get(this.CACHE_KEY);
-      if (cached) {
-        return cached;
+      if (cached && typeof cached === 'object' && 'totalUsers' in cached) {
+        return cached as DashboardSummary;
       }
 
       // Fetch from database
