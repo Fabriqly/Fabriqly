@@ -87,7 +87,7 @@ function LoginFormContent() {
         const session = await response.json();
         
         if (session?.user?.role === 'customer') {
-          router.push('/customer');
+          router.push('/explore');
         } else if (session?.user?.role === 'admin') {
           // Admin goes to admin dashboard
           router.push('/dashboard/admin');

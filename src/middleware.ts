@@ -21,7 +21,7 @@ export default withAuth(
             req.nextUrl.pathname.startsWith('/reset-password') ||
             req.nextUrl.pathname.startsWith('/role-selection') ||
             req.nextUrl.pathname.startsWith('/business/login') ||
-            req.nextUrl.pathname.startsWith('/customer') ||
+            req.nextUrl.pathname.startsWith('/explore') ||
             req.nextUrl.pathname === '/') {
           return true;
         }
