@@ -450,19 +450,55 @@ export class DesignerProfileService implements IDesignerProfileService {
         return cached;
       }
 
-      const stats = await this.designerProfileRepository.getDesignerStats(designerId);
+      // Get real-time stats from designs instead of cached profile stats
+      const realTimeStats = await this.getRealTimeDesignerStats(designerId);
       
       // Cache the result
-      if (stats) {
-        await CacheService.set(cacheKey, stats, 5 * 60 * 1000); // 5 minutes
+      if (realTimeStats) {
+        await CacheService.set(cacheKey, realTimeStats, 5 * 60 * 1000); // 5 minutes (optimized for better performance)
       }
 
-      return stats;
+      return realTimeStats;
     } catch (error) {
       monitor.recordError(error);
       throw error;
     } finally {
       monitor.end();
+    }
+  }
+
+  async getRealTimeDesignerStats(designerId: string): Promise<DesignerProfileStats | null> {
+    try {
+      // Get the designer profile to get basic info
+      const profile = await this.designerProfileRepository.findById(designerId);
+      if (!profile) {
+        return null;
+      }
+
+      // Get real-time stats from designs
+      const { DesignService } = await import('./DesignService');
+      const { DesignRepository } = await import('../repositories/DesignRepository');
+      const { ActivityRepository } = await import('../repositories/ActivityRepository');
+      
+      const designRepository = new DesignRepository();
+      const activityRepository = new ActivityRepository();
+      const designService = new DesignService(designRepository, activityRepository);
+      
+      const designStats = await designService.getDesignStats(designerId);
+
+      return {
+        totalDesigns: designStats.totalDesigns,
+        totalDownloads: designStats.totalDownloads,
+        totalViews: designStats.totalViews,
+        averageRating: designStats.averageRating,
+        isVerified: profile.isVerified,
+        isActive: profile.isActive,
+        createdAt: profile.createdAt instanceof Date ? profile.createdAt : profile.createdAt.toDate()
+      };
+    } catch (error) {
+      console.error('Error getting real-time designer stats:', error);
+      // Fallback to cached profile stats
+      return this.designerProfileRepository.getDesignerStats(designerId);
     }
   }
 
@@ -513,6 +549,40 @@ export class DesignerProfileService implements IDesignerProfileService {
     await this.designerProfileRepository.updateAverageRating(designerId, newRating);
     await CacheService.invalidate(`designer_profile_${designerId}`);
     await CacheService.invalidate(`designer_stats_${designerId}`);
+  }
+
+  async syncPortfolioStatsWithDesigns(designerId: string): Promise<DesignerProfile> {
+    const monitor = new PerformanceMonitor('DesignerProfileService.syncPortfolioStatsWithDesigns');
+    
+    try {
+      // Get real-time stats from designs
+      const realTimeStats = await this.getRealTimeDesignerStats(designerId);
+      if (!realTimeStats) {
+        throw new Error('Could not get real-time stats');
+      }
+
+      // Update the profile with real-time stats
+      const updatedProfile = await this.designerProfileRepository.update(designerId, {
+        portfolioStats: {
+          totalDesigns: realTimeStats.totalDesigns,
+          totalDownloads: realTimeStats.totalDownloads,
+          totalViews: realTimeStats.totalViews,
+          averageRating: realTimeStats.averageRating
+        },
+        updatedAt: new Date()
+      });
+
+      // Invalidate cache
+      await CacheService.invalidate(`designer_stats_${designerId}`);
+      await CacheService.invalidate(`designer_profile_${designerId}`);
+
+      return updatedProfile;
+    } catch (error) {
+      monitor.recordError(error);
+      throw error;
+    } finally {
+      monitor.end();
+    }
   }
 
   async verifyDesigner(designerId: string): Promise<DesignerProfile> {

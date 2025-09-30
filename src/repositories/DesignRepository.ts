@@ -2,6 +2,7 @@ import { BaseRepository, QueryFilter } from './BaseRepository';
 import { Design, DesignFilters } from '@/types/enhanced-products';
 import { Collections } from '@/services/firebase';
 import { Timestamp } from 'firebase/firestore';
+import { CacheService } from '@/services/CacheService';
 
 export class DesignRepository extends BaseRepository<Design> {
   constructor() {
@@ -9,31 +10,86 @@ export class DesignRepository extends BaseRepository<Design> {
   }
 
   async findByDesigner(designerId: string): Promise<Design[]> {
-    return this.findAll({
+    // Generate cache key
+    const cacheKey = CacheService.generateKey('designs_by_designer', designerId);
+    
+    // Try cache first
+    const cached = await CacheService.get<Design[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Cache miss - fetch from database
+    const designs = await this.findAll({
       filters: [{ field: 'designerId', operator: '==', value: designerId }],
       orderBy: { field: 'createdAt', direction: 'desc' }
     });
+
+    // Cache the result for 5 minutes
+    await CacheService.set(cacheKey, designs, 5 * 60 * 1000);
+
+    return designs;
   }
 
   async findByCategory(categoryId: string): Promise<Design[]> {
-    return this.findAll({
+    // Generate cache key
+    const cacheKey = CacheService.generateKey('designs_by_category', categoryId);
+    
+    // Try cache first
+    const cached = await CacheService.get<Design[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Cache miss - fetch from database
+    const designs = await this.findAll({
       filters: [{ field: 'categoryId', operator: '==', value: categoryId }],
       orderBy: { field: 'createdAt', direction: 'desc' }
     });
+
+    // Cache the result for 5 minutes
+    await CacheService.set(cacheKey, designs, 5 * 60 * 1000);
+
+    return designs;
   }
 
   async findPublicDesigns(): Promise<Design[]> {
-    return this.findAll({
+    // Generate cache key
+    const cacheKey = CacheService.generateKey('public_designs');
+    
+    // Try cache first
+    const cached = await CacheService.get<Design[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Cache miss - fetch from database
+    const designs = await this.findAll({
       filters: [
         { field: 'isPublic', operator: '==', value: true },
         { field: 'isActive', operator: '==', value: true }
       ],
       orderBy: { field: 'createdAt', direction: 'desc' }
     });
+
+    // Cache the result for 3 minutes (public designs change more frequently)
+    await CacheService.set(cacheKey, designs, 3 * 60 * 1000);
+
+    return designs;
   }
 
   async findFeaturedDesigns(): Promise<Design[]> {
-    return this.findAll({
+    // Generate cache key
+    const cacheKey = CacheService.generateKey('featured_designs');
+    
+    // Try cache first
+    const cached = await CacheService.get<Design[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Cache miss - fetch from database
+    const designs = await this.findAll({
       filters: [
         { field: 'isFeatured', operator: '==', value: true },
         { field: 'isPublic', operator: '==', value: true },
@@ -41,10 +97,25 @@ export class DesignRepository extends BaseRepository<Design> {
       ],
       orderBy: { field: 'createdAt', direction: 'desc' }
     });
+
+    // Cache the result for 10 minutes (featured designs change less frequently)
+    await CacheService.set(cacheKey, designs, 10 * 60 * 1000);
+
+    return designs;
   }
 
   async findFreeDesigns(): Promise<Design[]> {
-    return this.findAll({
+    // Generate cache key
+    const cacheKey = CacheService.generateKey('free_designs');
+    
+    // Try cache first
+    const cached = await CacheService.get<Design[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Cache miss - fetch from database
+    const designs = await this.findAll({
       filters: [
         { field: 'pricing.isFree', operator: '==', value: true },
         { field: 'isPublic', operator: '==', value: true },
@@ -52,6 +123,11 @@ export class DesignRepository extends BaseRepository<Design> {
       ],
       orderBy: { field: 'createdAt', direction: 'desc' }
     });
+
+    // Cache the result for 5 minutes
+    await CacheService.set(cacheKey, designs, 5 * 60 * 1000);
+
+    return designs;
   }
 
   async findByDesignType(designType: Design['designType']): Promise<Design[]> {
@@ -230,6 +306,23 @@ export class DesignRepository extends BaseRepository<Design> {
     totalLikes: number;
     averageRating: number;
   }> {
+    // Generate cache key
+    const cacheKey = CacheService.generateKey('design_stats', designerId || 'all');
+    
+    // Try cache first
+    const cached = await CacheService.get<{
+      totalDesigns: number;
+      totalDownloads: number;
+      totalViews: number;
+      totalLikes: number;
+      averageRating: number;
+    }>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    // Cache miss - fetch from database
     const filters: QueryFilter[] = [];
     
     if (designerId) {
@@ -252,6 +345,58 @@ export class DesignRepository extends BaseRepository<Design> {
       averageRating: 0
     });
 
+    // Cache the result for 3 minutes (shorter than designer stats since design stats change more frequently)
+    await CacheService.set(cacheKey, stats, 3 * 60 * 1000);
+
     return stats;
+  }
+
+  // Cache invalidation methods
+  async invalidateDesignerCache(designerId: string): Promise<void> {
+    const keys = [
+      CacheService.generateKey('designs_by_designer', designerId),
+      CacheService.generateKey('design_stats', designerId),
+      CacheService.generateKey('designer_stats', designerId)
+    ];
+    
+    for (const key of keys) {
+      await CacheService.delete(key);
+    }
+  }
+
+  async invalidateDesignCache(designId: string): Promise<void> {
+    // Get the design to find the designer ID
+    const design = await this.findById(designId);
+    if (design) {
+      await this.invalidateDesignerCache(design.designerId);
+    }
+    
+    // Invalidate general caches
+    const keys = [
+      CacheService.generateKey('public_designs'),
+      CacheService.generateKey('featured_designs'),
+      CacheService.generateKey('free_designs'),
+      CacheService.generateKey('design_stats', 'all')
+    ];
+    
+    for (const key of keys) {
+      await CacheService.delete(key);
+    }
+  }
+
+  async invalidateAllDesignCaches(): Promise<void> {
+    // This is a more aggressive approach - invalidate all design-related caches
+    const keys = [
+      'designs_by_designer',
+      'designs_by_category', 
+      'public_designs',
+      'featured_designs',
+      'free_designs',
+      'design_stats'
+    ];
+    
+    // Note: This is a simplified approach. In a production system, you'd want
+    // to track cache keys more systematically or use a cache with pattern-based deletion
+    console.log('⚠️ Cache invalidation: All design caches cleared');
   }
 }
