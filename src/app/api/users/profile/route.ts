@@ -90,8 +90,7 @@ export async function PUT(request: NextRequest) {
       displayName: body.displayName,
       firstName: body.firstName,
       lastName: body.lastName,
-      hasAddress: !!body.address,
-      hasPreferences: !!body.preferences
+      hasAddress: !!body.address
     });
     
     const {
@@ -100,18 +99,20 @@ export async function PUT(request: NextRequest) {
       lastName,
       phone,
       dateOfBirth,
-      address,
-      preferences
+      address
     } = body;
 
     // Validate required fields
-    if (!displayName || !firstName || !lastName) {
+    if (!firstName || !lastName) {
       console.error('❌ Validation failed: Missing required fields');
       return NextResponse.json(
-        { error: 'Display name, first name, and last name are required' },
+        { error: 'First name and last name are required' },
         { status: 400 }
       );
     }
+    
+    // Auto-generate displayName from firstName and lastName if not provided
+    const finalDisplayName = displayName || `${firstName} ${lastName}`.trim();
 
     const userDocRef = doc(db, Collections.USERS, session.user.id);
     const userDoc = await getDoc(userDocRef);
@@ -132,7 +133,7 @@ export async function PUT(request: NextRequest) {
 
     // Prepare update data with proper structure
     const updateData = {
-      displayName,
+      displayName: finalDisplayName,
       profile: {
         ...currentData.profile,
         firstName,
@@ -145,18 +146,7 @@ export async function PUT(request: NextRequest) {
           state: address.state || '',
           zipCode: address.zipCode || '',
           country: address.country || ''
-        } : (currentData.profile?.address || {}),
-        preferences: preferences ? {
-          notifications: {
-            email: preferences.notifications?.email ?? true,
-            sms: preferences.notifications?.sms ?? false,
-            push: preferences.notifications?.push ?? true
-          },
-          theme: preferences.theme || 'light'
-        } : (currentData.profile?.preferences || {
-          notifications: { email: true, sms: false, push: true },
-          theme: 'light'
-        })
+        } : (currentData.profile?.address || {})
       },
       updatedAt: new Date().toISOString()
     };
@@ -164,8 +154,7 @@ export async function PUT(request: NextRequest) {
     console.log('💾 Updating Firestore with data:', {
       displayName: updateData.displayName,
       profileKeys: Object.keys(updateData.profile),
-      hasAddress: !!updateData.profile.address,
-      hasPreferences: !!updateData.profile.preferences
+      hasAddress: !!updateData.profile.address
     });
 
     // Update in Firestore

@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { User, Mail, Phone, MapPin, Calendar, Settings, Save, ArrowLeft } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserProfile {
@@ -26,14 +26,6 @@ interface UserProfile {
       zipCode: string;
       country: string;
     };
-    preferences: {
-      notifications: {
-        email: boolean;
-        sms: boolean;
-        push: boolean;
-      };
-      theme: 'light' | 'dark';
-    };
   };
 }
 
@@ -48,7 +40,6 @@ export default function ProfilePage() {
 
   // Form state
   const [formData, setFormData] = useState({
-    displayName: '',
     firstName: '',
     lastName: '',
     phone: '',
@@ -59,14 +50,6 @@ export default function ProfilePage() {
       state: '',
       zipCode: '',
       country: ''
-    },
-    preferences: {
-      notifications: {
-        email: true,
-        sms: false,
-        push: true
-      },
-      theme: 'light' as 'light' | 'dark'
     }
   });
 
@@ -89,7 +72,6 @@ export default function ProfilePage() {
       if (response.ok && data.success) {
         setProfile(data.data);
         setFormData({
-          displayName: data.data.displayName || '',
           firstName: data.data.profile?.firstName || '',
           lastName: data.data.profile?.lastName || '',
           phone: data.data.profile?.phone || '',
@@ -100,14 +82,6 @@ export default function ProfilePage() {
             state: data.data.profile?.address?.state || '',
             zipCode: data.data.profile?.address?.zipCode || '',
             country: data.data.profile?.address?.country || ''
-          },
-          preferences: {
-            notifications: {
-              email: data.data.profile?.preferences?.notifications?.email ?? true,
-              sms: data.data.profile?.preferences?.notifications?.sms ?? false,
-              push: data.data.profile?.preferences?.notifications?.push ?? true
-            },
-            theme: data.data.profile?.preferences?.theme || 'light'
           }
         });
       } else {
@@ -142,20 +116,6 @@ export default function ProfilePage() {
     }
   };
 
-  const handlePreferenceChange = (type: 'notifications' | 'theme', key: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      preferences: {
-        ...prev.preferences,
-        [type]: type === 'notifications' 
-          ? {
-              ...(prev.preferences[type] as typeof prev.preferences.notifications),
-              [key]: value
-            }
-          : value
-      }
-    }));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,12 +124,18 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
+      // Generate displayName from firstName and lastName
+      const displayName = `${formData.firstName} ${formData.lastName}`.trim();
+      
       const response = await fetch('/api/users/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          displayName
+        }),
       });
 
       const data = await response.json();
@@ -186,7 +152,7 @@ export default function ProfilePage() {
           ...session,
           user: {
             ...session?.user,
-            name: formData.displayName
+            name: displayName
           }
         });
         console.log('✅ Session updated successfully');
@@ -258,30 +224,11 @@ export default function ProfilePage() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Input
-                label="Display Name"
-                name="displayName"
-                value={formData.displayName}
-                onChange={handleInputChange}
-                icon={<User size={18} />}
-                placeholder="How others see your name"
-                required
-              />
-
-              <Input
-                label="Email Address"
-                type="email"
-                value={profile.email}
-                icon={<Mail size={18} />}
-                disabled
-                className="bg-gray-50"
-                placeholder="Email cannot be changed"
-              />
-
-              <Input
                 label="First Name"
                 name="firstName"
                 value={formData.firstName}
                 onChange={handleInputChange}
+                icon={<User size={18} />}
                 placeholder="Your first name"
                 required
               />
@@ -291,9 +238,22 @@ export default function ProfilePage() {
                 name="lastName"
                 value={formData.lastName}
                 onChange={handleInputChange}
+                icon={<User size={18} />}
                 placeholder="Your last name"
                 required
               />
+
+              <div className="md:col-span-2">
+                <Input
+                  label="Email Address"
+                  type="email"
+                  value={profile.email}
+                  icon={<Mail size={18} />}
+                  disabled
+                  className="bg-gray-50"
+                  placeholder="Email cannot be changed"
+                />
+              </div>
 
               <Input
                 label="Phone Number"
@@ -365,65 +325,6 @@ export default function ProfilePage() {
                 onChange={handleInputChange}
                 placeholder="United States"
               />
-            </div>
-          </div>
-
-          {/* Preferences */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-              <Settings className="w-5 h-5 mr-2" />
-              Preferences
-            </h2>
-            
-            <div className="space-y-6">
-              {/* Notifications */}
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Notifications</h3>
-                <div className="space-y-3">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.preferences.notifications.email}
-                      onChange={(e) => handlePreferenceChange('notifications', 'email', e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="ml-3 text-sm text-gray-700">Email notifications</span>
-                  </label>
-
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.preferences.notifications.sms}
-                      onChange={(e) => handlePreferenceChange('notifications', 'sms', e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="ml-3 text-sm text-gray-700">SMS notifications</span>
-                  </label>
-
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.preferences.notifications.push}
-                      onChange={(e) => handlePreferenceChange('notifications', 'push', e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="ml-3 text-sm text-gray-700">Push notifications</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Theme */}
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Theme</h3>
-                <select
-                  value={formData.preferences.theme}
-                  onChange={(e) => handlePreferenceChange('theme', '', e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                >
-                  <option value="light">Light</option>
-                  <option value="dark">Dark</option>
-                </select>
-              </div>
             </div>
           </div>
 
