@@ -40,9 +40,9 @@ const navigationItems = [
   },
   {
     name: 'Profile',
-    href: '/dashboard/profile',
+    href: '/profile',
     icon: User,
-    description: 'Manage your profile'
+    description: 'Edit your profile'
   }
 ];
 

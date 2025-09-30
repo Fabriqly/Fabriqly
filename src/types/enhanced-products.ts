@@ -281,6 +281,7 @@ export interface DesignFilters {
   categoryId?: string;
   designType?: 'template' | 'custom' | 'premium';
   isPublic?: boolean;
+  isActive?: boolean;
   isFeatured?: boolean;
   isFree?: boolean;
   minPrice?: number;
@@ -302,12 +303,30 @@ export interface CreateDesignerProfileData {
   specialties: string[];
 }
 
+export interface UpdateDesignerProfileData {
+  businessName?: string;
+  bio?: string;
+  website?: string;
+  socialMedia?: DesignerProfile['socialMedia'];
+  specialties?: string[];
+}
+
 export interface CreateShopProfileData {
   businessName: string;
   description?: string;
   website?: string;
   address?: ShopProfile['address'];
   contactInfo: ShopProfile['contactInfo'];
+  businessHours?: ShopProfile['businessHours'];
+  socialMedia?: ShopProfile['socialMedia'];
+}
+
+export interface UpdateShopProfileData {
+  businessName?: string;
+  description?: string;
+  website?: string;
+  address?: ShopProfile['address'];
+  contactInfo?: ShopProfile['contactInfo'];
   businessHours?: ShopProfile['businessHours'];
   socialMedia?: ShopProfile['socialMedia'];
 }
@@ -323,6 +342,20 @@ export interface CreateDesignData {
   fileFormat: Design['fileFormat'];
   tags: string[];
   isPublic: boolean;
+  pricing?: Design['pricing'];
+}
+
+export interface UpdateDesignData {
+  designName?: string;
+  description?: string;
+  categoryId?: string;
+  designFileUrl?: string;
+  thumbnailUrl?: string;
+  previewUrl?: string;
+  designType?: Design['designType'];
+  fileFormat?: Design['fileFormat'];
+  tags?: string[];
+  isPublic?: boolean;
   pricing?: Design['pricing'];
 }
 

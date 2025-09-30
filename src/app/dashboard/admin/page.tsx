@@ -143,8 +143,10 @@ export default function AdminDashboard() {
       return `${sign}${change.value}%`;
     };
 
-    const safeChange = (property: keyof typeof changes): PercentageChange => 
-      changes[property] || { value: 0, type: 'neutral' };
+    const safeChange = (property: string): PercentageChange => {
+      const change = changes[property as keyof typeof changes];
+      return change || { value: 0, type: 'neutral' };
+    };
 
     return [
       {

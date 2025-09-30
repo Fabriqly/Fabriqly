@@ -21,6 +21,7 @@ import {
   Eye,
   Download,
   Star
+} from 'lucide-react';
 import { SupabaseStorageService, StorageBuckets } from '@/lib/supabase-storage';
 
 interface DesignFormProps {
