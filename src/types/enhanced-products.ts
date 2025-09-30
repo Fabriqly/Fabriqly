@@ -1,3 +1,4 @@
+
 import { Timestamp } from 'firebase/firestore';
 
 // Enhanced types based on ERD structure
@@ -345,18 +346,8 @@ export interface CreateDesignData {
   pricing?: Design['pricing'];
 }
 
-export interface UpdateDesignData {
-  designName?: string;
-  description?: string;
-  categoryId?: string;
-  designFileUrl?: string;
-  thumbnailUrl?: string;
-  previewUrl?: string;
-  designType?: Design['designType'];
-  fileFormat?: Design['fileFormat'];
-  tags?: string[];
-  isPublic?: boolean;
-  pricing?: Design['pricing'];
+export interface UpdateDesignData extends Partial<CreateDesignData> {
+  id: string;
 }
 
 export interface CreateColorData {
@@ -370,12 +361,6 @@ export interface CreateSizeChartData {
   description?: string;
   sizeData: SizeChart['sizeData'];
   categoryId?: string;
-}
-
-export interface CreateColorData {
-  colorName: string;
-  hexCode: string;
-  rgbCode: string;
 }
 
 export interface UpdateColorData extends Partial<CreateColorData> {
@@ -412,3 +397,4 @@ export interface UpdateCategoryData extends Partial<CreateCategoryData> {
 export interface UpdateSizeChartData extends Partial<CreateSizeChartData> {
   id: string;
 }
+```

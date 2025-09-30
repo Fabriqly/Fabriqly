@@ -14,19 +14,25 @@ import { ErrorHandler } from '@/errors/ErrorHandler';
 // GET /api/categories - List all categories
 export async function GET(request: NextRequest) {
   try {
+    console.log('Categories API called with URL:', request.url);
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get('includeInactive') === 'true';
     const parentId = searchParams.get('parentId');
     const level = searchParams.get('level');
     const format = searchParams.get('format') || 'flat'; // 'flat' or 'tree'
 
+    console.log('Categories API params:', { includeInactive, parentId, level, format });
+
     const categoryService = ServiceContainer.getInstance().get<CategoryService>('categoryService');
 
     let categories: Category[] = [];
 
     if (format === 'tree') {
+      console.log('Getting category hierarchy...');
       const hierarchy = await categoryService.getCategoryHierarchy();
-      categories = hierarchy.map(item => item.category);
+      console.log('Category hierarchy result:', hierarchy);
+      // Return the full hierarchy structure, not just the categories
+      return NextResponse.json(ResponseBuilder.success({ hierarchy }));
     } else if (parentId !== null) {
       if (parentId === '') {
         categories = await categoryService.getRootCategories();
@@ -46,6 +52,7 @@ export async function GET(request: NextRequest) {
       categories = categories.filter(cat => cat.isActive);
     }
 
+    console.log('Final categories to return:', categories);
     return NextResponse.json(ResponseBuilder.success({ categories }));
   } catch (error) {
     const appError = ErrorHandler.handle(error);

@@ -28,6 +28,14 @@ const nextConfig = {
       }
     ],
   },
+  webpack: (config, { isServer }) => {
+    // Handle undici module compatibility issue
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push('undici');
+    }
+    return config;
+  },
 }
 
 module.exports = nextConfig
