@@ -75,6 +75,8 @@ export interface Order extends BaseDocument {
   paymentMethod: string;
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   trackingNumber?: string;
+  carrier?: string;
+  estimatedDelivery?: Date;
   notes?: string;
 }
 

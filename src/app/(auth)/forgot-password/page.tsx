@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Mail, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+// Remove Firebase auth imports - we'll use custom API
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -31,14 +30,24 @@ export default function ForgotPasswordPage() {
     setError('');
 
     try {
-      await sendPasswordResetEmail(auth, email);
-      setSent(true);
-    } catch (error: any) {
-      if (error.code === 'auth/user-not-found') {
-        setError('No account found with this email address');
+      const response = await fetch('/api/auth/forgot-password-custom', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSent(true);
       } else {
-        setError('Failed to send reset email. Please try again.');
+        setError(data.error || 'Failed to send reset email. Please try again.');
       }
+    } catch (error: any) {
+      console.error('Password reset error:', error);
+      setError('Failed to send reset email. Please try again.');
     } finally {
       setLoading(false);
     }

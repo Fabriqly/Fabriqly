@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const profileData: Omit<DesignerProfile, 'id'> = {
+    const profileData = {
       businessName: body.businessName,
       userId: session.user.id,
       bio: body.bio,
@@ -99,9 +99,7 @@ export async function POST(request: NextRequest) {
         totalDownloads: 0,
         totalViews: 0,
         averageRating: 0
-      },
-      createdAt: new Date(),
-      updatedAt: new Date()
+      }
     };
 
     const profile = await FirebaseAdminService.createDocument(

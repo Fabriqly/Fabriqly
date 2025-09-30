@@ -2,7 +2,7 @@ import { OrderRepository, OrderFilters, OrderStats as RepositoryOrderStats } fro
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { ProductRepository } from '@/repositories/ProductRepository';
 import { Order } from '@/types/firebase';
-import { ActivityType } from '@/types/activity';
+import type { ActivityType } from '@/types/activity';
 import { 
   IOrderService, 
   CreateOrderData, 

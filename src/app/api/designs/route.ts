@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '') + '-' + Date.now();
 
-    const designData: Omit<Design, 'id'> = {
+    const designData = {
       designName: body.designName,
       description: body.description,
       designSlug: slug,
@@ -172,9 +172,7 @@ export async function POST(request: NextRequest) {
       pricing: body.pricing || { isFree: true, currency: 'USD' },
       downloadCount: 0,
       viewCount: 0,
-      likesCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      likesCount: 0
     };
 
     const design = await FirebaseAdminService.createDocument(

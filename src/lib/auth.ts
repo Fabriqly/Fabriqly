@@ -4,11 +4,11 @@ import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import { Collections } from '@/lib/firebase';
+import { Collections } from '@/services/firebase';
 import { UserRole } from '@/types/next-auth';
 import { validateEnvironment } from './env-validation';
 import { AuthErrorHandler, AuthErrorCode } from './auth-errors';
-import { FirebaseAdminService } from '@/lib/firebase-admin';
+import { FirebaseAdminService } from '@/services/firebase-admin';
 
 // Validate environment variables on startup
 (async () => {
@@ -80,6 +80,59 @@ export const authOptions: NextAuthOptions = {
             AuthErrorHandler.logError(authError, 'Google signIn callback');
             return false;
           }
+
+          // Create or sync user in Firebase Auth if they don't exist
+          try {
+            console.log('🔄 Attempting to create Google user in Firebase Auth:', {
+              uid: user.id,
+              email: user.email,
+              name: user.name
+            });
+
+            // Try to create user in Firebase Auth - let Firebase generate UID if needed
+            const firebaseUser = await FirebaseAdminService.createUserInFirebaseAuth({
+              uid: user.id!,
+              email: user.email,
+              displayName: user.name || '',
+              photoURL: user.image || '',
+              emailVerified: true
+            });
+            
+            console.log('✅ Google user synced with Firebase Auth:', {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email
+            });
+            
+            // Update the user.id to match Firebase Auth UID
+            user.id = firebaseUser.uid;
+            
+          } catch (error: any) {
+            console.error('❌ Failed to sync Google user with Firebase Auth:', {
+              error: error.message,
+              code: error.code,
+              uid: user.id,
+              email: user.email
+            });
+            
+            // If it's not a "user already exists" error, fail the sign-in
+            if (error.code !== 'auth/uid-already-exists' && error.code !== 'auth/email-already-exists') {
+              return false;
+            }
+            
+            // If user already exists, try to get the existing user
+            if (error.code === 'auth/email-already-exists') {
+              try {
+                const existingUser = await FirebaseAdminService.getUserByEmail(user.email);
+                if (existingUser) {
+                  user.id = existingUser.uid;
+                  console.log('✅ Using existing Firebase Auth user:', existingUser.uid);
+                }
+              } catch (getError) {
+                console.error('❌ Failed to get existing user:', getError);
+              }
+            }
+          }
+
           return true;
         } catch (error) {
           const authError = AuthErrorHandler.handleError(error);
@@ -127,8 +180,33 @@ export const authOptions: NextAuthOptions = {
           console.log('JWT: Processing initial login for user:', userId);
           
           if (account.provider === 'google') {
-            const userDocRef = doc(db, Collections.USERS, userId);
+            console.log('JWT: Processing Google user for Firestore:', {
+              userId,
+              userEmail: user.email,
+              userName: user.name
+            });
+            
+            // For Google users, we need to use the Firebase Auth UID
+            // First, try to get the user from Firebase Auth to get the correct UID
+            let firebaseUserId = userId;
+            try {
+              const existingUser = await FirebaseAdminService.getUserByEmail(user.email!);
+              if (existingUser) {
+                firebaseUserId = existingUser.uid;
+                console.log('JWT: Found Firebase Auth user, using UID:', firebaseUserId);
+              }
+            } catch (error) {
+              console.log('JWT: Could not find Firebase Auth user, using original ID:', userId);
+            }
+            
+            const userDocRef = doc(db, Collections.USERS, firebaseUserId);
             const userDoc = await getDoc(userDocRef);
+            
+            console.log('JWT: Checking if user exists in Firestore:', {
+              originalUserId: userId,
+              firebaseUserId,
+              exists: userDoc.exists()
+            });
             
             if (!userDoc.exists()) {
               // Create new user document
@@ -157,7 +235,15 @@ export const authOptions: NextAuthOptions = {
               };
               
               await setDoc(userDocRef, userData);
-              console.log('JWT: New Google user created:', userId);
+              console.log('JWT: New Google user created in Firestore:', {
+                originalUserId: userId,
+                firebaseUserId,
+                email: userData.email,
+                displayName: userData.displayName
+              });
+              
+              // Update the token to use the Firebase Auth UID
+              token.sub = firebaseUserId;
               token.role = 'customer' as UserRole;
             } else {
               // Update existing user's last login and get current role
@@ -228,21 +314,12 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
 
-    async redirect({ url, baseUrl, token }) {
+    async redirect({ url, baseUrl }) {
       // Handle role-based redirects after authentication
       if (url.startsWith('/')) {
         return `${baseUrl}${url}`;
       } else if (new URL(url).origin === baseUrl) {
         return url;
-      }
-      
-      // Role-based redirect after authentication
-      if (token?.role === 'customer') {
-        return `${baseUrl}/customer`;
-      } else if (token?.role === 'admin') {
-        return `${baseUrl}/dashboard/admin`;
-      } else if (['business_owner', 'designer'].includes(token?.role as string)) {
-        return `${baseUrl}/dashboard`;
       }
       
       // Default redirect to customer page for safety

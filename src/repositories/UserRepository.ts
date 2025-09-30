@@ -1,5 +1,5 @@
 import { BaseRepository, QueryFilter } from './BaseRepository';
-import { Collections } from '@/lib/firebase';
+import { Collections } from '@/services/firebase';
 
 export interface User {
   id: string;
