@@ -22,22 +22,6 @@ import { FirebaseAdminService } from '@/services/firebase-admin';
 })();
 
 export const authOptions: NextAuthOptions = {
-  events: {
-    async session({ session, token }) {
-      // Custom session event handling if needed
-    }
-  },
-
-  session: {
-    strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-    updateAge: 24 * 60 * 60, // 24 hours
-  },
-
-  pages: {
-    signIn: '/login',
-    error: '/auth/error',
-  },
 
   providers: [
     GoogleProvider({
@@ -338,14 +322,46 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
 
-    async redirect({ url, baseUrl, token }) {
+    async redirect({ url, baseUrl }) {
       if (url.startsWith('/')) {
         return `${baseUrl}${url}`;
       } else if (new URL(url).origin === baseUrl) {
         return url;
       }
 
-      // Role-based redirect after authentication
-      if (token?.role === 'customer') {
-        return `${baseUrl}/explore`;
-      } else if (t
+      // Default redirect to explore page for safety
+      return `${baseUrl}/explore`;
+    }
+  },
+  
+  pages: {
+    signIn: '/login',
+    error: '/auth/error',
+    signOut: '/auth/signout'
+  },
+  
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  
+  secret: process.env.NEXTAUTH_SECRET,
+  
+  // Enhanced security options
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production' 
+        ? '__Secure-next-auth.session-token' 
+        : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
+    }
+  },
+  
+  // Enable debug in development
+  debug: process.env.NODE_ENV === 'development',
+};
