@@ -10,7 +10,7 @@ import { Timestamp } from 'firebase/firestore';
 // GET /api/designs/[id]/like - Check if user has liked a design
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -22,7 +22,7 @@ export async function GET(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Initialize services
     const userLikeRepository = new UserLikeRepository();
@@ -45,7 +45,7 @@ export async function GET(
 // POST /api/designs/[id]/like - Like a design
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -57,7 +57,7 @@ export async function POST(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Initialize services
     const designRepository = new DesignRepository();
@@ -135,7 +135,7 @@ export async function POST(
 // DELETE /api/designs/[id]/like - Unlike a design
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -147,7 +147,7 @@ export async function DELETE(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Initialize services
     const designRepository = new DesignRepository();

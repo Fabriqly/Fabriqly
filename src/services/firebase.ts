@@ -169,7 +169,7 @@ export const Collections = {
   
 
   // Password Reset
-  PASSWORD_RESET_TOKENS: 'passwordResetTokens'
+  PASSWORD_RESET_TOKENS: 'passwordResetTokens',
 
   // User Likes System
   USER_LIKES: 'userLikes'
