@@ -13,7 +13,9 @@ import {
   FileText,
   DollarSign,
   Tag,
-  MoreVertical
+  MoreVertical,
+  Edit,
+  Trash2
 } from 'lucide-react';
 
 interface DesignCardProps {
@@ -209,16 +211,19 @@ export function DesignCard({
                 size="sm"
                 variant="outline"
                 onClick={() => onEdit?.(design)}
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                title="Edit design"
               >
-                <FileText className="w-4 h-4" />
+                <Edit className="w-4 h-4" />
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => onDelete?.(design)}
                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                title="Delete design"
               >
-                <MoreVertical className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" />
               </Button>
             </div>
           )}

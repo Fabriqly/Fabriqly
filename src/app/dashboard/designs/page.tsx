@@ -7,6 +7,7 @@ import { DesignForm } from '@/components/designer/DesignForm';
 import { DesignCard } from '@/components/designer/DesignCard';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { 
   Plus, 
   Search, 
@@ -36,6 +37,9 @@ export default function DesignsDashboard() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingDesign, setEditingDesign] = useState<DesignWithDetails | null>(null);
+  const [deletingDesign, setDeletingDesign] = useState<DesignWithDetails | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [updateLoading, setUpdateLoading] = useState(false);
   const [stats, setStats] = useState({
     totalDesigns: 0,
     totalViews: 0,
@@ -157,6 +161,7 @@ export default function DesignsDashboard() {
     if (!editingDesign) return;
 
     try {
+      setUpdateLoading(true);
       const response = await fetch(`/api/designs/${editingDesign.id}`, {
         method: 'PUT',
         headers: {
@@ -171,20 +176,26 @@ export default function DesignsDashboard() {
       }
 
       setEditingDesign(null);
-      loadDesigns();
+      await loadDesigns();
+      await loadStats();
     } catch (error: any) {
       console.error('Error updating design:', error);
       alert(error.message || 'Failed to update design');
+    } finally {
+      setUpdateLoading(false);
     }
   };
 
-  const handleDeleteDesign = async (design: DesignWithDetails) => {
-    if (!confirm(`Are you sure you want to delete "${design.designName}"?`)) {
-      return;
-    }
+  const handleDeleteDesign = (design: DesignWithDetails) => {
+    setDeletingDesign(design);
+  };
+
+  const confirmDeleteDesign = async () => {
+    if (!deletingDesign) return;
 
     try {
-      const response = await fetch(`/api/designs/${design.id}`, {
+      setDeleteLoading(true);
+      const response = await fetch(`/api/designs/${deletingDesign.id}`, {
         method: 'DELETE',
       });
 
@@ -193,12 +204,19 @@ export default function DesignsDashboard() {
         throw new Error(error.error || 'Failed to delete design');
       }
 
-      loadDesigns();
-      loadStats();
+      setDeletingDesign(null);
+      await loadDesigns();
+      await loadStats();
     } catch (error: any) {
       console.error('Error deleting design:', error);
       alert(error.message || 'Failed to delete design');
+    } finally {
+      setDeleteLoading(false);
     }
+  };
+
+  const cancelDeleteDesign = () => {
+    setDeletingDesign(null);
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -402,6 +420,19 @@ export default function DesignsDashboard() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={!!deletingDesign}
+        onClose={cancelDeleteDesign}
+        onConfirm={confirmDeleteDesign}
+        title="Delete Design"
+        message={`Are you sure you want to delete "${deletingDesign?.designName}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+      />
     </div>
   );
 }

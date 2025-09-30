@@ -13,6 +13,8 @@ import {
 import { FirebaseAdminService } from './firebase-admin';
 import { Collections } from './firebase';
 import { Timestamp } from 'firebase/firestore';
+import { ImageCleanupService } from './ImageCleanupService';
+import { StorageBuckets } from '@/lib/supabase-storage';
 
 export class DesignService implements IDesignService {
   constructor(
@@ -81,6 +83,9 @@ export class DesignService implements IDesignService {
       }
     );
 
+    // Invalidate caches
+    await this.designRepository.invalidateDesignerCache(designerProfile[0].id);
+
     // Log activity
     await this.activityRepository.create({
       type: 'design_created',
@@ -123,6 +128,9 @@ export class DesignService implements IDesignService {
 
     const updatedDesign = await this.designRepository.update(id, updateData);
 
+    // Invalidate caches
+    await this.designRepository.invalidateDesignCache(id);
+
     // Log activity
     await this.activityRepository.create({
       type: 'design_updated',
@@ -158,6 +166,30 @@ export class DesignService implements IDesignService {
       throw new Error('Unauthorized to delete this design');
     }
 
+    // Clean up design images from Supabase storage before deleting the design
+    try {
+      const imagesToDelete = [
+        existingDesign.designFileUrl,
+        existingDesign.thumbnailUrl,
+        existingDesign.previewUrl
+      ].filter(Boolean); // Remove null/undefined values
+
+      for (const imageUrl of imagesToDelete) {
+        if (imageUrl) {
+          try {
+            await ImageCleanupService.deleteImage(imageUrl, StorageBuckets.DESIGNS);
+            console.log(`✅ Successfully deleted design image: ${imageUrl}`);
+          } catch (error) {
+            console.warn(`⚠️ Failed to delete design image: ${imageUrl}`, error);
+            // Continue with deletion even if image cleanup fails
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to cleanup design images during deletion:', error);
+      // Don't fail the deletion if image cleanup fails
+    }
+
     await this.designRepository.delete(id);
 
     // Update designer profile stats
@@ -179,6 +211,9 @@ export class DesignService implements IDesignService {
         }
       );
     }
+
+    // Invalidate caches
+    await this.designRepository.invalidateDesignerCache(existingDesign.designerId);
 
     // Log activity
     await this.activityRepository.create({
@@ -440,18 +475,26 @@ export class DesignService implements IDesignService {
 
   async incrementViewCount(designId: string): Promise<void> {
     await this.designRepository.incrementViewCount(designId);
+    // Invalidate caches since view count affects stats
+    await this.designRepository.invalidateDesignCache(designId);
   }
 
   async incrementDownloadCount(designId: string): Promise<void> {
     await this.designRepository.incrementDownloadCount(designId);
+    // Invalidate caches since download count affects stats
+    await this.designRepository.invalidateDesignCache(designId);
   }
 
   async incrementLikesCount(designId: string): Promise<void> {
     await this.designRepository.incrementLikesCount(designId);
+    // Invalidate caches since likes count affects stats
+    await this.designRepository.invalidateDesignCache(designId);
   }
 
   async decrementLikesCount(designId: string): Promise<void> {
     await this.designRepository.decrementLikesCount(designId);
+    // Invalidate caches since likes count affects stats
+    await this.designRepository.invalidateDesignCache(designId);
   }
 
   validateDesignData(data: CreateDesignData): DesignValidationResult {

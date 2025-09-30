@@ -19,7 +19,8 @@ import {
   Instagram,
   Facebook,
   Twitter,
-  Linkedin
+  Linkedin,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSession } from 'next-auth/react';
@@ -33,6 +34,7 @@ export default function DesignerProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [syncingStats, setSyncingStats] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -108,6 +110,31 @@ export default function DesignerProfilePage() {
     setIsEditing(false);
   };
 
+  const handleSyncStats = async () => {
+    if (!profile?.id) return;
+    
+    try {
+      setSyncingStats(true);
+      const response = await fetch(`/api/designer-profiles/sync-stats?designerId=${profile.id}`, {
+        method: 'POST',
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setProfile(data.profile);
+        console.log('✅ Stats synced successfully');
+      } else {
+        throw new Error(data.error || 'Failed to sync stats');
+      }
+    } catch (error: any) {
+      console.error('❌ Error syncing stats:', error);
+      setError(error.message || 'Failed to sync stats');
+    } finally {
+      setSyncingStats(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -147,13 +174,24 @@ export default function DesignerProfilePage() {
               </p>
             </div>
             {profile && !isEditing && (
-              <Button
-                onClick={() => setIsEditing(true)}
-                className="flex items-center space-x-2"
-              >
-                <Edit className="h-4 w-4" />
-                <span>Edit Profile</span>
-              </Button>
+              <div className="flex space-x-3">
+                <Button
+                  onClick={handleSyncStats}
+                  disabled={syncingStats}
+                  variant="outline"
+                  className="flex items-center space-x-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${syncingStats ? 'animate-spin' : ''}`} />
+                  <span>{syncingStats ? 'Syncing...' : 'Sync Stats'}</span>
+                </Button>
+                <Button
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center space-x-2"
+                >
+                  <Edit className="h-4 w-4" />
+                  <span>Edit Profile</span>
+                </Button>
+              </div>
             )}
           </div>
         </div>

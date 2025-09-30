@@ -43,6 +43,7 @@ export interface IDesignerProfileService {
   // Analytics & Stats
   getDesignerStats(designerId: string): Promise<DesignerProfileStats | null>;
   updatePortfolioStats(designerId: string, stats: Partial<DesignerProfile['portfolioStats']>): Promise<DesignerProfile>;
+  syncPortfolioStatsWithDesigns(designerId: string): Promise<DesignerProfile>;
   
   // Portfolio Management
   incrementDesignCount(designerId: string): Promise<void>;
