@@ -1,12 +1,13 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { FirebaseAdminService } from '@/services/firebase-admin';
-import { Collections } from '@/services/firebase';
+import { DesignService } from '@/services/DesignService';
+import { DesignRepository } from '@/repositories/DesignRepository';
+import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { 
   Design, 
   CreateDesignData, 
-  UpdateDesignData,
   DesignFilters,
   DesignWithDetails 
 } from '@/types/enhanced-products';
@@ -15,6 +16,8 @@ import {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    
+    console.log('🔍 Designs API called with params:', Object.fromEntries(searchParams.entries()));
     
     // Parse filters from query parameters
     const filters: DesignFilters = {
@@ -37,75 +40,26 @@ export async function GET(request: NextRequest) {
       offset: parseInt(searchParams.get('offset') || '0')
     };
 
-    // Build Firestore query constraints
-    const constraints = [];
-    
-    if (filters.designerId) {
-      constraints.push({ field: 'designerId', operator: '==' as const, value: filters.designerId });
-    }
-    
-    if (filters.categoryId) {
-      constraints.push({ field: 'categoryId', operator: '==' as const, value: filters.categoryId });
-    }
-    
-    if (filters.designType) {
-      constraints.push({ field: 'designType', operator: '==' as const, value: filters.designType });
-    }
-    
-    if (filters.isPublic !== undefined) {
-      constraints.push({ field: 'isPublic', operator: '==' as const, value: filters.isPublic });
-    }
-    
-    if (filters.isFeatured !== undefined) {
-      constraints.push({ field: 'isFeatured', operator: '==' as const, value: filters.isFeatured });
-    }
-    
-    if (filters.isActive !== undefined) {
-      constraints.push({ field: 'isActive', operator: '==' as const, value: filters.isActive });
-    }
+    console.log('📊 Parsed filters:', filters);
 
-    // Get designs with pagination
-    const result = await FirebaseAdminService.queryDocuments(
-      Collections.DESIGNS,
-      constraints,
-      { field: filters.sortBy!, direction: filters.sortOrder! },
-      filters.limit! + 1 // Get one extra to check if there are more
-    );
+    // Initialize services
+    const designRepository = new DesignRepository();
+    const activityRepository = new ActivityRepository();
+    const designService = new DesignService(designRepository, activityRepository);
 
-    const hasMore = result.length > filters.limit!;
-    const designs = hasMore ? result.slice(0, filters.limit!) : result;
+    // Get designs using the service
+    const designs = await designService.getDesigns(filters);
 
-    // Populate with related data
-    const designsWithDetails: DesignWithDetails[] = await Promise.all(
-      designs.map(async (design) => {
-        // Get designer profile
-        const designer = await FirebaseAdminService.getDocument(
-          Collections.DESIGNER_PROFILES,
-          design.designerId
-        );
-
-        // Get category
-        const category = await FirebaseAdminService.getDocument(
-          Collections.PRODUCT_CATEGORIES,
-          design.categoryId
-        );
-
-        return {
-          ...design,
-          designer: designer || { id: '', businessName: 'Unknown Designer', userId: '', specialties: [], isVerified: false, isActive: true, portfolioStats: { totalDesigns: 0, totalDownloads: 0, totalViews: 0, averageRating: 0 }, createdAt: new Date(), updatedAt: new Date() },
-          category: category || { id: '', categoryName: 'Unknown', slug: 'unknown', level: 0, path: [], isActive: true, sortOrder: 0, createdAt: new Date(), updatedAt: new Date() }
-        };
-      })
-    );
+    console.log('✅ Found designs:', designs.length);
 
     return NextResponse.json({
-      designs: designsWithDetails,
-      total: designsWithDetails.length,
-      hasMore,
+      designs,
+      total: designs.length,
+      hasMore: designs.length === (filters.limit || 20),
       filters
     });
   } catch (error) {
-    console.error('Error fetching designs:', error);
+    console.error('❌ Error fetching designs:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -127,73 +81,23 @@ export async function POST(request: NextRequest) {
 
     const body: CreateDesignData = await request.json();
     
-    // Validate required fields
-    if (!body.designName || !body.description || !body.categoryId || !body.designFileUrl) {
-      return NextResponse.json(
-        { error: 'Missing required fields: designName, description, categoryId, designFileUrl' },
-        { status: 400 }
-      );
-    }
+    // Generate idempotency key based on user and design data
+    const idempotencyKey = `${session.user.id}-${body.designName}-${body.designFileUrl}-${Date.now()}`;
+    
+    // Log the request for debugging
+    console.log('🔍 Design creation API called by user:', session.user.id);
+    console.log('🔑 Idempotency key:', idempotencyKey);
+    console.log('📊 Design data:', JSON.stringify(body, null, 2));
+    
+    // Initialize services
+    const designRepository = new DesignRepository();
+    const activityRepository = new ActivityRepository();
+    const designService = new DesignService(designRepository, activityRepository);
 
-    // Get designer profile
-    const designerProfile = await FirebaseAdminService.queryDocuments(
-      Collections.DESIGNER_PROFILES,
-      [{ field: 'userId', operator: '==' as const, value: session.user.id }]
-    );
-
-    if (designerProfile.length === 0) {
-      return NextResponse.json(
-        { error: 'Designer profile not found' },
-        { status: 400 }
-      );
-    }
-
-    // Generate design slug
-    const slug = body.designName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '') + '-' + Date.now();
-
-    const designData: Omit<Design, 'id'> = {
-      designName: body.designName,
-      description: body.description,
-      designSlug: slug,
-      designerId: designerProfile[0].id,
-      categoryId: body.categoryId,
-      designFileUrl: body.designFileUrl,
-      thumbnailUrl: body.thumbnailUrl,
-      previewUrl: body.previewUrl,
-      designType: body.designType || 'template',
-      fileFormat: body.fileFormat || 'png',
-      tags: body.tags || [],
-      isPublic: body.isPublic !== false,
-      isFeatured: false,
-      isActive: true,
-      pricing: body.pricing || { isFree: true, currency: 'USD' },
-      downloadCount: 0,
-      viewCount: 0,
-      likesCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    const design = await FirebaseAdminService.createDocument(
-      Collections.DESIGNS,
-      designData
-    );
-
-    // Update designer profile stats
-    await FirebaseAdminService.updateDocument(
-      Collections.DESIGNER_PROFILES,
-      designerProfile[0].id,
-      {
-        portfolioStats: {
-          ...designerProfile[0].portfolioStats,
-          totalDesigns: designerProfile[0].portfolioStats.totalDesigns + 1
-        },
-        updatedAt: new Date()
-      }
-    );
+    // Create design using the service
+    const design = await designService.createDesign(body, session.user.id);
+    
+    console.log('✅ Design created successfully with ID:', design.id);
 
     return NextResponse.json({ design }, { status: 201 });
   } catch (error: any) {
@@ -204,3 +108,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+```

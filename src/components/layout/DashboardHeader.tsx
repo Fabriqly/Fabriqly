@@ -45,9 +45,11 @@ export function DashboardHeader({ user, onMenuClick, showMobileMenu = false }: D
               <Image src={LogoName} alt="Fabriqly" className="h-10 w-auto" priority />
             </div>
             
-            {/* Business Dashboard Text */}
+            {/* Dashboard Text */}
             <div className="ml-6 hidden sm:block">
-              <h1 className="text-xl font-bold text-white">Business Dashboard</h1>
+              <h1 className="text-xl font-bold text-white">
+                {user?.role === 'designer' ? 'Designer Dashboard' : 'Business Dashboard'}
+              </h1>
             </div>
           </div>
 

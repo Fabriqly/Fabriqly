@@ -5,7 +5,7 @@ export class ImageCleanupService {
   /**
    * Extract Supabase storage path from image URL
    */
-  static extractStoragePath(imageUrl: string, entityType: 'product' | 'category'): string | null {
+  static extractStoragePath(imageUrl: string, entityType: 'product' | 'category' | 'design'): string | null {
     try {
       // Parse Supabase storage URLs like:
       // https://project.supabase.co/storage/v1/object/public/objects/bucket/folder/file.jpg
@@ -30,9 +30,9 @@ export class ImageCleanupService {
    */
   static async deleteImage(imageUrl: string, bucket: string): Promise<boolean> {
     try {
-      const storagePath = this.extractStoragePath(imageUrl, 
-        bucket === StorageBuckets.PRODUCTS ? 'product' : 'category'
-      );
+      const entityType = bucket === StorageBuckets.PRODUCTS ? 'product' : 
+                        bucket === StorageBuckets.DESIGNS ? 'design' : 'category';
+      const storagePath = this.extractStoragePath(imageUrl, entityType);
       
       if (!storagePath) {
         console.warn('Could not extract storage path from URL:', imageUrl);
@@ -114,5 +114,37 @@ export class ImageCleanupService {
       productImagesDeleted: 0, // Would require complex logic to identify orphans  
       errors: ['Orphaned image cleanup requires database queries to identify unused files']
     };
+  }
+
+  /**
+   * Delete all images for a design
+   */
+  static async deleteDesignImages(designImages: Array<{ imageUrl: string }>): Promise<{
+    successCount: number;
+    failureCount: number;
+    errors: string[];
+  }> {
+    const results = {
+      successCount: 0,
+      failureCount: 0,
+      errors: [] as string[]
+    };
+
+    for (const image of designImages) {
+      try {
+        const success = await this.deleteImage(image.imageUrl, StorageBuckets.DESIGNS);
+        if (success) {
+          results.successCount++;
+        } else {
+          results.failureCount++;
+          results.errors.push(`Failed to delete: ${image.imageUrl}`);
+        }
+      } catch (error) {
+        results.failureCount++;
+        results.errors.push(`Error deleting ${image.imageUrl}: ${error}`);
+      }
+    }
+
+    return results;
   }
 }

@@ -15,7 +15,8 @@ interface AddToCartButtonProps {
   colorPriceAdjustment?: number;
   businessOwnerId: string;
   className?: string;
-  variant?: 'default' | 'outline' | 'ghost';
+
+  variant?: 'primary' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
 }
@@ -29,7 +30,7 @@ export function AddToCartButton({
   colorPriceAdjustment = 0,
   businessOwnerId,
   className = '',
-  variant = 'default',
+  variant = 'primary',
   size = 'md',
   disabled = false
 }: AddToCartButtonProps) {

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { CustomerHeader } from '@/components/layout/CustomerHeader';
 import { 
   ProductWithDetails, 
   ProductVariant 
@@ -28,10 +29,12 @@ import {
   X
 } from 'lucide-react';
 import { AddToCartButton } from '@/components/cart/AddToCartButton';
+import { useAuth } from '@/hooks/useAuth';
 
 export function ProductDetail() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const productId = params.id as string;
 
   const [product, setProduct] = useState<ProductWithDetails | null>(null);
@@ -237,17 +240,31 @@ export function ProductDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Customer Header */}
+      <CustomerHeader user={user} />
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Breadcrumb */}
-        <div className="flex items-center space-x-2 text-sm text-gray-600 mb-6">
-          <button 
-            onClick={() => router.push('/products')}
-            className="hover:text-blue-600"
+        {/* Back Button and Breadcrumb */}
+        <div className="mb-6">
+          <Button
+            onClick={() => router.back()}
+            variant="outline"
+            className="mb-4 flex items-center space-x-2"
           >
-            Products
-          </button>
-          <span>/</span>
-          <span className="text-gray-900">{product.name}</span>
+            <ArrowLeft className="w-4 h-4" />
+            <span>Go Back</span>
+          </Button>
+          
+          <div className="flex items-center space-x-2 text-sm text-gray-600">
+            <button 
+              onClick={() => router.push('/products')}
+              className="hover:text-blue-600"
+            >
+              Products
+            </button>
+            <span>/</span>
+            <span className="text-gray-900">{product.name}</span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
