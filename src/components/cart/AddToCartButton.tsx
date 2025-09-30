@@ -11,11 +11,14 @@ interface AddToCartButtonProps {
   quantity: number;
   selectedVariants: Record<string, string>;
   selectedColorId?: string;
+  selectedColorName?: string;
   colorPriceAdjustment?: number;
   businessOwnerId: string;
   className?: string;
-  variant?: 'default' | 'outline' | 'ghost';
+
+  variant?: 'primary' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
+  disabled?: boolean;
 }
 
 export function AddToCartButton({
@@ -23,11 +26,13 @@ export function AddToCartButton({
   quantity,
   selectedVariants,
   selectedColorId,
+  selectedColorName,
   colorPriceAdjustment = 0,
   businessOwnerId,
   className = '',
-  variant = 'default',
-  size = 'md'
+  variant = 'primary',
+  size = 'md',
+  disabled = false
 }: AddToCartButtonProps) {
   const { addItem, isItemInCart } = useCart();
   const [isAdding, setIsAdding] = useState(false);
@@ -50,7 +55,7 @@ export function AddToCartButton({
   };
 
   const handleAddToCart = async () => {
-    if (isAdding) return;
+    if (isAdding || disabled) return;
 
     setIsAdding(true);
     
@@ -60,6 +65,7 @@ export function AddToCartButton({
         quantity,
         selectedVariants,
         selectedColorId,
+        selectedColorName,
         colorPriceAdjustment,
         businessOwnerId,
       });
@@ -78,7 +84,7 @@ export function AddToCartButton({
   return (
     <Button
       onClick={handleAddToCart}
-      disabled={isAdding || quantity < 1}
+      disabled={isAdding || quantity < 1 || disabled}
       variant={variant}
       size={size}
       className={`flex items-center space-x-2 ${className} ${

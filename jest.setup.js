@@ -5,22 +5,22 @@ jest.mock('next/navigation', () => ({
   useRouter() {
     return {
       push: jest.fn(),
-      replace: jest.fn(),
       back: jest.fn(),
       forward: jest.fn(),
       refresh: jest.fn(),
+      replace: jest.fn(),
       prefetch: jest.fn(),
     }
-  },
-  usePathname() {
-    return '/'
   },
   useSearchParams() {
     return new URLSearchParams()
   },
+  usePathname() {
+    return '/'
+  },
 }))
 
-// Mock Next.js image component
+// Mock Next.js Image component
 jest.mock('next/image', () => ({
   __esModule: true,
   default: (props) => {
@@ -29,7 +29,7 @@ jest.mock('next/image', () => ({
   },
 }))
 
-// Mock Next.js link component
+// Mock Next.js Link component
 jest.mock('next/link', () => ({
   __esModule: true,
   default: ({ children, href, ...props }) => {
@@ -41,68 +41,10 @@ jest.mock('next/link', () => ({
   },
 }))
 
-// Mock NextAuth
-jest.mock('next-auth/react', () => ({
-  useSession: jest.fn(() => ({
-    data: null,
-    status: 'unauthenticated',
-  })),
-  signIn: jest.fn(),
-  signOut: jest.fn(),
-}))
+// Mock fetch
+global.fetch = jest.fn()
 
-// Mock Firebase
-jest.mock('firebase/app', () => ({
-  initializeApp: jest.fn(),
-}))
-
-jest.mock('firebase/firestore', () => ({
-  getFirestore: jest.fn(),
-  collection: jest.fn(),
-  doc: jest.fn(),
-  getDoc: jest.fn(),
-  getDocs: jest.fn(),
-  addDoc: jest.fn(),
-  updateDoc: jest.fn(),
-  deleteDoc: jest.fn(),
-  query: jest.fn(),
-  where: jest.fn(),
-  orderBy: jest.fn(),
-  limit: jest.fn(),
-}))
-
-jest.mock('firebase-admin', () => ({
-  initializeApp: jest.fn(),
-  credential: {
-    cert: jest.fn(),
-  },
-  firestore: jest.fn(() => ({
-    collection: jest.fn(),
-    doc: jest.fn(),
-    batch: jest.fn(),
-  })),
-  auth: jest.fn(() => ({
-    createUser: jest.fn(),
-    deleteUser: jest.fn(),
-    getUser: jest.fn(),
-  })),
-}))
-
-// Global test utilities
-global.ResizeObserver = jest.fn().mockImplementation(() => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn(),
-}))
-
-// Mock IntersectionObserver
-global.IntersectionObserver = jest.fn().mockImplementation(() => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn(),
-}))
-
-// Mock matchMedia
+// Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: jest.fn().mockImplementation(query => ({
@@ -116,6 +58,25 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: jest.fn(),
   })),
 })
+
+// Mock IntersectionObserver
+global.IntersectionObserver = class IntersectionObserver {
+  constructor() {}
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
+
+// Mock ResizeObserver
+global.ResizeObserver = class ResizeObserver {
+  constructor() {}
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
+
+// Mock scrollTo
+global.scrollTo = jest.fn()
 
 // Mock localStorage
 const localStorageMock = {
@@ -135,18 +96,50 @@ const sessionStorageMock = {
 }
 global.sessionStorage = sessionStorageMock
 
-// Mock fetch
-global.fetch = jest.fn()
+// Mock URL.createObjectURL
+global.URL.createObjectURL = jest.fn(() => 'mocked-url')
+global.URL.revokeObjectURL = jest.fn()
 
-// Mock console methods to reduce noise in tests
-global.console = {
-  ...console,
-  // Uncomment to suppress console.log in tests
-  // log: jest.fn(),
-  // debug: jest.fn(),
-  // info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-}
+// Mock navigator.clipboard
+Object.assign(navigator, {
+  clipboard: {
+    writeText: jest.fn(() => Promise.resolve()),
+    readText: jest.fn(() => Promise.resolve('')),
+  },
+})
 
+// Mock navigator.share
+Object.assign(navigator, {
+  share: jest.fn(() => Promise.resolve()),
+})
 
+// Suppress console warnings in tests
+const originalWarn = console.warn
+const originalError = console.error
+
+beforeAll(() => {
+  console.warn = (...args) => {
+    if (
+      typeof args[0] === 'string' &&
+      args[0].includes('Warning: ReactDOM.render is no longer supported')
+    ) {
+      return
+    }
+    originalWarn.call(console, ...args)
+  }
+
+  console.error = (...args) => {
+    if (
+      typeof args[0] === 'string' &&
+      (args[0].includes('Warning:') || args[0].includes('Error:'))
+    ) {
+      return
+    }
+    originalError.call(console, ...args)
+  }
+})
+
+afterAll(() => {
+  console.warn = originalWarn
+  console.error = originalError
+})

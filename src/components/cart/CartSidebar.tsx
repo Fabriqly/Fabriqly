@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -12,7 +12,8 @@ import {
   Trash2,
   ArrowRight,
   Package,
-  Trash
+  Trash,
+  AlertTriangle
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -20,6 +21,67 @@ import Link from 'next/link';
 export function CartSidebar() {
   const { state, removeItem, updateQuantity, closeCart, getTotalAmount } = useCart();
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [stockWarnings, setStockWarnings] = useState<Record<string, { available: number; requested: number }>>({});
+  const [inactiveWarnings, setInactiveWarnings] = useState<Record<string, { status: string }>>({});
+
+  // Check stock availability for cart items
+  useEffect(() => {
+    const checkStock = async () => {
+      if (!state.cart?.items || state.cart.items.length === 0) {
+        setStockWarnings({});
+        setInactiveWarnings({});
+        return;
+      }
+
+      try {
+        const stockValidationRequest = {
+          items: state.cart.items.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity
+          }))
+        };
+
+        const response = await fetch('/api/cart/validate-stock', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(stockValidationRequest),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          const stockWarnings: Record<string, { available: number; requested: number }> = {};
+          const inactiveWarnings: Record<string, { status: string }> = {};
+          
+          if (data.data.outOfStockItems) {
+            data.data.outOfStockItems.forEach((item: any) => {
+              stockWarnings[item.productId] = {
+                available: item.availableQuantity,
+                requested: item.requestedQuantity
+              };
+            });
+          }
+          
+          if (data.data.inactiveItems) {
+            data.data.inactiveItems.forEach((item: any) => {
+              inactiveWarnings[item.productId] = {
+                status: item.status
+              };
+            });
+          }
+          
+          setStockWarnings(stockWarnings);
+          setInactiveWarnings(inactiveWarnings);
+        }
+      } catch (error) {
+        console.error('Error checking stock:', error);
+      }
+    };
+
+    checkStock();
+  }, [state.cart?.items]);
 
   const handleQuantityChange = (itemId: string, newQuantity: number) => {
     if (newQuantity < 1) {
@@ -30,6 +92,15 @@ export function CartSidebar() {
   };
 
   const handleItemSelect = (itemId: string) => {
+    // Find the item to check if it's valid
+    const item = state.cart?.items.find(cartItem => cartItem.id === itemId);
+    if (!item) return;
+
+    // Don't allow selection of inactive or out-of-stock items
+    if (inactiveWarnings[item.productId] || stockWarnings[item.productId]) {
+      return;
+    }
+
     const newSelected = new Set(selectedItems);
     if (newSelected.has(itemId)) {
       newSelected.delete(itemId);
@@ -43,7 +114,11 @@ export function CartSidebar() {
     if (selectedItems.size === state.cart?.items.length) {
       setSelectedItems(new Set());
     } else {
-      setSelectedItems(new Set(state.cart?.items.map(item => item.id) || []));
+      // Only select valid items (not inactive or out-of-stock)
+      const validItems = state.cart?.items.filter(item => 
+        !inactiveWarnings[item.productId] && !stockWarnings[item.productId]
+      ) || [];
+      setSelectedItems(new Set(validItems.map(item => item.id)));
     }
   };
 
@@ -61,6 +136,16 @@ export function CartSidebar() {
     // Create a temporary cart with only selected items
     const selectedCartItems = state.cart?.items.filter(item => selectedItems.has(item.id)) || [];
     
+    // Double-check that all selected items are valid
+    const hasInvalidItems = selectedCartItems.some(item => 
+      inactiveWarnings[item.productId] || stockWarnings[item.productId]
+    );
+    
+    if (hasInvalidItems) {
+      alert('Cannot proceed to checkout with inactive or out-of-stock items. Please remove them from your selection.');
+      return;
+    }
+    
     // Store selected items in sessionStorage for checkout page
     sessionStorage.setItem('bulkCheckoutItems', JSON.stringify(selectedCartItems));
     
@@ -73,6 +158,14 @@ export function CartSidebar() {
       style: 'currency',
       currency: 'USD',
     }).format(price);
+  };
+
+  const getSelectedTotalAmount = () => {
+    if (!state.cart?.items || selectedItems.size === 0) return 0;
+    
+    return state.cart.items
+      .filter(item => selectedItems.has(item.id))
+      .reduce((sum, item) => sum + item.totalPrice, 0);
   };
 
   if (!state.isOpen) return null;
@@ -122,13 +215,6 @@ export function CartSidebar() {
               {selectedItems.size > 0 && (
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={handleBulkCheckout}
-                    className="flex items-center space-x-1 bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 text-sm"
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                    <span>Checkout Selected</span>
-                  </button>
-                  <button
                     onClick={handleBulkDelete}
                     className="flex items-center space-x-1 text-red-600 hover:text-red-700 text-sm"
                   >
@@ -154,15 +240,24 @@ export function CartSidebar() {
             </div>
           ) : (
             <div className="space-y-4">
-              {state.cart?.items.map((item) => (
-                <div key={item.id} className="flex space-x-3 p-3 border rounded-lg">
+              {state.cart?.items.map((item) => {
+                const isInvalid = inactiveWarnings[item.productId] || stockWarnings[item.productId];
+                return (
+                <div key={item.id} className={`flex space-x-3 p-3 border rounded-lg ${
+                  isInvalid ? 'opacity-60 bg-gray-50' : ''
+                }`}>
                   {/* Checkbox */}
                   <div className="flex-shrink-0 flex items-start pt-1">
                     <input
                       type="checkbox"
                       checked={selectedItems.has(item.id)}
                       onChange={() => handleItemSelect(item.id)}
-                      className="rounded border-gray-300"
+                      disabled={!!(inactiveWarnings[item.productId] || stockWarnings[item.productId])}
+                      className={`rounded border-gray-300 ${
+                        !!(inactiveWarnings[item.productId] || stockWarnings[item.productId])
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'cursor-pointer'
+                      }`}
                     />
                   </div>
 
@@ -216,7 +311,27 @@ export function CartSidebar() {
                     {/* Color */}
                     {item.selectedColorId && (
                       <div className="text-xs text-gray-500">
-                        Color: {item.selectedColorId}
+                        Color: {item.selectedColorName || item.selectedColorId}
+                      </div>
+                    )}
+
+                    {/* Inactive Product Warning */}
+                    {inactiveWarnings[item.productId] && (
+                      <div className="flex items-center space-x-1 mt-1">
+                        <AlertTriangle className="w-3 h-3 text-red-500" />
+                        <p className="text-xs text-red-600">
+                          Product is {inactiveWarnings[item.productId].status}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Stock Warning */}
+                    {stockWarnings[item.productId] && (
+                      <div className="flex items-center space-x-1 mt-1">
+                        <AlertTriangle className="w-3 h-3 text-red-500" />
+                        <p className="text-xs text-red-600">
+                          Only {stockWarnings[item.productId].available} available
+                        </p>
                       </div>
                     )}
 
@@ -225,7 +340,12 @@ export function CartSidebar() {
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                          className="p-1 hover:bg-gray-100 rounded"
+                          disabled={!!(inactiveWarnings[item.productId] || stockWarnings[item.productId])}
+                          className={`p-1 rounded ${
+                            !!(inactiveWarnings[item.productId] || stockWarnings[item.productId])
+                              ? 'cursor-not-allowed opacity-50'
+                              : 'hover:bg-gray-100'
+                          }`}
                         >
                           <Minus className="w-3 h-3" />
                         </button>
@@ -234,7 +354,12 @@ export function CartSidebar() {
                         </span>
                         <button
                           onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                          className="p-1 hover:bg-gray-100 rounded"
+                          disabled={!!(inactiveWarnings[item.productId] || stockWarnings[item.productId])}
+                          className={`p-1 rounded ${
+                            !!(inactiveWarnings[item.productId] || stockWarnings[item.productId])
+                              ? 'cursor-not-allowed opacity-50'
+                              : 'hover:bg-gray-100'
+                          }`}
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -254,7 +379,8 @@ export function CartSidebar() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -265,16 +391,26 @@ export function CartSidebar() {
             {/* Total */}
             <div className="flex justify-between items-center text-lg font-semibold">
               <span>Total:</span>
-              <span>{formatPrice(getTotalAmount())}</span>
+              <span>{formatPrice(selectedItems.size > 0 ? getSelectedTotalAmount() : getTotalAmount())}</span>
             </div>
 
             {/* Checkout Button */}
-            <Link href="/checkout" onClick={closeCart}>
-              <Button className="w-full flex items-center justify-center space-x-2">
-                <span>Proceed to Checkout</span>
+            {selectedItems.size > 0 ? (
+              <Button 
+                onClick={handleBulkCheckout}
+                className="w-full flex items-center justify-center space-x-2"
+              >
+                <span>Checkout Selected ({selectedItems.size})</span>
                 <ArrowRight className="w-4 h-4" />
               </Button>
-            </Link>
+            ) : (
+              <Link href="/checkout" onClick={closeCart}>
+                <Button className="w-full flex items-center justify-center space-x-2">
+                  <span>Proceed to Checkout</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            )}
 
             {/* Continue Shopping */}
             <Button 

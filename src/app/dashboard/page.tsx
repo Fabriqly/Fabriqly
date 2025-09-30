@@ -15,10 +15,10 @@ function DashboardContent() {
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
 
-  // Redirect customers to customer page
+  // Redirect customers to explore page
   useEffect(() => {
     if (!isLoading && isCustomer) {
-      router.push('/customer');
+      router.push('/explore');
     }
   }, [isCustomer, isLoading, router]);
 

@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: AddToCartRequest = await request.json();
-    const { productId, quantity, selectedVariants = {}, selectedColorId, colorPriceAdjustment = 0, businessOwnerId } = body;
+    const { productId, quantity, selectedVariants = {}, selectedColorId, selectedColorName, colorPriceAdjustment = 0, businessOwnerId } = body;
 
     // Validate required fields
     if (!productId || !quantity || !businessOwnerId) {
@@ -121,23 +121,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(ResponseBuilder.error('Product not found'), { status: 404 });
     }
 
-    // Fetch product images with limit
+    // Check if product is active
+    if (product.status !== 'active') {
+      return NextResponse.json(ResponseBuilder.error(`Product "${product.name}" is no longer available (product is ${product.status})`), { status: 400 });
+    }
+
+    // Check stock availability
+    if (product.stockQuantity < quantity) {
+      return NextResponse.json(ResponseBuilder.error(`Insufficient stock. Available: ${product.stockQuantity}, Requested: ${quantity}`), { status: 400 });
+    }
+
+    // Fetch product images and color information
     let images: any[] = [];
+    let colorName = selectedColorName;
+    
     try {
       const { FirebaseAdminService } = await import('@/services/firebase-admin');
       const { Collections } = await import('@/services/firebase');
       
-      const allImages = await FirebaseAdminService.queryDocuments(
-        Collections.PRODUCT_IMAGES,
-        [{ field: 'productId', operator: '==' as const, value: productId }],
-        { field: 'sortOrder', direction: 'asc' },
-        10 // Limit to 10 images per product
-      );
+      // Fetch images and color info in parallel
+      const [allImages, colorData] = await Promise.all([
+        FirebaseAdminService.queryDocuments(
+          Collections.PRODUCT_IMAGES,
+          [{ field: 'productId', operator: '==' as const, value: productId }],
+          { field: 'sortOrder', direction: 'asc' },
+          10 // Limit to 10 images per product
+        ),
+        selectedColorId ? FirebaseAdminService.getDocument(Collections.COLORS, selectedColorId) : null
+      ]);
       
       images = allImages || [];
+      if (colorData && !colorName) {
+        colorName = colorData.colorName;
+      }
+      
       console.log(`Product ${productId} images:`, images);
+      console.log(`Color info for ${selectedColorId}:`, colorData);
     } catch (error) {
-      console.error(`Error fetching images for product ${productId}:`, error);
+      console.error(`Error fetching images/color for product ${productId}:`, error);
     }
 
     // Calculate unit price
@@ -173,6 +194,7 @@ export async function POST(request: NextRequest) {
       quantity,
       selectedVariants,
       selectedColorId: selectedColorId || undefined,
+      selectedColorName: colorName || undefined,
       colorPriceAdjustment,
       unitPrice,
       totalPrice: unitPrice * quantity,

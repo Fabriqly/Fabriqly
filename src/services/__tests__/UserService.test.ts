@@ -1,7 +1,7 @@
 import { UserService } from '../UserService';
 import { UserRepository } from '@/repositories/UserRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
-import { FirebaseAdminService } from '@/services/firebase-admin';
+import { FirebaseAdminService } from '@/lib/firebase-admin';
 import { AppError } from '@/errors/AppError';
 import { CreateUserData, UpdateUserData } from '@/services/interfaces/IUserService';
 

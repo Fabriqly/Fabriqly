@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { CartRepository } from '@/repositories/CartRepository';
+import { ProductRepository } from '@/repositories/ProductRepository';
 import { ResponseBuilder } from '@/utils/ResponseBuilder';
 
 export async function PUT(
@@ -23,7 +24,40 @@ export async function PUT(
       return NextResponse.json(ResponseBuilder.error('Invalid quantity'), { status: 400 });
     }
 
+    // First, get the current cart to find the item
     const cartRepository = new CartRepository();
+    const currentCart = await cartRepository.findByUserId(session.user.id);
+    
+    if (!currentCart) {
+      return NextResponse.json(ResponseBuilder.error('Cart not found'), { status: 404 });
+    }
+
+    // Find the item to get product information
+    const cartItem = currentCart.items.find(item => item.id === itemId);
+    if (!cartItem) {
+      return NextResponse.json(ResponseBuilder.error('Item not found in cart'), { status: 404 });
+    }
+
+    // Validate stock availability if quantity > 0
+    if (quantity > 0) {
+      const productRepository = new ProductRepository();
+      const product = await productRepository.findById(cartItem.productId);
+      
+      if (!product) {
+        return NextResponse.json(ResponseBuilder.error('Product not found'), { status: 404 });
+      }
+
+      // Check if product is active
+      if (product.status !== 'active') {
+        return NextResponse.json(ResponseBuilder.error(`Product "${product.name}" is no longer available (product is ${product.status})`), { status: 400 });
+      }
+
+      // Check stock availability
+      if (product.stockQuantity < quantity) {
+        return NextResponse.json(ResponseBuilder.error(`Insufficient stock. Available: ${product.stockQuantity}, Requested: ${quantity}`), { status: 400 });
+      }
+    }
+
     const cart = await cartRepository.updateItemQuantity(session.user.id, itemId, quantity);
 
     // Refresh product images for all cart items (same logic as GET /api/cart)

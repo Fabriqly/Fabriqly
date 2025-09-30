@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -13,7 +14,9 @@ import {
   FileText,
   DollarSign,
   Tag,
-  MoreVertical
+  MoreVertical,
+  Edit,
+  Trash2
 } from 'lucide-react';
 
 interface DesignCardProps {
@@ -209,16 +212,19 @@ export function DesignCard({
                 size="sm"
                 variant="outline"
                 onClick={() => onEdit?.(design)}
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                title="Edit design"
               >
-                <FileText className="w-4 h-4" />
+                <Edit className="w-4 h-4" />
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => onDelete?.(design)}
                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                title="Delete design"
               >
-                <MoreVertical className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" />
               </Button>
             </div>
           )}
@@ -262,7 +268,15 @@ export function DesignCard({
           </div>
           
           <span>
-            Updated: {new Date(design.updatedAt).toLocaleDateString()}
+            Updated: {(() => {
+              if (design.updatedAt instanceof Date) {
+                return design.updatedAt.toLocaleDateString();
+              } else if (design.updatedAt && typeof design.updatedAt === 'object' && 'toDate' in design.updatedAt) {
+                return (design.updatedAt as any).toDate().toLocaleDateString();
+              } else {
+                return new Date().toLocaleDateString();
+              }
+            })()}
           </span>
         </div>
 
