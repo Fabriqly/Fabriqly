@@ -31,6 +31,9 @@ interface DesignFormProps {
   onCancel?: () => void;
 }
 
+// Global submission lock to prevent duplicate submissions
+let globalSubmissionLock = false;
+
 export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -150,9 +153,34 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Global submission lock check
+    if (globalSubmissionLock) {
+      console.log('⚠️ Global submission lock active, ignoring duplicate submit');
+      return;
+    }
+    
+    // Prevent double submission
+    if (loading) {
+      console.log('⚠️ Form submission already in progress, ignoring duplicate submit');
+      return;
+    }
+    
+    // Additional protection against double submission
+    const form = e.target as HTMLFormElement;
+    if (form.dataset.submitting === 'true') {
+      console.log('⚠️ Form already submitting, ignoring duplicate submit');
+      return;
+    }
+    
+    // Set all locks
+    globalSubmissionLock = true;
+    form.dataset.submitting = 'true';
     setLoading(true);
 
     try {
+      console.log('🔍 Submitting design form with data:', formData);
+      
       const url = design ? `/api/designs/${design.id}` : '/api/designs';
       const method = design ? 'PUT' : 'POST';
       
@@ -164,23 +192,33 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
         body: JSON.stringify(formData),
       });
 
+      const responseData = await response.json();
+      console.log('📊 Design form response:', responseData);
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save design');
+        throw new Error(responseData.error || 'Failed to save design');
       }
 
-      const data = await response.json();
+      console.log('✅ Design saved successfully');
       
       if (onSave) {
-        onSave(data.design);
+        // For new designs, just call onSave with the created design
+        // Don't make another API call
+        onSave(responseData.design);
       } else {
         router.push('/dashboard/designs');
       }
     } catch (error: any) {
-      console.error('Error saving design:', error);
+      console.error('❌ Error saving design:', error);
       alert(error.message || 'Failed to save design');
     } finally {
       setLoading(false);
+      // Reset all locks
+      globalSubmissionLock = false;
+      const form = document.querySelector('form[data-submitting="true"]') as HTMLFormElement;
+      if (form) {
+        form.dataset.submitting = 'false';
+      }
     }
   };
 

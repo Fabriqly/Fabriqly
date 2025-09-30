@@ -254,9 +254,9 @@ export function RecentActivity({
           <div className="flow-root">
             <ul className="-mb-8">
               {activities.map((activity, index) => {
-                const IconComponent = ActivityIcons[activity.type];
+                const IconComponent = ActivityIcons[activity.type] || Settings;
                 const config = ACTIVITY_TYPE_CONFIGS[activity.type];
-                const priorityColor = PriorityColors[activity.priority];
+                const priorityColor = PriorityColors[activity.priority] || 'bg-gray-500';
                 
                 return (
                   <li key={activity.id}>

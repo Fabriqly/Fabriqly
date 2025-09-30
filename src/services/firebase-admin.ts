@@ -372,12 +372,16 @@ export class FirebaseAdminService {
   // Create a new document
   static async createDocument(collection: string, data: any, transaction?: FirebaseFirestore.Transaction) {
     try {
+      console.log(`🔍 Creating document in collection: ${collection}`);
+      console.log(`📊 Data to create:`, JSON.stringify(data, null, 2));
+      
       const collectionRef = adminDb.collection(collection);
       
       if (transaction) {
         // In transaction, we need to generate an ID first
         const docRef = collectionRef.doc();
         const docData = prepareCreateData(data);
+        console.log(`📝 Prepared data for transaction:`, JSON.stringify(docData, null, 2));
         transaction.set(docRef, docData);
         return { id: docRef.id, ...data };
       } else {
@@ -404,12 +408,28 @@ export class FirebaseAdminService {
         }
         
         const docData = prepareCreateData(data);
+        console.log(`📝 Prepared data for creation:`, JSON.stringify(docData, null, 2));
+        
         const docRef = await collectionRef.add(docData);
+        console.log(`✅ Document created with ID: ${docRef.id}`);
+        
+        // Verify the document was created by reading it back
+        const createdDoc = await docRef.get();
+        if (createdDoc.exists) {
+          console.log(`✅ Document verified in database:`, createdDoc.data());
+        } else {
+          console.error(`❌ Document was not found after creation`);
+        }
         
         return { id: docRef.id, ...data };
       }
     } catch (error) {
-      console.error('Error creating document:', error);
+      console.error('❌ Error creating document:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        code: error instanceof Error && 'code' in error ? (error as any).code : 'unknown',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
       throw error;
     }
   }

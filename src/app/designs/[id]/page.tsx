@@ -30,6 +30,14 @@ export default function DesignDetailPage() {
     }
   }, [params.id]);
 
+  useEffect(() => {
+    if (user && design) {
+      checkLikeStatus();
+    } else if (!user) {
+      setIsLiked(false);
+    }
+  }, [user, design]);
+
   const loadDesign = async () => {
     try {
       setLoading(true);
@@ -43,11 +51,30 @@ export default function DesignDetailPage() {
       }
 
       setDesign(data.design);
+
+      // Check if user has liked this design
+      if (user) {
+        await checkLikeStatus();
+      }
     } catch (error: any) {
       console.error('Error loading design:', error);
       setError(error.message || 'Failed to load design');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkLikeStatus = async () => {
+    if (!user || !params.id) return;
+
+    try {
+      const response = await fetch(`/api/designs/${params.id}/like`);
+      if (response.ok) {
+        const data = await response.json();
+        setIsLiked(data.hasLiked);
+      }
+    } catch (error) {
+      console.error('Error checking like status:', error);
     }
   };
 
@@ -69,15 +96,31 @@ export default function DesignDetailPage() {
         throw new Error(error.error || 'Download failed');
       }
 
-      const data = await response.json();
+      // Get the filename from the Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `${design?.designName || 'design'}.${design?.fileFormat || 'jpg'}`;
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      // Create blob from response
+      const blob = await response.blob();
       
       // Create download link
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = data.downloadUrl;
-      link.download = `${data.designName}.${design?.fileFormat}`;
+      link.href = url;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
+      
+      // Cleanup
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
       // Show success message
       alert('Design downloaded successfully!');
@@ -97,13 +140,14 @@ export default function DesignDetailPage() {
     }
 
     try {
+      const method = isLiked ? 'DELETE' : 'POST';
       const response = await fetch(`/api/designs/${designId}/like`, {
-        method: 'POST',
+        method,
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Like failed');
+        throw new Error(error.error || 'Like action failed');
       }
 
       setIsLiked(!isLiked);
@@ -118,7 +162,7 @@ export default function DesignDetailPage() {
       
     } catch (error: any) {
       console.error('Like error:', error);
-      alert(error.message || 'Like failed');
+      alert(error.message || 'Like action failed');
     }
   };
 

@@ -2,7 +2,10 @@ import { OrderRepository, OrderFilters, OrderStats as RepositoryOrderStats } fro
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { ProductRepository } from '@/repositories/ProductRepository';
 import { Order } from '@/types/firebase';
-import type { ActivityType } from '@/types/activity';
+
+import { ActivityType } from '@/types/activity';
+import { Timestamp } from 'firebase/firestore';
+
 import { 
   IOrderService, 
   CreateOrderData, 
@@ -28,9 +31,7 @@ export class OrderService implements IOrderService {
   ) {}
 
   async createOrder(data: CreateOrderData): Promise<Order> {
-    const monitor = new PerformanceMonitor('OrderService.createOrder');
-    
-    try {
+    return PerformanceMonitor.measure('OrderService.createOrder', async () => {
       // Validate order data
       const validation = await this.validateOrderData(data);
       if (!validation.isValid) {
@@ -58,15 +59,19 @@ export class OrderService implements IOrderService {
         billingAddress: data.billingAddress || data.shippingAddress,
         paymentMethod: data.paymentMethod,
         notes: data.notes,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       };
 
       const order = await this.orderRepository.create(orderData);
 
       // Log activity
       await this.activityRepository.create({
-        type: ActivityType.ORDER_CREATED,
+        type: 'order_created',
+        title: 'Order Created',
+        description: `New order #${order.id} created`,
+        priority: 'high',
+        status: 'active',
         targetId: order.id,
         actorId: data.customerId,
         metadata: {
@@ -74,12 +79,12 @@ export class OrderService implements IOrderService {
           totalAmount: order.totalAmount,
           itemCount: data.items.length
         },
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       });
 
       // Emit event
-      eventBus.emit(EventTypes.ORDER_CREATED, {
+      eventBus.emit('order.created', {
         orderId: order.id,
         customerId: data.customerId,
         businessOwnerId: data.businessOwnerId,
@@ -87,22 +92,15 @@ export class OrderService implements IOrderService {
       });
 
       // Clear relevant caches
-      await this.cacheService.invalidate(`orders:customer:${data.customerId}`);
-      await this.cacheService.invalidate(`orders:business:${data.businessOwnerId}`);
+      await CacheService.invalidate(`orders:customer:${data.customerId}`);
+      await CacheService.invalidate(`orders:business:${data.businessOwnerId}`);
 
       return order;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async updateOrder(orderId: string, data: UpdateOrderData, userId: string): Promise<Order> {
-    const monitor = new PerformanceMonitor('OrderService.updateOrder');
-    
-    try {
+    return PerformanceMonitor.measure('OrderService.updateOrder', async () => {
       // Get existing order
       const existingOrder = await this.orderRepository.findById(orderId);
       if (!existingOrder) {
@@ -129,12 +127,16 @@ export class OrderService implements IOrderService {
       // Update order
       const updatedOrder = await this.orderRepository.update(orderId, {
         ...data,
-        updatedAt: new Date()
+        updatedAt: Timestamp.now()
       });
 
       // Log activity
       await this.activityRepository.create({
-        type: ActivityType.ORDER_UPDATED,
+        type: 'order_updated',
+        title: 'Order Updated',
+        description: `Order #${orderId} has been updated`,
+        priority: 'medium',
+        status: 'active',
         targetId: orderId,
         actorId: userId,
         metadata: {
@@ -142,12 +144,12 @@ export class OrderService implements IOrderService {
           changes: data,
           previousStatus: existingOrder.status
         },
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       });
 
       // Emit event
-      eventBus.emit(EventTypes.ORDER_UPDATED, {
+      eventBus.emit('order.updated', {
         orderId,
         changes: data,
         customerId: existingOrder.customerId,
@@ -155,23 +157,16 @@ export class OrderService implements IOrderService {
       });
 
       // Clear relevant caches
-      await this.cacheService.invalidate(`order:${orderId}`);
-      await this.cacheService.invalidate(`orders:customer:${existingOrder.customerId}`);
-      await this.cacheService.invalidate(`orders:business:${existingOrder.businessOwnerId}`);
+      await CacheService.invalidate(`order:${orderId}`);
+      await CacheService.invalidate(`orders:customer:${existingOrder.customerId}`);
+      await CacheService.invalidate(`orders:business:${existingOrder.businessOwnerId}`);
 
       return updatedOrder;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async deleteOrder(orderId: string, userId: string): Promise<void> {
-    const monitor = new PerformanceMonitor('OrderService.deleteOrder');
-    
-    try {
+    return PerformanceMonitor.measure('OrderService.deleteOrder', async () => {
       // Get existing order
       const existingOrder = await this.orderRepository.findById(orderId);
       if (!existingOrder) {
@@ -194,43 +189,40 @@ export class OrderService implements IOrderService {
 
       // Log activity
       await this.activityRepository.create({
-        type: ActivityType.ORDER_DELETED,
+        type: 'order_cancelled',
+        title: 'Order Deleted',
+        description: `Order #${orderId} has been deleted`,
+        priority: 'high',
+        status: 'active',
         targetId: orderId,
         actorId: userId,
         metadata: {
           orderId,
           previousStatus: existingOrder.status
         },
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       });
 
       // Emit event
-      eventBus.emit(EventTypes.ORDER_DELETED, {
+      eventBus.emit('order.deleted', {
         orderId,
         customerId: existingOrder.customerId,
         businessOwnerId: existingOrder.businessOwnerId
       });
 
       // Clear relevant caches
-      await this.cacheService.invalidate(`order:${orderId}`);
-      await this.cacheService.invalidate(`orders:customer:${existingOrder.customerId}`);
-      await this.cacheService.invalidate(`orders:business:${existingOrder.businessOwnerId}`);
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+      await CacheService.invalidate(`order:${orderId}`);
+      await CacheService.invalidate(`orders:customer:${existingOrder.customerId}`);
+      await CacheService.invalidate(`orders:business:${existingOrder.businessOwnerId}`);
+    });
   }
 
   async getOrder(orderId: string, userId: string): Promise<Order | null> {
-    const monitor = new PerformanceMonitor('OrderService.getOrder');
-    
-    try {
+    return PerformanceMonitor.measure('OrderService.getOrder', async () => {
       // Check cache first
       const cacheKey = `order:${orderId}`;
-      const cachedOrder = await this.cacheService.get<Order>(cacheKey);
+      const cachedOrder = await CacheService.get<Order>(cacheKey);
       if (cachedOrder) {
         // Check permissions for cached order
         if (this.canUserViewOrder(cachedOrder, userId)) {
@@ -250,21 +242,14 @@ export class OrderService implements IOrderService {
       }
 
       // Cache the order
-      await this.cacheService.set(cacheKey, order, 300); // 5 minutes
+      CacheService.set(cacheKey, order, 300); // 5 minutes
 
       return order;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async getOrders(options: OrderSearchOptions, userId: string): Promise<OrderSearchResult> {
-    const monitor = new PerformanceMonitor('OrderService.getOrders');
-    
-    try {
+    return PerformanceMonitor.measure('OrderService.getOrders', async () => {
       // Convert options to repository filters
       const filters: OrderFilters = {
         customerId: options.customerId,
@@ -297,12 +282,7 @@ export class OrderService implements IOrderService {
         totalRevenue,
         hasMore: filteredOrders.length === (options.limit || 50)
       };
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async updateOrderStatus(orderId: string, status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled', userId: string): Promise<Order> {

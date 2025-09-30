@@ -7,7 +7,9 @@ import { DesignForm } from '@/components/designer/DesignForm';
 import { DesignCard } from '@/components/designer/DesignCard';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { 
   Plus, 
   Search, 
@@ -37,6 +39,9 @@ export default function DesignsDashboard() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingDesign, setEditingDesign] = useState<DesignWithDetails | null>(null);
+  const [deletingDesign, setDeletingDesign] = useState<DesignWithDetails | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [updateLoading, setUpdateLoading] = useState(false);
   const [stats, setStats] = useState({
     totalDesigns: 0,
     totalViews: 0,
@@ -59,30 +64,53 @@ export default function DesignsDashboard() {
       loadDesigns();
       loadStats();
     }
-  }, [user, isLoading, router]);
+  }, [user?.id, isLoading]); // Only depend on user.id, not the entire user object
 
   const loadDesigns = async () => {
+    if (!user?.id) return;
+    
     try {
       setLoading(true);
       setError(null);
 
+      console.log('🔍 Loading designs for user:', user.id);
+
+      // First, get the designer profile to get the profile ID
+      const profileResponse = await fetch(`/api/designer-profiles?userId=${user.id}`);
+      const profileData = await profileResponse.json();
+      
+      if (!profileResponse.ok || !profileData.profiles || profileData.profiles.length === 0) {
+        console.log('❌ No designer profile found for user');
+        setDesigns([]);
+        return;
+      }
+
+      const designerProfile = profileData.profiles[0];
+      console.log('✅ Found designer profile:', designerProfile.id);
+
       const queryParams = new URLSearchParams();
-      queryParams.append('designerId', user?.id || '');
+      queryParams.append('designerId', designerProfile.id); // Use profile ID, not user ID
       
       if (searchTerm.trim()) {
         queryParams.append('search', searchTerm.trim());
       }
 
-      const response = await fetch(`/api/designs?${queryParams.toString()}`);
+      const url = `/api/designs?${queryParams.toString()}`;
+      console.log('📡 Fetching designs from:', url);
+
+      const response = await fetch(url);
       const data = await response.json();
+
+      console.log('📊 Designs API response:', data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to load designs');
       }
 
       setDesigns(data.designs || []);
+      console.log('✅ Designs loaded:', data.designs?.length || 0);
     } catch (error: any) {
-      console.error('Error loading designs:', error);
+      console.error('❌ Error loading designs:', error);
       setError(error.message || 'Failed to load designs');
     } finally {
       setLoading(false);
@@ -90,46 +118,52 @@ export default function DesignsDashboard() {
   };
 
   const loadStats = async () => {
+    if (!user?.id) return;
+    
     try {
-      const response = await fetch(`/api/designs/stats?designerId=${user?.id}`);
+      // First, get the designer profile to get the profile ID
+      const profileResponse = await fetch(`/api/designer-profiles?userId=${user.id}`);
+      const profileData = await profileResponse.json();
+      
+      if (!profileResponse.ok || !profileData.profiles || profileData.profiles.length === 0) {
+        console.log('❌ No designer profile found for stats');
+        return;
+      }
+
+      const designerProfile = profileData.profiles[0];
+      console.log('📊 Loading stats for designer profile:', designerProfile.id);
+
+      const response = await fetch(`/api/designs/stats?designerId=${designerProfile.id}`);
       const data = await response.json();
 
       if (response.ok) {
         setStats(data.stats || stats);
+        console.log('✅ Stats loaded:', data.stats);
       }
     } catch (error) {
-      console.error('Error loading stats:', error);
+      console.error('❌ Error loading stats:', error);
     }
   };
 
-  const handleCreateDesign = async (designData: any) => {
-    try {
-      const response = await fetch('/api/designs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(designData),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create design');
-      }
-
-      setShowCreateForm(false);
+  const handleCreateDesign = async (createdDesign: any) => {
+    // This function is called after the form has already created the design
+    // We just need to update the UI, not make another API call
+    console.log('✅ Design created by form, updating UI:', createdDesign);
+    
+    setShowCreateForm(false);
+    
+    // Add a small delay to prevent rapid successive calls
+    setTimeout(() => {
       loadDesigns();
       loadStats();
-    } catch (error: any) {
-      console.error('Error creating design:', error);
-      alert(error.message || 'Failed to create design');
-    }
+    }, 100);
   };
 
   const handleUpdateDesign = async (designData: any) => {
     if (!editingDesign) return;
 
     try {
+      setUpdateLoading(true);
       const response = await fetch(`/api/designs/${editingDesign.id}`, {
         method: 'PUT',
         headers: {
@@ -144,20 +178,26 @@ export default function DesignsDashboard() {
       }
 
       setEditingDesign(null);
-      loadDesigns();
+      await loadDesigns();
+      await loadStats();
     } catch (error: any) {
       console.error('Error updating design:', error);
       alert(error.message || 'Failed to update design');
+    } finally {
+      setUpdateLoading(false);
     }
   };
 
-  const handleDeleteDesign = async (design: DesignWithDetails) => {
-    if (!confirm(`Are you sure you want to delete "${design.designName}"?`)) {
-      return;
-    }
+  const handleDeleteDesign = (design: DesignWithDetails) => {
+    setDeletingDesign(design);
+  };
+
+  const confirmDeleteDesign = async () => {
+    if (!deletingDesign) return;
 
     try {
-      const response = await fetch(`/api/designs/${design.id}`, {
+      setDeleteLoading(true);
+      const response = await fetch(`/api/designs/${deletingDesign.id}`, {
         method: 'DELETE',
       });
 
@@ -166,12 +206,19 @@ export default function DesignsDashboard() {
         throw new Error(error.error || 'Failed to delete design');
       }
 
-      loadDesigns();
-      loadStats();
+      setDeletingDesign(null);
+      await loadDesigns();
+      await loadStats();
     } catch (error: any) {
       console.error('Error deleting design:', error);
       alert(error.message || 'Failed to delete design');
+    } finally {
+      setDeleteLoading(false);
     }
+  };
+
+  const cancelDeleteDesign = () => {
+    setDeletingDesign(null);
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -391,6 +438,22 @@ export default function DesignsDashboard() {
           </div>
         </div>
       </div>
+
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={!!deletingDesign}
+        onClose={cancelDeleteDesign}
+        onConfirm={confirmDeleteDesign}
+        title="Delete Design"
+        message={`Are you sure you want to delete "${deletingDesign?.designName}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+      />
+
     </div>
   );
 }
