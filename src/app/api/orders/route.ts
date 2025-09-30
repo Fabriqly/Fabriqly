@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
     // Build search options
     const searchOptions = {
       status,
-      businessOwnerId,
-      customerId,
+      businessOwnerId: businessOwnerId || undefined,
+      customerId: customerId || undefined,
       limit,
       offset,
       sortBy: 'createdAt',

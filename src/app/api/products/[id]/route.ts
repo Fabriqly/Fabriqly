@@ -249,7 +249,7 @@ export async function PUT(
         updateData.weight = Number(body.weight);
       } else {
         // Use Firestore FieldValue.delete() to remove field
-        updateData.weight = FieldValue.delete();
+        (updateData as any).weight = FieldValue.delete();
       }
     }
     
@@ -328,10 +328,12 @@ export async function PUT(
       await DashboardSummaryService.updateForOperation({
         type: 'product_updated',
         entityId: productId,
+        timestamp: new Date().toISOString(),
         entityData: {
           ...updatedProduct,
           status: updateData.status || existingProduct.status
-        }
+        },
+        timestamp: new Date().toISOString()
       });
     } catch (summaryError) {
       console.warn('Failed to update dashboard summary for product update:', summaryError);

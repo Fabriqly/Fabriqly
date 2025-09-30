@@ -47,6 +47,7 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
   });
 
   const [specialtyInput, setSpecialtyInput] = useState('');
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   useEffect(() => {
     if (profile) {
@@ -101,6 +102,15 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form
+    const errors = validateForm();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    
+    setValidationErrors([]);
     setLoading(true);
 
     try {
@@ -135,6 +145,41 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
     }
   };
 
+  const validateForm = (): string[] => {
+    const errors: string[] = [];
+
+    if (!formData.businessName.trim()) {
+      errors.push('Business name is required');
+    } else if (formData.businessName.length < 2) {
+      errors.push('Business name must be at least 2 characters long');
+    } else if (formData.businessName.length > 100) {
+      errors.push('Business name must be less than 100 characters');
+    }
+
+    if (formData.bio && formData.bio.length > 500) {
+      errors.push('Bio must be less than 500 characters');
+    }
+
+    if (formData.website && !isValidUrl(formData.website)) {
+      errors.push('Website must be a valid URL');
+    }
+
+    if (formData.specialties.length > 10) {
+      errors.push('Maximum 10 specialties allowed');
+    }
+
+    return errors;
+  };
+
+  const isValidUrl = (url: string): boolean => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow-md">
@@ -148,6 +193,29 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-8">
+          {/* Validation Errors */}
+          {validationErrors.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <X className="h-5 w-5 text-red-400" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">
+                    Please fix the following errors:
+                  </h3>
+                  <div className="mt-2 text-sm text-red-700">
+                    <ul className="list-disc list-inside space-y-1">
+                      {validationErrors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Basic Information */}
           <div className="space-y-6">
             <div className="flex items-center space-x-2 mb-4">
@@ -177,7 +245,11 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
                 placeholder="Tell us about yourself and your design experience"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={4}
+                maxLength={500}
               />
+              <div className="text-right text-xs text-gray-500 mt-1">
+                {formData.bio?.length || 0}/500 characters
+              </div>
             </div>
 
             <div>
@@ -326,151 +398,3 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
   );
 }
 
-// Designer Profile Display Component
-interface DesignerProfileDisplayProps {
-  profile: DesignerProfile;
-  showActions?: boolean;
-  onEdit?: (profile: DesignerProfile) => void;
-}
-
-export function DesignerProfileDisplay({ profile, showActions = false, onEdit }: DesignerProfileDisplayProps) {
-  return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
-            {profile.businessName.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">{profile.businessName}</h2>
-            {profile.isVerified && (
-              <div className="flex items-center text-blue-600 text-sm">
-                <Award className="w-4 h-4 mr-1" />
-                Verified Designer
-              </div>
-            )}
-          </div>
-        </div>
-
-        {showActions && onEdit && (
-          <Button variant="outline" onClick={() => onEdit(profile)}>
-            Edit Profile
-          </Button>
-        )}
-      </div>
-
-      {profile.bio && (
-        <div className="mb-6">
-          <p className="text-gray-600 leading-relaxed">{profile.bio}</p>
-        </div>
-      )}
-
-      {/* Portfolio Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="text-center">
-          <div className="text-2xl font-bold text-blue-600">
-            {profile.portfolioStats.totalDesigns}
-          </div>
-          <div className="text-sm text-gray-500">Designs</div>
-        </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold text-green-600">
-            {profile.portfolioStats.totalDownloads}
-          </div>
-          <div className="text-sm text-gray-500">Downloads</div>
-        </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold text-purple-600">
-            {profile.portfolioStats.totalViews}
-          </div>
-          <div className="text-sm text-gray-500">Views</div>
-        </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold text-yellow-600">
-            {profile.portfolioStats.averageRating.toFixed(1)}
-          </div>
-          <div className="text-sm text-gray-500">Rating</div>
-        </div>
-      </div>
-
-      {/* Specialties */}
-      {profile.specialties.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-3">Specialties</h3>
-          <div className="flex flex-wrap gap-2">
-            {profile.specialties.map((specialty, index) => (
-              <span
-                key={index}
-                className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"
-              >
-                {specialty}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Contact & Social */}
-      <div className="space-y-4">
-        {profile.website && (
-          <div className="flex items-center space-x-2">
-            <Globe className="w-4 h-4 text-gray-400" />
-            <a 
-              href={profile.website} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800"
-            >
-              {profile.website}
-            </a>
-          </div>
-        )}
-
-        {profile.socialMedia && (
-          <div className="flex space-x-4">
-            {profile.socialMedia.instagram && (
-              <a 
-                href={`https://instagram.com/${profile.socialMedia.instagram.replace('@', '')}`}
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-pink-600 hover:text-pink-800"
-              >
-                <Instagram className="w-5 h-5" />
-              </a>
-            )}
-            {profile.socialMedia.facebook && (
-              <a 
-                href={profile.socialMedia.facebook}
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800"
-              >
-                <Facebook className="w-5 h-5" />
-              </a>
-            )}
-            {profile.socialMedia.twitter && (
-              <a 
-                href={`https://twitter.com/${profile.socialMedia.twitter.replace('@', '')}`}
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-600"
-              >
-                <Twitter className="w-5 h-5" />
-              </a>
-            )}
-            {profile.socialMedia.linkedin && (
-              <a 
-                href={profile.socialMedia.linkedin}
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-700 hover:text-blue-900"
-              >
-                <Linkedin className="w-5 h-5" />
-              </a>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
