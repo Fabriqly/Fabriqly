@@ -117,6 +117,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updatedAt: new Date()
     };
 
+
     // Remove id from update data if it exists
     delete (updateData as any).id;
 

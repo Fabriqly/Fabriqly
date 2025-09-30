@@ -15,6 +15,7 @@ interface AddToCartButtonProps {
   colorPriceAdjustment?: number;
   businessOwnerId: string;
   className?: string;
+
   variant?: 'primary' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;

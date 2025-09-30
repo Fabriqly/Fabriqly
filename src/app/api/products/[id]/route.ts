@@ -328,6 +328,7 @@ export async function PUT(
       await DashboardSummaryService.updateForOperation({
         type: 'product_updated',
         entityId: productId,
+        timestamp: new Date().toISOString(),
         entityData: {
           ...updatedProduct,
           status: updateData.status || existingProduct.status

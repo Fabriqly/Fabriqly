@@ -167,6 +167,11 @@ export const Collections = {
   CARTS: 'carts',
   CART_ITEMS: 'cartItems',
   
+
+  // Password Reset
+  PASSWORD_RESET_TOKENS: 'passwordResetTokens'
+
   // User Likes System
   USER_LIKES: 'userLikes'
+
 } as const;

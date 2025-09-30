@@ -17,9 +17,11 @@ export default withAuth(
         // Allow access to public pages
         if (req.nextUrl.pathname.startsWith('/login') || 
             req.nextUrl.pathname.startsWith('/register') ||
+            req.nextUrl.pathname.startsWith('/forgot-password') ||
+            req.nextUrl.pathname.startsWith('/reset-password') ||
             req.nextUrl.pathname.startsWith('/role-selection') ||
             req.nextUrl.pathname.startsWith('/business/login') ||
-            req.nextUrl.pathname.startsWith('/customer') ||
+            req.nextUrl.pathname.startsWith('/explore') ||
             req.nextUrl.pathname === '/') {
           return true;
         }
