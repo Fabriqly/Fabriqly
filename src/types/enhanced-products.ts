@@ -1,3 +1,4 @@
+
 import { Timestamp } from 'firebase/firestore';
 
 // Enhanced types based on ERD structure
@@ -281,6 +282,7 @@ export interface DesignFilters {
   categoryId?: string;
   designType?: 'template' | 'custom' | 'premium';
   isPublic?: boolean;
+  isActive?: boolean;
   isFeatured?: boolean;
   isFree?: boolean;
   minPrice?: number;
@@ -302,12 +304,30 @@ export interface CreateDesignerProfileData {
   specialties: string[];
 }
 
+export interface UpdateDesignerProfileData {
+  businessName?: string;
+  bio?: string;
+  website?: string;
+  socialMedia?: DesignerProfile['socialMedia'];
+  specialties?: string[];
+}
+
 export interface CreateShopProfileData {
   businessName: string;
   description?: string;
   website?: string;
   address?: ShopProfile['address'];
   contactInfo: ShopProfile['contactInfo'];
+  businessHours?: ShopProfile['businessHours'];
+  socialMedia?: ShopProfile['socialMedia'];
+}
+
+export interface UpdateShopProfileData {
+  businessName?: string;
+  description?: string;
+  website?: string;
+  address?: ShopProfile['address'];
+  contactInfo?: ShopProfile['contactInfo'];
   businessHours?: ShopProfile['businessHours'];
   socialMedia?: ShopProfile['socialMedia'];
 }
@@ -341,12 +361,6 @@ export interface CreateSizeChartData {
   description?: string;
   sizeData: SizeChart['sizeData'];
   categoryId?: string;
-}
-
-export interface CreateColorData {
-  colorName: string;
-  hexCode: string;
-  rgbCode: string;
 }
 
 export interface UpdateColorData extends Partial<CreateColorData> {
@@ -383,3 +397,4 @@ export interface UpdateCategoryData extends Partial<CreateCategoryData> {
 export interface UpdateSizeChartData extends Partial<CreateSizeChartData> {
   id: string;
 }
+```
