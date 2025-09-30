@@ -262,7 +262,7 @@ export function DesignCard({
           </div>
           
           <span>
-            Updated: {new Date(design.updatedAt).toLocaleDateString()}
+            Updated: {design.updatedAt?.toDate?.() ? design.updatedAt.toDate().toLocaleDateString() : 'Unknown'}
           </span>
         </div>
 

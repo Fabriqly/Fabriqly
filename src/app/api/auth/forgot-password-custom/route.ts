@@ -9,8 +9,7 @@ export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json();
 
-    console.log('📧 CUSTOM PASSWORD RESET');
-    console.log('Email:', email);
+    // Processing password reset request
 
     // Validate email
     if (!email) {
@@ -65,7 +64,7 @@ export async function POST(request: NextRequest) {
     // Send email using nodemailer (if configured)
     try {
       if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-        const transporter = nodemailer.createTransporter({
+        const transporter = nodemailer.createTransport({
           host: process.env.SMTP_HOST,
           port: parseInt(process.env.SMTP_PORT || '587'),
           secure: false,
@@ -82,31 +81,125 @@ export async function POST(request: NextRequest) {
           to: email,
           subject: 'Reset Your Fabriqly Password',
           html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2>Reset Your Password</h2>
-              <p>Hello ${userData.profile?.firstName || 'User'},</p>
-              <p>You requested a password reset for your Fabriqly account.</p>
-              <p>Click the button below to reset your password:</p>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${resetUrl}" 
-                   style="background-color: #3B82F6; color: white; padding: 12px 24px; 
-                          text-decoration: none; border-radius: 6px; display: inline-block;">
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Reset Your Fabriqly Password</title>
+              <!--[if mso]>
+              <noscript>
+                <xml>
+                  <o:OfficeDocumentSettings>
+                    <o:PixelsPerInch>96</o:PixelsPerInch>
+                  </o:OfficeDocumentSettings>
+                </xml>
+              </noscript>
+              <![endif]-->
+            </head>
+            <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+              <!-- Main Container -->
+              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f8fafc; min-height: 100vh;">
+                <tr>
+                  <td align="center" valign="top" style="padding: 40px 20px;">
+                    <!-- Email Container -->
+                    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); overflow: hidden;">
+                      
+                      <!-- Header -->
+                      <tr>
+                        <td style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 40px; text-align: center;">
+                          <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;">
+                            <tr>
+                              <td align="center">
+                                <span style="font-size: 32px; margin-right: 12px; vertical-align: middle; display: inline-block;">🛍️</span>
+                                <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; letter-spacing: -0.01em; display: inline-block; vertical-align: middle;">
+                                  Fabriqly
+                                </h1>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      
+                      <!-- Content -->
+                      <tr>
+                        <td style="padding: 40px;">
+                          <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                            <tr>
+                              <td>
+                                <div style="text-align: center; margin-bottom: 32px;">
+                                  <p style="color: #6b7280; font-size: 16px; line-height: 1.5; margin: 0 0 8px 0;">
+                                    Hello <strong style="color: #1f2937;">${userData.profile?.firstName || 'there'}</strong> 👋
+                                  </p>
+                                  <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0;">
+                                    We received a request to reset your password. Click the button below to create a new one.
+                                  </p>
+                                </div>
+                                
+                                <!-- Reset Button -->
+                                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 24px 0;">
+                                  <tr>
+                                    <td align="center">
+                                      <table cellpadding="0" cellspacing="0" border="0">
+                                        <tr>
+                                          <td style="border-radius: 10px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.25);">
+                                            <a href="${resetUrl}" style="display: inline-block; padding: 18px 36px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; border-radius: 10px; letter-spacing: 0.025em;">
                   Reset Password
                 </a>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                  </tr>
+                                </table>
+                                
+                                <!-- Alternative Link -->
+                                <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin: 32px 0;">
+                                  <p style="color: #6b7280; font-size: 14px; margin: 0 0 12px 0; font-weight: 500;">
+                                    Having trouble with the button? Copy and paste this link into your browser:
+                                  </p>
+                                  <p style="word-break: break-all; color: #3b82f6; font-size: 14px; margin: 0; font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace; background-color: #ffffff; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                    ${resetUrl}
+                                  </p>
               </div>
-              <p>Or copy and paste this link in your browser:</p>
-              <p style="word-break: break-all; color: #666;">${resetUrl}</p>
-              <p><strong>This link will expire in 1 hour.</strong></p>
-              <p>If you didn't request this password reset, please ignore this email.</p>
-              <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-              <p style="color: #666; font-size: 12px;">
-                This email was sent from Fabriqly. If you have any questions, please contact support.
+                                
+                                <!-- Security Notice -->
+                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 24px 0; border-radius: 0 6px 6px 0;">
+                                  <p style="color: #92400e; font-size: 14px; margin: 0; font-weight: 500;">
+                                    ⏰ <strong>Security Notice:</strong> This link will expire in 1 hour for your protection.
               </p>
             </div>
+                                
+                                <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin: 24px 0 0 0;">
+                                  If you didn't request this password reset, please ignore this email. Your account remains secure and no changes have been made.
+                                </p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      
+                      <!-- Footer -->
+                      <tr>
+                        <td style="background-color: #f9fafb; padding: 24px 40px; text-align: center;">
+                          <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0; font-weight: 500;">
+                            The Fabriqly Team
+                          </p>
+                          <p style="color: #9ca3af; font-size: 12px; margin: 0; line-height: 1.4;">
+                            © ${new Date().getFullYear()} Fabriqly • Fashion & Design Platform
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
           `,
         });
 
-        console.log('✅ Custom password reset email sent successfully');
+        // Email sent successfully
       } else {
         console.log('⚠️ SMTP not configured, skipping email send');
       }
