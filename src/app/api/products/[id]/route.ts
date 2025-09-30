@@ -332,7 +332,8 @@ export async function PUT(
         entityData: {
           ...updatedProduct,
           status: updateData.status || existingProduct.status
-        }
+        },
+        timestamp: new Date().toISOString()
       });
     } catch (summaryError) {
       console.warn('Failed to update dashboard summary for product update:', summaryError);

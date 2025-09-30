@@ -1,4 +1,3 @@
-```typescript
 // lib/auth.ts - UPDATED VERSION WITH BETTER SESSION REFRESH
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
@@ -23,15 +22,32 @@ import { FirebaseAdminService } from '@/services/firebase-admin';
 })();
 
 export const authOptions: NextAuthOptions = {
+  events: {
+    async session({ session, token }) {
+      // Custom session event handling if needed
+    }
+  },
+
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
+  },
+
+  pages: {
+    signIn: '/login',
+    error: '/auth/error',
+  },
+
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          access_type: "offline",
-          response_type: "code",
-          prompt: "select_account"
+          access_type: 'offline',
+          response_type: 'code',
+          prompt: 'select_account'
         }
       }
     }),
@@ -47,21 +63,19 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // Verify credentials using Firebase Client SDK
           const userCredential = await signInWithEmailAndPassword(
             auth,
             credentials.email,
             credentials.password
           );
-          
+
           if (!userCredential.user) {
             return null;
           }
 
-          // Get user data from Firestore
           const userDocRef = doc(db, Collections.USERS, userCredential.user.uid);
           const userDoc = await getDoc(userDocRef);
-          
+
           if (!userDoc.exists()) {
             console.error('User document not found in Firestore');
             return null;
@@ -69,30 +83,54 @@ export const authOptions: NextAuthOptions = {
 
           const userData = userDoc.data();
 
-          // Return user data for NextAuth session
           return {
             id: userCredential.user.uid,
             email: userCredential.user.email || '',
-            name: userData.displayName || userCredential.user.displayName || credentials.email,
-            image: userData.photoURL || userCredential.user.photoURL || '',
+            name:
+              userData.displayName ||
+              userCredential.user.displayName ||
+              credentials.email,
+            image:
+              userData.photoURL || userCredential.user.photoURL || '',
             role: userData.role as UserRole
           };
         } catch (error: any) {
           console.error('Credentials verification error:', error);
+
           // Firebase auth errors
-          if (error.code === 'auth/invalid-credential' || 
-              error.code === 'auth/user-not-found' || 
-              error.code === 'auth/wrong-password') {
+          if (
+            error.code === 'auth/invalid-credential' ||
+            error.code === 'auth/user-not-found' ||
+            error.code === 'auth/wrong-password'
+          ) {
             return null;
           }
+
+          // Handle Firebase permission errors gracefully
+          if (
+            error?.code === 'auth/internal-error' &&
+            error?.message?.includes('PERMISSION_DENIED')
+          ) {
+            console.error(
+              '❌ Firebase Admin SDK permission error. Please check IAM roles for the service account.'
+            );
+            console.error(
+              'Required role: roles/serviceusage.serviceUsageConsumer'
+            );
+            console.error('Project: fabriqly-f88c3');
+            console.error(
+              'Visit: https://console.developers.google.com/iam-admin/iam/project?project=fabriqly-f88c3'
+            );
+          }
+
           return null;
         }
       }
     })
   ],
-  
+
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       if (account?.provider === 'google') {
         try {
           if (!user.email) {
@@ -104,7 +142,6 @@ export const authOptions: NextAuthOptions = {
             return false;
           }
 
-          // Create or sync user in Firebase Auth if they don't exist
           try {
             console.log('🔄 Attempting to create Google user in Firebase Auth:', {
               uid: user.id,
@@ -112,23 +149,21 @@ export const authOptions: NextAuthOptions = {
               name: user.name
             });
 
-            // Try to create user in Firebase Auth - let Firebase generate UID if needed
-            const firebaseUser = await FirebaseAdminService.createUserInFirebaseAuth({
-              uid: user.id!,
-              email: user.email,
-              displayName: user.name || '',
-              photoURL: user.image || '',
-              emailVerified: true
-            });
-            
+            const firebaseUser =
+              await FirebaseAdminService.createUserInFirebaseAuth({
+                uid: user.id!,
+                email: user.email,
+                displayName: user.name || '',
+                photoURL: user.image || '',
+                emailVerified: true
+              });
+
             console.log('✅ Google user synced with Firebase Auth:', {
               uid: firebaseUser.uid,
               email: firebaseUser.email
             });
-            
-            // Update the user.id to match Firebase Auth UID
+
             user.id = firebaseUser.uid;
-            
           } catch (error: any) {
             console.error('❌ Failed to sync Google user with Firebase Auth:', {
               error: error.message,
@@ -136,19 +171,24 @@ export const authOptions: NextAuthOptions = {
               uid: user.id,
               email: user.email
             });
-            
-            // If it's not a "user already exists" error, fail the sign-in
-            if (error.code !== 'auth/uid-already-exists' && error.code !== 'auth/email-already-exists') {
+
+            if (
+              error.code !== 'auth/uid-already-exists' &&
+              error.code !== 'auth/email-already-exists'
+            ) {
               return false;
             }
-            
-            // If user already exists, try to get the existing user
+
             if (error.code === 'auth/email-already-exists') {
               try {
-                const existingUser = await FirebaseAdminService.getUserByEmail(user.email);
+                const existingUser =
+                  await FirebaseAdminService.getUserByEmail(user.email);
                 if (existingUser) {
                   user.id = existingUser.uid;
-                  console.log('✅ Using existing Firebase Auth user:', existingUser.uid);
+                  console.log(
+                    '✅ Using existing Firebase Auth user:',
+                    existingUser.uid
+                  );
                 }
               } catch (getError) {
                 console.error('❌ Failed to get existing user:', getError);
@@ -165,84 +205,61 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    
-    async jwt({ token, user, account, trigger, session }) {      
-      // CRITICAL: Handle session update triggers
+
+    async jwt({ token, user, account, trigger }) {
       if (trigger === 'update' && token.sub) {
-        console.log('JWT: Session update triggered, refreshing user data...');
+        console.log(
+          'JWT: Session update triggered, refreshing user data...'
+        );
         try {
           const userDocRef = doc(db, Collections.USERS, token.sub);
           const userDoc = await getDoc(userDocRef);
-          
+
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            console.log('JWT: Fresh user data from DB:', userData);
-            
-            // Update all relevant token fields
             token.role = userData.role as UserRole;
             token.displayName = userData.displayName;
             token.photoURL = userData.photoURL;
-            
-            console.log('JWT: Updated token with fresh data:', {
-              role: token.role,
-              displayName: token.displayName,
-              sub: token.sub
-            });
-          } else {
-            console.log('JWT: User document not found during update');
           }
         } catch (error) {
-          console.error('JWT: Error updating token during session update:', error);
+          console.error(
+            'JWT: Error updating token during session update:',
+            error
+          );
         }
       }
-      
-      // Handle initial login
+
       if (account && user) {
         try {
           const userId = user.id || token.sub!;
-          console.log('JWT: Processing initial login for user:', userId);
-          
+
           if (account.provider === 'google') {
-            console.log('JWT: Processing Google user for Firestore:', {
-              userId,
-              userEmail: user.email,
-              userName: user.name
-            });
-            
-            // For Google users, we need to use the Firebase Auth UID
-            // First, try to get the user from Firebase Auth to get the correct UID
             let firebaseUserId = userId;
             try {
-              const existingUser = await FirebaseAdminService.getUserByEmail(user.email!);
+              const existingUser =
+                await FirebaseAdminService.getUserByEmail(user.email!);
               if (existingUser) {
                 firebaseUserId = existingUser.uid;
-                console.log('JWT: Found Firebase Auth user, using UID:', firebaseUserId);
               }
-            } catch (error) {
-              console.log('JWT: Could not find Firebase Auth user, using original ID:', userId);
+            } catch {
+              // ignore
             }
-            
+
             const userDocRef = doc(db, Collections.USERS, firebaseUserId);
             const userDoc = await getDoc(userDocRef);
-            
-            console.log('JWT: Checking if user exists in Firestore:', {
-              originalUserId: userId,
-              firebaseUserId,
-              exists: userDoc.exists()
-            });
-            
+
             if (!userDoc.exists()) {
-              // Create new user document
               const userData = {
                 email: user.email!,
                 displayName: user.name || '',
                 photoURL: user.image || null,
-                role: 'customer' as UserRole, // Default role
+                role: 'customer' as UserRole,
                 isVerified: true,
                 provider: 'google',
                 profile: {
                   firstName: user.name?.split(' ')[0] || '',
-                  lastName: user.name?.split(' ').slice(1).join(' ') || '',
+                  lastName:
+                    user.name?.split(' ').slice(1).join(' ') || '',
                   preferences: {
                     notifications: {
                       email: true,
@@ -256,57 +273,49 @@ export const authOptions: NextAuthOptions = {
                 updatedAt: new Date().toISOString(),
                 lastLoginAt: new Date().toISOString()
               };
-              
+
               await setDoc(userDocRef, userData);
-              console.log('JWT: New Google user created in Firestore:', {
-                originalUserId: userId,
-                firebaseUserId,
-                email: userData.email,
-                displayName: userData.displayName
-              });
-              
-              // Update the token to use the Firebase Auth UID
               token.sub = firebaseUserId;
               token.role = 'customer' as UserRole;
             } else {
-              // Update existing user's last login and get current role
               const userData = userDoc.data();
-              await setDoc(userDocRef, {
-                ...userData,
-                lastLoginAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              }, { merge: true });
-              
+              await setDoc(
+                userDocRef,
+                {
+                  ...userData,
+                  lastLoginAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
+                },
+                { merge: true }
+              );
+
               token.role = userData.role as UserRole;
-              console.log('JWT: Existing user login, role:', token.role);
             }
-            
-            // Set additional token data
+
             token.displayName = user.name;
             token.photoURL = user.image;
             token.provider = 'google';
           } else if (account.provider === 'credentials') {
-            // Handle credentials provider (email/password login)
-            console.log('JWT: Processing credentials login for user:', userId);
-            console.log('JWT: User data from credentials provider:', { role: user.role, name: user.name });
-            
-            // Use the role and data already provided by the credentials provider
             token.role = user.role as UserRole;
             token.displayName = user.name;
             token.photoURL = user.image;
             token.provider = 'credentials';
-            
-            // Update last login time in Firestore (but don't override the role)
+
             try {
               const userDocRef = doc(db, Collections.USERS, userId);
-              await setDoc(userDocRef, {
-                lastLoginAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              }, { merge: true });
-              
-              console.log('JWT: Credentials login successful, role:', token.role);
+              await setDoc(
+                userDocRef,
+                {
+                  lastLoginAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
+                },
+                { merge: true }
+              );
             } catch (error) {
-              console.error('JWT: Error updating last login time:', error);
+              console.error(
+                'JWT: Error updating last login time:',
+                error
+              );
             }
           }
         } catch (error) {
@@ -315,79 +324,28 @@ export const authOptions: NextAuthOptions = {
           token.role = 'customer' as UserRole;
         }
       }
-      
+
       return token;
     },
-    
+
     async session({ session, token }) {
       if (session.user && token) {
         session.user.id = token.sub!;
         session.user.role = token.role;
-        
-        // Add custom properties if available
-        if (token.displayName) session.user.name = token.displayName as string;
-        if (token.photoURL) session.user.image = token.photoURL as string;
-        
-        console.log('Session callback: Final session data:', {
-          userId: session.user.id,
-          role: session.user.role,
-          email: session.user.email
-        });
+        if (token.displayName) session.user.name = token.displayName;
+        if (token.photoURL) session.user.image = token.photoURL;
       }
       return session;
     },
 
     async redirect({ url, baseUrl, token }) {
-      // Handle role-based redirects after authentication
       if (url.startsWith('/')) {
         return `${baseUrl}${url}`;
       } else if (new URL(url).origin === baseUrl) {
         return url;
       }
-      
+
       // Role-based redirect after authentication
       if (token?.role === 'customer') {
         return `${baseUrl}/explore`;
-      } else if (token?.role === 'admin') {
-        return `${baseUrl}/dashboard/admin`;
-      } else if (['business_owner', 'designer'].includes(token?.role as string)) {
-        return `${baseUrl}/dashboard`;
-      }
-      
-      // Default redirect to explore page for safety
-      return `${baseUrl}/explore`;
-    }
-  },
-  
-  pages: {
-    signIn: '/login',
-    error: '/auth/error',
-    signOut: '/auth/signout'
-  },
-  
-  session: {
-    strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  },
-  
-  secret: process.env.NEXTAUTH_SECRET,
-  
-  // Enhanced security options
-  cookies: {
-    sessionToken: {
-      name: process.env.NODE_ENV === 'production' 
-        ? '__Secure-next-auth.session-token' 
-        : 'next-auth.session-token',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production'
-      }
-    }
-  },
-  
-  // Enable debug in development
-  debug: process.env.NODE_ENV === 'development',
-};
-```
+      } else if (t

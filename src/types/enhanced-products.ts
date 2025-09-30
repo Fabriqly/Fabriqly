@@ -310,6 +310,8 @@ export interface UpdateDesignerProfileData {
   website?: string;
   socialMedia?: DesignerProfile['socialMedia'];
   specialties?: string[];
+  isVerified?: boolean;
+  isActive?: boolean;
 }
 
 export interface CreateShopProfileData {

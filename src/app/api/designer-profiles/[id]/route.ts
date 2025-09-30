@@ -117,7 +117,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updatedAt: new Date()
     };
 
-    // Remove id from update data if it exists (TypeScript ensures this)
+
+    // Remove id from update data if it exists
+    delete (updateData as any).id;
 
     const updatedProfile = await FirebaseAdminService.updateDocument(
       Collections.DESIGNER_PROFILES,

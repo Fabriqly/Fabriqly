@@ -28,8 +28,10 @@ const nextConfig = {
       }
     ],
   },
+  experimental: {
+    esmExternals: 'loose',
+  },
   webpack: (config, { isServer }) => {
-    // Handle undici module compatibility issue
     if (isServer) {
       config.externals = config.externals || [];
       config.externals.push('undici');
@@ -38,4 +40,4 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+module.exports = nextConfig;

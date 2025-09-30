@@ -2,10 +2,12 @@ import { ProductRepository } from '@/repositories/ProductRepository';
 import { UserRepository } from '@/repositories/UserRepository';
 import { CategoryRepository } from '@/repositories/CategoryRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
+import { DesignerProfileRepository } from '@/repositories/DesignerProfileRepository';
 import { ProductService } from '@/services/ProductService';
 import { UserService } from '@/services/UserService';
 import { CategoryService } from '@/services/CategoryService';
 import { ActivityService } from '@/services/ActivityService';
+import { DesignerProfileService } from '@/services/DesignerProfileService';
 
 export type ServiceFactory<T> = () => T;
 
@@ -70,6 +72,7 @@ export class ServiceContainer {
     this.register('userRepository', () => new UserRepository());
     this.register('categoryRepository', () => new CategoryRepository());
     this.register('activityRepository', () => new ActivityRepository());
+    this.register('designerProfileRepository', () => new DesignerProfileRepository());
 
     // Register services with their dependencies
     this.register('productService', () => new ProductService(
@@ -90,6 +93,11 @@ export class ServiceContainer {
     ));
 
     this.register('activityService', () => new ActivityService(
+      this.get<ActivityRepository>('activityRepository')
+    ));
+
+    this.register('designerProfileService', () => new DesignerProfileService(
+      this.get<DesignerProfileRepository>('designerProfileRepository'),
       this.get<ActivityRepository>('activityRepository')
     ));
   }
