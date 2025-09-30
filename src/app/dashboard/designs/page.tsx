@@ -58,30 +58,53 @@ export default function DesignsDashboard() {
       loadDesigns();
       loadStats();
     }
-  }, [user, isLoading, router]);
+  }, [user?.id, isLoading]); // Only depend on user.id, not the entire user object
 
   const loadDesigns = async () => {
+    if (!user?.id) return;
+    
     try {
       setLoading(true);
       setError(null);
 
+      console.log('🔍 Loading designs for user:', user.id);
+
+      // First, get the designer profile to get the profile ID
+      const profileResponse = await fetch(`/api/designer-profiles?userId=${user.id}`);
+      const profileData = await profileResponse.json();
+      
+      if (!profileResponse.ok || !profileData.profiles || profileData.profiles.length === 0) {
+        console.log('❌ No designer profile found for user');
+        setDesigns([]);
+        return;
+      }
+
+      const designerProfile = profileData.profiles[0];
+      console.log('✅ Found designer profile:', designerProfile.id);
+
       const queryParams = new URLSearchParams();
-      queryParams.append('designerId', user?.id || '');
+      queryParams.append('designerId', designerProfile.id); // Use profile ID, not user ID
       
       if (searchTerm.trim()) {
         queryParams.append('search', searchTerm.trim());
       }
 
-      const response = await fetch(`/api/designs?${queryParams.toString()}`);
+      const url = `/api/designs?${queryParams.toString()}`;
+      console.log('📡 Fetching designs from:', url);
+
+      const response = await fetch(url);
       const data = await response.json();
+
+      console.log('📊 Designs API response:', data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to load designs');
       }
 
       setDesigns(data.designs || []);
+      console.log('✅ Designs loaded:', data.designs?.length || 0);
     } catch (error: any) {
-      console.error('Error loading designs:', error);
+      console.error('❌ Error loading designs:', error);
       setError(error.message || 'Failed to load designs');
     } finally {
       setLoading(false);
@@ -89,40 +112,45 @@ export default function DesignsDashboard() {
   };
 
   const loadStats = async () => {
+    if (!user?.id) return;
+    
     try {
-      const response = await fetch(`/api/designs/stats?designerId=${user?.id}`);
+      // First, get the designer profile to get the profile ID
+      const profileResponse = await fetch(`/api/designer-profiles?userId=${user.id}`);
+      const profileData = await profileResponse.json();
+      
+      if (!profileResponse.ok || !profileData.profiles || profileData.profiles.length === 0) {
+        console.log('❌ No designer profile found for stats');
+        return;
+      }
+
+      const designerProfile = profileData.profiles[0];
+      console.log('📊 Loading stats for designer profile:', designerProfile.id);
+
+      const response = await fetch(`/api/designs/stats?designerId=${designerProfile.id}`);
       const data = await response.json();
 
       if (response.ok) {
         setStats(data.stats || stats);
+        console.log('✅ Stats loaded:', data.stats);
       }
     } catch (error) {
-      console.error('Error loading stats:', error);
+      console.error('❌ Error loading stats:', error);
     }
   };
 
-  const handleCreateDesign = async (designData: any) => {
-    try {
-      const response = await fetch('/api/designs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(designData),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create design');
-      }
-
-      setShowCreateForm(false);
+  const handleCreateDesign = async (createdDesign: any) => {
+    // This function is called after the form has already created the design
+    // We just need to update the UI, not make another API call
+    console.log('✅ Design created by form, updating UI:', createdDesign);
+    
+    setShowCreateForm(false);
+    
+    // Add a small delay to prevent rapid successive calls
+    setTimeout(() => {
       loadDesigns();
       loadStats();
-    } catch (error: any) {
-      console.error('Error creating design:', error);
-      alert(error.message || 'Failed to create design');
-    }
+    }, 100);
   };
 
   const handleUpdateDesign = async (designData: any) => {

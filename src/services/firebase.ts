@@ -165,5 +165,8 @@ export const Collections = {
   
   // Cart System
   CARTS: 'carts',
-  CART_ITEMS: 'cartItems'
+  CART_ITEMS: 'cartItems',
+  
+  // User Likes System
+  USER_LIKES: 'userLikes'
 } as const;

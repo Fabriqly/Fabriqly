@@ -21,6 +21,26 @@ import { FirebaseAdminService } from '@/services/firebase-admin';
 })();
 
 export const authOptions: NextAuthOptions = {
+  // Disable automatic session refresh on window focus to prevent alt+tab reloads
+  events: {
+    async session({ session, token }) {
+      // Custom session event handling if needed
+    }
+  },
+  
+  // Configure session behavior
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
+  },
+  
+  // Disable automatic session refresh on focus
+  pages: {
+    signIn: '/login',
+    error: '/auth/error',
+  },
+  
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,

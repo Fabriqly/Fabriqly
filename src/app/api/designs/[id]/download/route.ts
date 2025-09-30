@@ -81,11 +81,28 @@ export async function POST(
       updatedAt: Timestamp.now()
     });
 
-    return NextResponse.json({
-      success: true,
-      downloadUrl: design.designFileUrl,
-      designName: design.designName,
-      fileFormat: design.fileFormat
+    // Fetch the file from Supabase storage
+    const fileResponse = await fetch(design.designFileUrl);
+    
+    if (!fileResponse.ok) {
+      return NextResponse.json(
+        { error: 'Failed to fetch design file' },
+        { status: 500 }
+      );
+    }
+
+    const fileBuffer = await fileResponse.arrayBuffer();
+    const fileName = `${design.designName}.${design.fileFormat}`;
+
+    // Return the file with proper download headers
+    return new NextResponse(fileBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': fileResponse.headers.get('content-type') || 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Length': fileBuffer.byteLength.toString(),
+        'Cache-Control': 'no-cache',
+      },
     });
   } catch (error: any) {
     console.error('Error downloading design:', error);
