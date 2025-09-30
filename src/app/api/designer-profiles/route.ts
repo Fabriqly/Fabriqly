@@ -53,19 +53,26 @@ export async function GET(request: NextRequest) {
 // POST /api/designer-profiles - Create designer profile
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔍 Starting designer profile creation...');
+    
     const session = await getServerSession(authOptions);
     
     if (!session) {
+      console.log('❌ No session found');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
+    console.log('✅ Session found for user:', session.user.id);
+
     const body: CreateDesignerProfileData = await request.json();
+    console.log('📝 Request body:', JSON.stringify(body, null, 2));
     
     // Validate required fields
     if (!body.businessName) {
+      console.log('❌ Business name is required');
       return NextResponse.json(
         { error: 'Business name is required' },
         { status: 400 }
@@ -73,17 +80,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already has a designer profile
+    console.log('🔍 Checking for existing profile...');
     const existingProfile = await FirebaseAdminService.queryDocuments(
       Collections.DESIGNER_PROFILES,
       [{ field: 'userId', operator: '==' as const, value: session.user.id }]
     );
 
     if (existingProfile.length > 0) {
+      console.log('❌ User already has a designer profile');
       return NextResponse.json(
         { error: 'User already has a designer profile' },
         { status: 400 }
       );
     }
+
+    console.log('✅ No existing profile found, creating new one...');
 
     const profileData: Omit<DesignerProfile, 'id'> = {
       businessName: body.businessName,
@@ -104,24 +115,39 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date()
     };
 
+    console.log('📊 Profile data to create:', JSON.stringify(profileData, null, 2));
+
     const profile = await FirebaseAdminService.createDocument(
       Collections.DESIGNER_PROFILES,
       profileData
     );
 
+    console.log('✅ Profile created successfully:', profile.id);
+
     // Update user role to designer if not already
+    console.log('🔍 Checking user role...');
     const user = await FirebaseAdminService.getDocument(Collections.USERS, session.user.id);
     if (user && user.role !== 'designer') {
+      console.log('🔄 Updating user role to designer...');
       await FirebaseAdminService.updateDocument(
         Collections.USERS,
         session.user.id,
         { role: 'designer', updatedAt: new Date() }
       );
+      console.log('✅ User role updated to designer');
+    } else {
+      console.log('✅ User role is already designer or user not found');
     }
 
+    console.log('🎉 Designer profile creation completed successfully');
     return NextResponse.json({ profile }, { status: 201 });
   } catch (error: any) {
-    console.error('Error creating designer profile:', error);
+    console.error('❌ Error creating designer profile:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

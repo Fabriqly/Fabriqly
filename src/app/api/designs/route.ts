@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
+    console.log('🔍 Designs API called with params:', Object.fromEntries(searchParams.entries()));
+    
     // Parse filters from query parameters
     const filters: DesignFilters = {
       designerId: searchParams.get('designerId') || undefined,
@@ -37,6 +39,8 @@ export async function GET(request: NextRequest) {
       offset: parseInt(searchParams.get('offset') || '0')
     };
 
+    console.log('📊 Parsed filters:', filters);
+
     // Initialize services
     const designRepository = new DesignRepository();
     const activityRepository = new ActivityRepository();
@@ -45,6 +49,8 @@ export async function GET(request: NextRequest) {
     // Get designs using the service
     const designs = await designService.getDesigns(filters);
 
+    console.log('✅ Found designs:', designs.length);
+
     return NextResponse.json({
       designs,
       total: designs.length,
@@ -52,7 +58,7 @@ export async function GET(request: NextRequest) {
       filters
     });
   } catch (error) {
-    console.error('Error fetching designs:', error);
+    console.error('❌ Error fetching designs:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -74,6 +80,14 @@ export async function POST(request: NextRequest) {
 
     const body: CreateDesignData = await request.json();
     
+    // Generate idempotency key based on user and design data
+    const idempotencyKey = `${session.user.id}-${body.designName}-${body.designFileUrl}-${Date.now()}`;
+    
+    // Log the request for debugging
+    console.log('🔍 Design creation API called by user:', session.user.id);
+    console.log('🔑 Idempotency key:', idempotencyKey);
+    console.log('📊 Design data:', JSON.stringify(body, null, 2));
+    
     // Initialize services
     const designRepository = new DesignRepository();
     const activityRepository = new ActivityRepository();
@@ -81,6 +95,8 @@ export async function POST(request: NextRequest) {
 
     // Create design using the service
     const design = await designService.createDesign(body, session.user.id);
+    
+    console.log('✅ Design created successfully with ID:', design.id);
 
     return NextResponse.json({ design }, { status: 201 });
   } catch (error: any) {

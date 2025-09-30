@@ -4,7 +4,43 @@ import { authOptions } from '@/lib/auth';
 import { DesignService } from '@/services/DesignService';
 import { DesignRepository } from '@/repositories/DesignRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
+import { UserLikeRepository } from '@/repositories/UserLikeRepository';
 import { Timestamp } from 'firebase/firestore';
+
+// GET /api/designs/[id]/like - Check if user has liked a design
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const { id } = params;
+
+    // Initialize services
+    const userLikeRepository = new UserLikeRepository();
+
+    // Check if user has liked this design
+    const hasLiked = await userLikeRepository.hasUserLikedDesign(session.user.id, id);
+
+    return NextResponse.json({
+      hasLiked
+    });
+  } catch (error: any) {
+    console.error('Error checking like status:', error);
+    return NextResponse.json(
+      { error: error.message || 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
 
 // POST /api/designs/[id]/like - Like a design
 export async function POST(
@@ -26,6 +62,7 @@ export async function POST(
     // Initialize services
     const designRepository = new DesignRepository();
     const activityRepository = new ActivityRepository();
+    const userLikeRepository = new UserLikeRepository();
     const designService = new DesignService(designRepository, activityRepository);
 
     // Get design
@@ -45,6 +82,19 @@ export async function POST(
         { status: 403 }
       );
     }
+
+    // Check if user has already liked this design
+    const hasLiked = await userLikeRepository.hasUserLikedDesign(session.user.id, id);
+    
+    if (hasLiked) {
+      return NextResponse.json(
+        { error: 'Design already liked' },
+        { status: 400 }
+      );
+    }
+
+    // Add user like relationship
+    await userLikeRepository.addLike(session.user.id, id);
 
     // Increment likes count
     await designService.incrementLikesCount(id);
@@ -102,6 +152,7 @@ export async function DELETE(
     // Initialize services
     const designRepository = new DesignRepository();
     const activityRepository = new ActivityRepository();
+    const userLikeRepository = new UserLikeRepository();
     const designService = new DesignService(designRepository, activityRepository);
 
     // Get design
@@ -113,6 +164,19 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Check if user has liked this design
+    const hasLiked = await userLikeRepository.hasUserLikedDesign(session.user.id, id);
+    
+    if (!hasLiked) {
+      return NextResponse.json(
+        { error: 'Design not liked' },
+        { status: 400 }
+      );
+    }
+
+    // Remove user like relationship
+    await userLikeRepository.removeLike(session.user.id, id);
 
     // Decrement likes count
     await designService.decrementLikesCount(id);
