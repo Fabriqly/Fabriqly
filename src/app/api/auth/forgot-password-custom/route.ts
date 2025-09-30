@@ -3,7 +3,7 @@ import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firesto
 import { db } from '@/lib/firebase';
 import { Collections } from '@/services/firebase';
 import { Timestamp } from 'firebase/firestore';
-import nodemailer from 'nodemailer';
+// import nodemailer from 'nodemailer';
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,53 +60,60 @@ export async function POST(request: NextRequest) {
       createdAt: Timestamp.now()
     };
 
-    await setDoc(doc(db, Collections.PASSWORD_RESET_TOKENS, resetToken), resetTokenData);
+    await setDoc(doc(db, 'passwordResetTokens', resetToken), resetTokenData);
 
     // Send email using nodemailer (if configured)
     try {
       if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-        const transporter = nodemailer.createTransporter({
-          host: process.env.SMTP_HOST,
-          port: parseInt(process.env.SMTP_PORT || '587'),
-          secure: false,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
-          },
-        });
+        try {
+          // Dynamic import to avoid TypeScript errors when nodemailer is not installed
+          const nodemailer = await import('nodemailer' as any);
+          
+          const transporter = nodemailer.default.createTransporter({
+            host: process.env.SMTP_HOST,
+            port: parseInt(process.env.SMTP_PORT || '587'),
+            secure: false,
+            auth: {
+              user: process.env.SMTP_USER,
+              pass: process.env.SMTP_PASS,
+            },
+          });
 
-        const resetUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+          const resetUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
 
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || 'noreply@fabriqly.com',
-          to: email,
-          subject: 'Reset Your Fabriqly Password',
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2>Reset Your Password</h2>
-              <p>Hello ${userData.profile?.firstName || 'User'},</p>
-              <p>You requested a password reset for your Fabriqly account.</p>
-              <p>Click the button below to reset your password:</p>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${resetUrl}" 
-                   style="background-color: #3B82F6; color: white; padding: 12px 24px; 
-                          text-decoration: none; border-radius: 6px; display: inline-block;">
-                  Reset Password
-                </a>
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || 'noreply@fabriqly.com',
+            to: email,
+            subject: 'Reset Your Fabriqly Password',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2>Reset Your Password</h2>
+                <p>Hello ${userData.profile?.firstName || 'User'},</p>
+                <p>You requested a password reset for your Fabriqly account.</p>
+                <p>Click the button below to reset your password:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${resetUrl}" 
+                     style="background-color: #3B82F6; color: white; padding: 12px 24px; 
+                            text-decoration: none; border-radius: 6px; display: inline-block;">
+                    Reset Password
+                  </a>
+                </div>
+                <p>Or copy and paste this link in your browser:</p>
+                <p style="word-break: break-all; color: #666;">${resetUrl}</p>
+                <p><strong>This link will expire in 1 hour.</strong></p>
+                <p>If you didn't request this password reset, please ignore this email.</p>
+                <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+                <p style="color: #666; font-size: 12px;">
+                  This email was sent from Fabriqly. If you have any questions, please contact support.
+                </p>
               </div>
-              <p>Or copy and paste this link in your browser:</p>
-              <p style="word-break: break-all; color: #666;">${resetUrl}</p>
-              <p><strong>This link will expire in 1 hour.</strong></p>
-              <p>If you didn't request this password reset, please ignore this email.</p>
-              <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-              <p style="color: #666; font-size: 12px;">
-                This email was sent from Fabriqly. If you have any questions, please contact support.
-              </p>
-            </div>
-          `,
-        });
+            `,
+          });
 
-        console.log('✅ Custom password reset email sent successfully');
+          console.log('✅ Custom password reset email sent successfully');
+        } catch (importError) {
+          console.log('⚠️ Nodemailer not available, skipping email send');
+        }
       } else {
         console.log('⚠️ SMTP not configured, skipping email send');
       }

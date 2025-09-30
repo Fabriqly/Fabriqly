@@ -267,7 +267,15 @@ export function DesignCard({
           </div>
           
           <span>
-            Updated: {new Date(design.updatedAt).toLocaleDateString()}
+            Updated: {(() => {
+              if (design.updatedAt instanceof Date) {
+                return design.updatedAt.toLocaleDateString();
+              } else if (design.updatedAt && typeof design.updatedAt === 'object' && 'toDate' in design.updatedAt) {
+                return (design.updatedAt as any).toDate().toLocaleDateString();
+              } else {
+                return new Date().toLocaleDateString();
+              }
+            })()}
           </span>
         </div>
 

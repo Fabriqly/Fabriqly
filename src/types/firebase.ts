@@ -26,11 +26,16 @@ export interface UserProfile {
 }
 
 export interface Address {
-  street: string;
+  firstName: string;
+  lastName: string;
+  company?: string;
+  address1: string;
+  address2?: string;
   city: string;
   state: string;
   zipCode: string;
   country: string;
+  phone: string;
 }
 
 export interface UserPreferences {
@@ -68,13 +73,20 @@ export interface CustomizationOption {
 // Order types
 export interface Order extends BaseDocument {
   customerId: string;
+  businessOwnerId: string;
   items: OrderItem[];
+  subtotal: number;
+  tax: number;
+  shippingCost: number;
   totalAmount: number;
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   shippingAddress: Address;
+  billingAddress?: Address;
   paymentMethod: string;
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   trackingNumber?: string;
+  carrier?: string;
+  estimatedDelivery?: Date;
   notes?: string;
 }
 

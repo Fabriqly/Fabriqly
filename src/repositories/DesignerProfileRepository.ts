@@ -1,14 +1,6 @@
 import { BaseRepository, QueryFilter } from './BaseRepository';
-import { DesignerProfile, DesignerProfileFilters } from '@/types/enhanced-products';
+import { DesignerProfile } from '@/types/enhanced-products';
 import { Collections } from '@/services/firebase';
-
-export interface DesignerProfileFilters {
-  userId?: string;
-  isVerified?: boolean;
-  isActive?: boolean;
-  specialties?: string[];
-  search?: string;
-}
 
 export class DesignerProfileRepository extends BaseRepository<DesignerProfile> {
   constructor() {

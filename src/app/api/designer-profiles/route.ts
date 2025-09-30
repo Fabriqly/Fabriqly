@@ -8,6 +8,7 @@ import {
   CreateDesignerProfileData, 
   UpdateDesignerProfileData 
 } from '@/types/enhanced-products';
+import { Timestamp } from 'firebase/firestore';
 
 // GET /api/designer-profiles - List designer profiles
 export async function GET(request: NextRequest) {
@@ -111,8 +112,8 @@ export async function POST(request: NextRequest) {
         totalViews: 0,
         averageRating: 0
       },
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
     };
 
     console.log('📊 Profile data to create:', JSON.stringify(profileData, null, 2));
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest) {
       await FirebaseAdminService.updateDocument(
         Collections.USERS,
         session.user.id,
-        { role: 'designer', updatedAt: new Date() }
+        { role: 'designer', updatedAt: Timestamp.now() }
       );
       console.log('✅ User role updated to designer');
     } else {

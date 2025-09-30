@@ -131,7 +131,7 @@ export default function AdminDashboard() {
   const getStatCards = () => {
     if (!dashboardData || !dashboardData.current) return [];
 
-    const { current, changes = {} } = dashboardData;
+    const { current, changes = {} as DashboardData['changes'] } = dashboardData;
 
     const formatChange = (change: PercentageChange | undefined) => {
       if (!change) return '0%';
@@ -143,7 +143,7 @@ export default function AdminDashboard() {
       return `${sign}${change.value}%`;
     };
 
-    const safeChange = (property: keyof typeof changes): PercentageChange => 
+    const safeChange = (property: keyof DashboardData['changes']): PercentageChange => 
       changes[property] || { value: 0, type: 'neutral' };
 
     return [
