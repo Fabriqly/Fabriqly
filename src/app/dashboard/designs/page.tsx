@@ -439,8 +439,6 @@ export default function DesignsDashboard() {
         </div>
       </div>
 
-      )}
-
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
         isOpen={!!deletingDesign}
