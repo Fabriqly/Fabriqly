@@ -130,8 +130,137 @@ export default function AdminDashboard() {
 
   const getStatCards = () => {
     if (!dashboardData || !dashboardData.current) return [];
+'use client';
 
-    const { current, changes = {} as DashboardData['changes'] } = dashboardData;
+import React, { useState, useEffect } from 'react';
+import { AdminLayout } from '@/components/admin/AdminLayout';
+import { RecentActivity } from '@/components/admin/RecentActivity';
+import { 
+  Users, 
+  Package, 
+  FolderOpen, 
+  DollarSign,
+  ShoppingCart,
+  AlertCircle,
+  CheckCircle
+} from 'lucide-react';
+
+interface DashboardStats {
+  totalUsers: number;
+  totalProducts: number;
+  totalCategories: number;
+  totalOrders: number;
+  totalRevenue: number;
+  activeProducts: number;
+  pendingOrders: number;
+}
+
+interface PercentageChange {
+  value: number | null;
+  type: 'positive' | 'negative' | 'neutral' | 'unavailable';
+  label?: string;
+}
+
+interface DashboardData {
+  current: DashboardStats;
+  changes: {
+    totalUsers: PercentageChange;
+    totalProducts: PercentageChange;
+    totalCategories: PercentageChange;
+    totalOrders: PercentageChange;
+    totalRevenue: PercentageChange;
+    activeProducts: PercentageChange;
+    pendingOrders: PercentageChange;
+  };
+  period: string;
+  comparisonDate: string;
+  actualComparisonDate?: string;
+  hasHistorical?: boolean;
+}
+
+export default function AdminDashboard() {
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [period, setPeriod] = useState('7d');
+
+  useEffect(() => {
+    loadDashboardStats();
+  }, [period]);
+
+  const loadDashboardStats = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // First refresh the summary to ensure we have the latest data
+      const refreshResponse = await fetch('/api/admin/refresh-summary', {
+        method: 'POST'
+      });
+      
+      if (!refreshResponse.ok) {
+        console.warn('Failed to refresh dashboard summary, proceeding with cached data');
+      }
+      
+      // Now fetch the dashboard stats
+      const response = await fetch(`/api/dashboard-stats?period=${period}`);
+      
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        } catch (parseError) {
+          throw new Error(`Failed to load dashboard data: ${response.status} ${response.statusText}`);
+        }
+      }
+      
+      const data = await response.json();
+      
+      const mappedData: DashboardData = {
+        current: data.current,
+        changes: data.percentageChanges || {},
+        period: data.period,
+        comparisonDate: data.comparisonDate,
+        actualComparisonDate: data.actualComparisonDate,
+        hasHistorical: data.hasHistorical
+      };
+      
+      setDashboardData(mappedData);
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load dashboard data');
+      
+      setDashboardData({
+        current: {
+          totalUsers: 2,
+          totalProducts: 0,
+          totalCategories: 0,
+          totalOrders: 0,
+          totalRevenue: 0,
+          activeProducts: 0,
+          pendingOrders: 0
+        },
+        changes: {
+          totalUsers: { value: 0, type: 'neutral' },
+          totalProducts: { value: 0, type: 'neutral' },
+          totalCategories: { value: 0, type: 'neutral' },
+          totalOrders: { value: 0, type: 'neutral' },
+          totalRevenue: { value: 0, type: 'neutral' },
+          activeProducts: { value: 0, type: 'neutral' },
+          pendingOrders: { value: 0, type: 'neutral' }
+        },
+        period: period,
+        comparisonDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatCards = () => {
+    if (!dashboardData || !dashboardData.current) return [];
+
+    const { current, changes } = dashboardData;
 
     const formatChange = (change: PercentageChange | undefined) => {
       if (!change) return '0%';
@@ -177,6 +306,111 @@ export default function AdminDashboard() {
         icon: ShoppingCart,
         color: 'bg-orange-500',
         change: formatChange(safeChange('totalOrders')),
+        changeType: safeChange('totalOrders').type
+      },
+      {
+        name: 'Revenue',
+        value: `$${current.totalRevenue.toLocaleString()}`,
+        icon: DollarSign,
+        color: 'bg-emerald-500',
+        change: formatChange(safeChange('totalRevenue')),
+        changeType: safeChange('totalRevenue').type
+      },
+      {
+        name: 'Active Products',
+        value: current.activeProducts,
+        icon: CheckCircle,
+        color: 'bg-green-500',
+        change: `${Math.round((current.activeProducts / Math.max(current.totalProducts, 1)) * 100)}%`,
+        changeType: 'positive' as const
+      }
+    ];
+  };
+
+  if (loading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  return (
+    <AdminLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Welcome to the Fabriqly admin panel. Here's an overview of your platform.
+            </p>
+            {dashboardData && (
+              <p className="mt-1 text-xs text-gray-400">
+                Changes compared to {dashboardData.comparisonDate} ({dashboardData.period})
+                {dashboardData.hasHistorical === false && (
+                  <span className="text-amber-600 ml-2">⚠️ No historical data available</span>
+                )}
+              </p>
+            )}
+          </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={loadDashboardStats}
+              className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              Refresh
+            </button>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Error Alert */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <AlertCircle className="h-5 w-5 text-red-400" />
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Dashboard Data Unavailable</h3>
+                <p className="mt-1 text-sm text-red-700">{error}</p>
+                <p className="mt-1 text-xs text-red-600">
+                  Showing fallback data. Check your connection and try refreshing.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {getStatCards().map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <div
+                key={stat.name}
+                className="relative bg-white pt-5 px-4 pb-12 sm:pt-6 sm:px-6 shadow rounded-lg overflow-hidden"
+              >
+                <dt>
+                  <div className={`absolute ${stat.color} rounded-md p-3`}>
+                    <Icon className="h-6 w-6 text-white" />
+                  </div>
+                  <p className="ml-16 text-sm font-medium text-gray-500 truncate">
+                    {stat.name}
+                  </p>
+                </dt>
+                <dd className="ml-16 pb-6 flex items-baseline sm:pb-7">
+                 
+
         changeType: safeChange('totalOrders').type
       },
       {

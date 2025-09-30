@@ -10,10 +10,11 @@ import {
   DollarSign,
   User,
   Menu,
-  X
+  X,
+  Palette
 } from 'lucide-react';
 
-const navigationItems = [
+const getNavigationItems = (userRole?: string | null) => [
   {
     name: 'Dashboard',
     href: '/dashboard',
@@ -21,10 +22,10 @@ const navigationItems = [
     description: 'Overview and analytics'
   },
   {
-    name: 'Products',
-    href: '/dashboard/products',
-    icon: Package,
-    description: 'Manage your products'
+    name: userRole === 'designer' ? 'Designs' : 'Products',
+    href: userRole === 'designer' ? '/dashboard/designs' : '/dashboard/products',
+    icon: userRole === 'designer' ? Palette : Package,
+    description: userRole === 'designer' ? 'Manage your designs' : 'Manage your products'
   },
   {
     name: 'Orders',
@@ -40,9 +41,9 @@ const navigationItems = [
   },
   {
     name: 'Profile',
-    href: '/dashboard/profile',
+    href: '/profile',
     icon: User,
-    description: 'Manage your profile'
+    description: 'Edit your profile'
   }
 ];
 
@@ -57,6 +58,7 @@ interface DashboardSidebarProps {
 export function DashboardSidebar({ user }: DashboardSidebarProps) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navigationItems = getNavigationItems(user?.role);
 
   return (
     <>

@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 
 interface LoginFormData {
@@ -13,8 +13,9 @@ interface LoginFormData {
   password: string;
 }
 
-export function LoginForm() {
+function LoginFormContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: ''
@@ -23,6 +24,17 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [generalError, setGeneralError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // Check for success messages from URL params
+  useEffect(() => {
+    const message = searchParams.get('message');
+    if (message === 'password-reset-success') {
+      setSuccessMessage('Password reset successful! You can now sign in with your new password.');
+      // Clear the URL parameter
+      router.replace('/login', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -75,7 +87,7 @@ export function LoginForm() {
         const session = await response.json();
         
         if (session?.user?.role === 'customer') {
-          router.push('/customer');
+          router.push('/explore');
         } else if (session?.user?.role === 'admin') {
           // Admin goes to admin dashboard
           router.push('/dashboard/admin');
@@ -115,6 +127,15 @@ export function LoginForm() {
         <div className="mb-6">
           <h1 className="text-3xl font-semibold text-gray-900">Log in</h1>
         </div>
+
+        {successMessage && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+            <div className="flex items-center">
+              <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+              <p className="text-sm text-green-600">{successMessage}</p>
+            </div>
+          </div>
+        )}
 
         {generalError && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
@@ -159,9 +180,12 @@ export function LoginForm() {
           </Button>
         </form>
 
-        <div className="mt-3">
-          <Link href="/forgot-password" className="text-sm text-gray-700 hover:text-gray-900">
-            Forgot Password
+        <div className="mt-4 text-center">
+          <Link 
+            href="/forgot-password" 
+            className="text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium cursor-pointer"
+          >
+            Forgot your password?
           </Link>
         </div>
 
@@ -213,5 +237,26 @@ export function LoginForm() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function LoginForm() {
+  return (
+    <Suspense fallback={
+      <div className="w-full max-w-md">
+        <div className="bg-white rounded-lg shadow-md p-8 border border-gray-100">
+          <div className="mb-6">
+            <h1 className="text-3xl font-semibold text-gray-900">Log in</h1>
+          </div>
+          <div className="animate-pulse space-y-4">
+            <div className="h-12 bg-gray-200 rounded"></div>
+            <div className="h-12 bg-gray-200 rounded"></div>
+            <div className="h-12 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    }>
+      <LoginFormContent />
+    </Suspense>
   );
 }
