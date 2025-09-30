@@ -248,7 +248,7 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
                 maxLength={500}
               />
               <div className="text-right text-xs text-gray-500 mt-1">
-                {formData.bio.length}/500 characters
+                {formData.bio?.length || 0}/500 characters
               </div>
             </div>
 

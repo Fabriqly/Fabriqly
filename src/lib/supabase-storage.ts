@@ -158,6 +158,10 @@ export class SupabaseStorageService {
     filePath: string, 
     expiresIn: number = 3600
   ): Promise<string> {
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY.')
+    }
+
     try {
       const { data, error } = await supabaseAdmin.storage
         .from(bucket)
@@ -176,6 +180,10 @@ export class SupabaseStorageService {
 
   // List files in a folder
   static async listFiles(bucket: string, folder?: string): Promise<any[]> {
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY.')
+    }
+
     try {
       const { data, error } = await supabaseAdmin.storage
         .from(bucket)

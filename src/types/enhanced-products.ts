@@ -302,6 +302,16 @@ export interface CreateDesignerProfileData {
   specialties: string[];
 }
 
+export interface UpdateDesignerProfileData {
+  businessName?: string;
+  bio?: string;
+  website?: string;
+  socialMedia?: DesignerProfile['socialMedia'];
+  specialties?: string[];
+  isVerified?: boolean;
+  isActive?: boolean;
+}
+
 export interface CreateShopProfileData {
   businessName: string;
   description?: string;

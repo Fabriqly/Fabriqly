@@ -336,9 +336,9 @@ export class FirebaseAdminService {
     } catch (error) {
       console.error('❌ Error creating document:', error);
       console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack
+        message: error instanceof Error ? error.message : 'Unknown error',
+        code: error instanceof Error && 'code' in error ? (error as any).code : 'unknown',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
       });
       throw error;
     }

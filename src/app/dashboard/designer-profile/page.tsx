@@ -229,11 +229,13 @@ export default function DesignerProfilePage() {
           <div className="space-y-6">
             {/* Profile Display */}
             <div className="bg-white rounded-lg shadow-sm p-6">
-              <DesignerProfileDisplay
-                profile={profile}
-                showActions={true}
-                onEdit={() => setIsEditing(true)}
-              />
+              {profile && (
+                <DesignerProfileDisplay
+                  profile={profile}
+                  showActions={true}
+                  onEdit={() => setIsEditing(true)}
+                />
+              )}
             </div>
 
             {/* Stats Cards */}
@@ -246,7 +248,7 @@ export default function DesignerProfilePage() {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Total Designs</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {profile?.portfolioStats.totalDesigns || 0}
+                      {profile?.portfolioStats?.totalDesigns || 0}
                     </p>
                   </div>
                 </div>
@@ -260,7 +262,7 @@ export default function DesignerProfilePage() {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Total Downloads</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {profile?.portfolioStats.totalDownloads || 0}
+                      {profile?.portfolioStats?.totalDownloads || 0}
                     </p>
                   </div>
                 </div>
@@ -274,7 +276,7 @@ export default function DesignerProfilePage() {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Total Views</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {profile?.portfolioStats.totalViews || 0}
+                      {profile?.portfolioStats?.totalViews || 0}
                     </p>
                   </div>
                 </div>
@@ -288,7 +290,7 @@ export default function DesignerProfilePage() {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Average Rating</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {profile?.portfolioStats.averageRating || 0}
+                      {profile?.portfolioStats?.averageRating || 0}
                     </p>
                   </div>
                 </div>
@@ -329,7 +331,7 @@ export default function DesignerProfilePage() {
             </div>
 
             {/* Verification Status */}
-            {!profile.isVerified && (
+            {profile && !profile.isVerified && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
                 <div className="flex items-start">
                   <div className="flex-shrink-0">

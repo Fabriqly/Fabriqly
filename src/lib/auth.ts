@@ -80,8 +80,17 @@ export const authOptions: NextAuthOptions = {
             image: userRecord.photoURL || '',
             role: (userRecord as any).role as UserRole
           };
-        } catch (error) {
+        } catch (error: any) {
           console.error('Credentials verification error:', error);
+          
+          // Handle Firebase permission errors gracefully
+          if (error?.code === 'auth/internal-error' && error?.message?.includes('PERMISSION_DENIED')) {
+            console.error('❌ Firebase Admin SDK permission error. Please check IAM roles for the service account.');
+            console.error('Required role: roles/serviceusage.serviceUsageConsumer');
+            console.error('Project: fabriqly-f88c3');
+            console.error('Visit: https://console.developers.google.com/iam-admin/iam/project?project=fabriqly-f88c3');
+          }
+          
           return null;
         }
       }
@@ -248,7 +257,7 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
 
-    async redirect({ url, baseUrl, token }) {
+    async redirect({ url, baseUrl }) {
       // Handle role-based redirects after authentication
       if (url.startsWith('/')) {
         return `${baseUrl}${url}`;
@@ -256,29 +265,9 @@ export const authOptions: NextAuthOptions = {
         return url;
       }
       
-      // Role-based redirect after authentication
-      if (token?.role === 'customer') {
-        return `${baseUrl}/customer`;
-      } else if (token?.role === 'admin') {
-        return `${baseUrl}/dashboard/admin`;
-      } else if (['business_owner', 'designer'].includes(token?.role as string)) {
-        return `${baseUrl}/dashboard`;
-      }
-      
       // Default redirect to customer page for safety
       return `${baseUrl}/customer`;
     }
-  },
-  
-  pages: {
-    signIn: '/login',
-    error: '/auth/error',
-    signOut: '/auth/signout'
-  },
-  
-  session: {
-    strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   
   secret: process.env.NEXTAUTH_SECRET,

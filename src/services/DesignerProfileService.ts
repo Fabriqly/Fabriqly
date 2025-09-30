@@ -9,6 +9,7 @@ import {
 import { CacheService } from './CacheService';
 import { PerformanceMonitor } from '@/monitoring/PerformanceMonitor';
 import { AppError } from '@/errors/AppError';
+import { Timestamp } from 'firebase/firestore';
 
 export class DesignerProfileService implements IDesignerProfileService {
   constructor(
@@ -17,9 +18,7 @@ export class DesignerProfileService implements IDesignerProfileService {
   ) {}
 
   async createDesignerProfile(data: CreateDesignerProfileData, userId: string): Promise<DesignerProfile> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.createDesignerProfile');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.createDesignerProfile', async () => {
       // Validate data
       const validation = this.validateDesignerProfileData(data);
       if (!validation.isValid) {
@@ -54,8 +53,8 @@ export class DesignerProfileService implements IDesignerProfileService {
           totalViews: 0,
           averageRating: 0
         },
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       };
 
       // Create profile
@@ -69,30 +68,25 @@ export class DesignerProfileService implements IDesignerProfileService {
         targetType: 'designer_profile',
         title: 'Designer Profile Created',
         description: `New designer profile created: ${profile.businessName}`,
+        priority: 'medium',
+        status: 'active',
         metadata: {
           businessName: profile.businessName,
           specialties: profile.specialties
         },
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       });
 
       // Cache the profile
-      await CacheService.set(CacheService.userKey(`designer_profile_${userId}`), profile, 15 * 60 * 1000); // 15 minutes
+      CacheService.set(CacheService.userKey(`designer_profile_${userId}`), profile, 15 * 60 * 1000); // 15 minutes
 
       return profile;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async updateDesignerProfile(id: string, data: UpdateDesignerProfileData, userId: string): Promise<DesignerProfile> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.updateDesignerProfile');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.updateDesignerProfile', async () => {
       // Check if user can modify this profile
       const canModify = await this.canUserModifyProfile(id, userId);
       if (!canModify) {
@@ -116,7 +110,7 @@ export class DesignerProfileService implements IDesignerProfileService {
       // Update profile
       const updatedProfile = await this.designerProfileRepository.update(id, {
         ...data,
-        updatedAt: new Date()
+        updatedAt: Timestamp.now()
       });
 
       // Log activity
@@ -127,31 +121,26 @@ export class DesignerProfileService implements IDesignerProfileService {
         targetType: 'designer_profile',
         title: 'Designer Profile Updated',
         description: `Designer profile updated: ${updatedProfile.businessName}`,
+        priority: 'low',
+        status: 'active',
         metadata: {
           businessName: updatedProfile.businessName,
           changes: Object.keys(data)
         },
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       });
 
       // Update cache
-      await CacheService.set(CacheService.userKey(`designer_profile_${userId}`), updatedProfile, 15 * 60 * 1000);
-      await CacheService.invalidate(`designer_profile_${id}`);
+      CacheService.set(CacheService.userKey(`designer_profile_${userId}`), updatedProfile, 15 * 60 * 1000);
+      CacheService.invalidate(`designer_profile_${id}`);
 
       return updatedProfile;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async deleteDesignerProfile(id: string, userId: string): Promise<void> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.deleteDesignerProfile');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.deleteDesignerProfile', async () => {
       // Check if user can modify this profile
       const canModify = await this.canUserModifyProfile(id, userId);
       if (!canModify) {
@@ -169,34 +158,29 @@ export class DesignerProfileService implements IDesignerProfileService {
 
       // Log activity
       await this.activityRepository.create({
-        type: 'designer_profile_deleted',
+        type: 'designer_profile_updated',
         actorId: userId,
         targetId: id,
         targetType: 'designer_profile',
         title: 'Designer Profile Deleted',
         description: `Designer profile deleted: ${profile.businessName}`,
+        priority: 'high',
+        status: 'active',
         metadata: {
           businessName: profile.businessName
         },
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       });
 
       // Clear cache
-      await CacheService.delete(CacheService.userKey(`designer_profile_${userId}`));
-      await CacheService.invalidate(`designer_profile_${id}`);
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+      CacheService.delete(CacheService.userKey(`designer_profile_${userId}`));
+      CacheService.invalidate(`designer_profile_${id}`);
+    });
   }
 
   async getDesignerProfile(id: string): Promise<DesignerProfile | null> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.getDesignerProfile');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.getDesignerProfile', async () => {
       // Try cache first
       const cacheKey = CacheService.generateKey('designer_profile', id);
       const cached = await CacheService.get<DesignerProfile>(cacheKey);
@@ -209,22 +193,15 @@ export class DesignerProfileService implements IDesignerProfileService {
       
       // Cache the result
       if (profile) {
-        await CacheService.set(cacheKey, profile, 15 * 60 * 1000); // 15 minutes
+        CacheService.set(cacheKey, profile, 15 * 60 * 1000); // 15 minutes
       }
 
       return profile;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async getDesignerProfileByUserId(userId: string): Promise<DesignerProfile | null> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.getDesignerProfileByUserId');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.getDesignerProfileByUserId', async () => {
       // Try cache first
       const cacheKey = CacheService.userKey(`designer_profile_${userId}`);
       const cached = await CacheService.get<DesignerProfile>(cacheKey);
@@ -237,22 +214,15 @@ export class DesignerProfileService implements IDesignerProfileService {
       
       // Cache the result
       if (profile) {
-        await CacheService.set(cacheKey, profile, 15 * 60 * 1000); // 15 minutes
+        CacheService.set(cacheKey, profile, 15 * 60 * 1000); // 15 minutes
       }
 
       return profile;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async getDesignerProfiles(filters?: DesignerProfileFilters): Promise<DesignerProfile[]> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.getDesignerProfiles');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.getDesignerProfiles', async () => {
       // Generate cache key based on filters
       const cacheKey = CacheService.generateKey('designer_profiles', JSON.stringify(filters || {}));
       const cached = await CacheService.get<DesignerProfile[]>(cacheKey);
@@ -285,21 +255,14 @@ export class DesignerProfileService implements IDesignerProfileService {
       }
 
       // Cache the result
-      await CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
+      CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
 
       return profiles;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async getVerifiedDesigners(): Promise<DesignerProfile[]> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.getVerifiedDesigners');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.getVerifiedDesigners', async () => {
       const cacheKey = CacheService.generateKey('designer_profiles', 'verified');
       const cached = await CacheService.get<DesignerProfile[]>(cacheKey);
       if (cached) {
@@ -309,21 +272,14 @@ export class DesignerProfileService implements IDesignerProfileService {
       const profiles = await this.designerProfileRepository.findVerifiedDesigners();
       
       // Cache the result
-      await CacheService.set(cacheKey, profiles, 10 * 60 * 1000); // 10 minutes
+      CacheService.set(cacheKey, profiles, 10 * 60 * 1000); // 10 minutes
 
       return profiles;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async getTopDesigners(limit: number = 10): Promise<DesignerProfile[]> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.getTopDesigners');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.getTopDesigners', async () => {
       const cacheKey = CacheService.generateKey('designer_profiles', 'top', limit.toString());
       const cached = await CacheService.get<DesignerProfile[]>(cacheKey);
       if (cached) {
@@ -333,21 +289,14 @@ export class DesignerProfileService implements IDesignerProfileService {
       const profiles = await this.designerProfileRepository.getTopDesigners(limit);
       
       // Cache the result
-      await CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
+      CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
 
       return profiles;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async getMostViewedDesigners(limit: number = 10): Promise<DesignerProfile[]> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.getMostViewedDesigners');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.getMostViewedDesigners', async () => {
       const cacheKey = CacheService.generateKey('designer_profiles', 'most_viewed', limit.toString());
       const cached = await CacheService.get<DesignerProfile[]>(cacheKey);
       if (cached) {
@@ -357,21 +306,14 @@ export class DesignerProfileService implements IDesignerProfileService {
       const profiles = await this.designerProfileRepository.getMostViewedDesigners(limit);
       
       // Cache the result
-      await CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
+      CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
 
       return profiles;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async getHighestRatedDesigners(limit: number = 10): Promise<DesignerProfile[]> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.getHighestRatedDesigners');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.getHighestRatedDesigners', async () => {
       const cacheKey = CacheService.generateKey('designer_profiles', 'highest_rated', limit.toString());
       const cached = await CacheService.get<DesignerProfile[]>(cacheKey);
       if (cached) {
@@ -381,21 +323,14 @@ export class DesignerProfileService implements IDesignerProfileService {
       const profiles = await this.designerProfileRepository.getHighestRatedDesigners(limit);
       
       // Cache the result
-      await CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
+      CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
 
       return profiles;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async searchDesigners(searchTerm: string): Promise<DesignerProfile[]> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.searchDesigners');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.searchDesigners', async () => {
       const cacheKey = CacheService.generateKey('designer_profiles', 'search', searchTerm);
       const cached = await CacheService.get<DesignerProfile[]>(cacheKey);
       if (cached) {
@@ -405,21 +340,14 @@ export class DesignerProfileService implements IDesignerProfileService {
       const profiles = await this.designerProfileRepository.searchDesigners(searchTerm);
       
       // Cache the result
-      await CacheService.set(cacheKey, profiles, 2 * 60 * 1000); // 2 minutes
+      CacheService.set(cacheKey, profiles, 2 * 60 * 1000); // 2 minutes
 
       return profiles;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async getDesignersBySpecialties(specialties: string[]): Promise<DesignerProfile[]> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.getDesignersBySpecialties');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.getDesignersBySpecialties', async () => {
       const cacheKey = CacheService.generateKey('designer_profiles', 'specialties', specialties.sort().join(','));
       const cached = await CacheService.get<DesignerProfile[]>(cacheKey);
       if (cached) {
@@ -429,21 +357,14 @@ export class DesignerProfileService implements IDesignerProfileService {
       const profiles = await this.designerProfileRepository.findBySpecialties(specialties);
       
       // Cache the result
-      await CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
+      CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
 
       return profiles;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async getDesignerStats(designerId: string): Promise<DesignerProfileStats | null> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.getDesignerStats');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.getDesignerStats', async () => {
       const cacheKey = CacheService.generateKey('designer_stats', designerId);
       const cached = await CacheService.get<DesignerProfileStats>(cacheKey);
       if (cached) {
@@ -455,16 +376,11 @@ export class DesignerProfileService implements IDesignerProfileService {
       
       // Cache the result
       if (realTimeStats) {
-        await CacheService.set(cacheKey, realTimeStats, 5 * 60 * 1000); // 5 minutes (optimized for better performance)
+        CacheService.set(cacheKey, realTimeStats, 5 * 60 * 1000); // 5 minutes (optimized for better performance)
       }
 
       return realTimeStats;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async getRealTimeDesignerStats(designerId: string): Promise<DesignerProfileStats | null> {
@@ -503,58 +419,49 @@ export class DesignerProfileService implements IDesignerProfileService {
   }
 
   async updatePortfolioStats(designerId: string, stats: Partial<DesignerProfile['portfolioStats']>): Promise<DesignerProfile> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.updatePortfolioStats');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.updatePortfolioStats', async () => {
       const profile = await this.designerProfileRepository.updatePortfolioStats(designerId, stats);
       
       // Clear cache
-      await CacheService.invalidate(`designer_profile_${designerId}`);
-      await CacheService.invalidate(`designer_stats_${designerId}`);
+      CacheService.invalidate(`designer_profile_${designerId}`);
+      CacheService.invalidate(`designer_stats_${designerId}`);
       
       return profile;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async incrementDesignCount(designerId: string): Promise<void> {
     await this.designerProfileRepository.incrementDesignCount(designerId);
-    await CacheService.invalidate(`designer_profile_${designerId}`);
-    await CacheService.invalidate(`designer_stats_${designerId}`);
+    CacheService.invalidate(`designer_profile_${designerId}`);
+    CacheService.invalidate(`designer_stats_${designerId}`);
   }
 
   async decrementDesignCount(designerId: string): Promise<void> {
     await this.designerProfileRepository.decrementDesignCount(designerId);
-    await CacheService.invalidate(`designer_profile_${designerId}`);
-    await CacheService.invalidate(`designer_stats_${designerId}`);
+    CacheService.invalidate(`designer_profile_${designerId}`);
+    CacheService.invalidate(`designer_stats_${designerId}`);
   }
 
   async incrementDownloadCount(designerId: string): Promise<void> {
     await this.designerProfileRepository.incrementDownloadCount(designerId);
-    await CacheService.invalidate(`designer_profile_${designerId}`);
-    await CacheService.invalidate(`designer_stats_${designerId}`);
+    CacheService.invalidate(`designer_profile_${designerId}`);
+    CacheService.invalidate(`designer_stats_${designerId}`);
   }
 
   async incrementViewCount(designerId: string): Promise<void> {
     await this.designerProfileRepository.incrementViewCount(designerId);
-    await CacheService.invalidate(`designer_profile_${designerId}`);
-    await CacheService.invalidate(`designer_stats_${designerId}`);
+    CacheService.invalidate(`designer_profile_${designerId}`);
+    CacheService.invalidate(`designer_stats_${designerId}`);
   }
 
   async updateAverageRating(designerId: string, newRating: number): Promise<void> {
     await this.designerProfileRepository.updateAverageRating(designerId, newRating);
-    await CacheService.invalidate(`designer_profile_${designerId}`);
-    await CacheService.invalidate(`designer_stats_${designerId}`);
+    CacheService.invalidate(`designer_profile_${designerId}`);
+    CacheService.invalidate(`designer_stats_${designerId}`);
   }
 
   async syncPortfolioStatsWithDesigns(designerId: string): Promise<DesignerProfile> {
-    const monitor = new PerformanceMonitor('DesignerProfileService.syncPortfolioStatsWithDesigns');
-    
-    try {
+    return PerformanceMonitor.measure('DesignerProfileService.syncPortfolioStatsWithDesigns', async () => {
       // Get real-time stats from designs
       const realTimeStats = await this.getRealTimeDesignerStats(designerId);
       if (!realTimeStats) {
@@ -569,59 +476,54 @@ export class DesignerProfileService implements IDesignerProfileService {
           totalViews: realTimeStats.totalViews,
           averageRating: realTimeStats.averageRating
         },
-        updatedAt: new Date()
+        updatedAt: Timestamp.now()
       });
 
       // Invalidate cache
-      await CacheService.invalidate(`designer_stats_${designerId}`);
-      await CacheService.invalidate(`designer_profile_${designerId}`);
+      CacheService.invalidate(`designer_stats_${designerId}`);
+      CacheService.invalidate(`designer_profile_${designerId}`);
 
       return updatedProfile;
-    } catch (error) {
-      monitor.recordError(error);
-      throw error;
-    } finally {
-      monitor.end();
-    }
+    });
   }
 
   async verifyDesigner(designerId: string): Promise<DesignerProfile> {
     const profile = await this.designerProfileRepository.update(designerId, {
       isVerified: true,
-      updatedAt: new Date()
+      updatedAt: Timestamp.now()
     });
 
-    await CacheService.invalidate(`designer_profile_${designerId}`);
+    CacheService.invalidate(`designer_profile_${designerId}`);
     return profile;
   }
 
   async unverifyDesigner(designerId: string): Promise<DesignerProfile> {
     const profile = await this.designerProfileRepository.update(designerId, {
       isVerified: false,
-      updatedAt: new Date()
+      updatedAt: Timestamp.now()
     });
 
-    await CacheService.invalidate(`designer_profile_${designerId}`);
+    CacheService.invalidate(`designer_profile_${designerId}`);
     return profile;
   }
 
   async activateDesigner(designerId: string): Promise<DesignerProfile> {
     const profile = await this.designerProfileRepository.update(designerId, {
       isActive: true,
-      updatedAt: new Date()
+      updatedAt: Timestamp.now()
     });
 
-    await CacheService.invalidate(`designer_profile_${designerId}`);
+    CacheService.invalidate(`designer_profile_${designerId}`);
     return profile;
   }
 
   async deactivateDesigner(designerId: string): Promise<DesignerProfile> {
     const profile = await this.designerProfileRepository.update(designerId, {
       isActive: false,
-      updatedAt: new Date()
+      updatedAt: Timestamp.now()
     });
 
-    await CacheService.invalidate(`designer_profile_${designerId}`);
+    CacheService.invalidate(`designer_profile_${designerId}`);
     return profile;
   }
 

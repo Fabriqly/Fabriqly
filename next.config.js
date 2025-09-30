@@ -28,6 +28,15 @@ const nextConfig = {
       }
     ],
   },
+  experimental: {
+    esmExternals: 'loose',
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals.push('undici');
+    }
+    return config;
+  },
 }
 
 module.exports = nextConfig
