@@ -3,7 +3,8 @@ import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { db, auth } from './firebase';
 import { Collections } from '@/services/firebase';
 import { UserRole } from '@/types/next-auth';
 import { validateEnvironment } from './env-validation';
@@ -45,23 +46,44 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // Get user by email from Firebase Auth
-          const userRecord = await FirebaseAdminService.getUserByEmail(credentials.email);
+          // Verify credentials using Firebase Client SDK
+          const userCredential = await signInWithEmailAndPassword(
+            auth,
+            credentials.email,
+            credentials.password
+          );
           
-          if (!userRecord) {
+          if (!userCredential.user) {
             return null;
           }
 
+          // Get user data from Firestore
+          const userDocRef = doc(db, Collections.USERS, userCredential.user.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          if (!userDoc.exists()) {
+            console.error('User document not found in Firestore');
+            return null;
+          }
+
+          const userData = userDoc.data();
+
           // Return user data for NextAuth session
           return {
-            id: userRecord.uid,
-            email: userRecord.email || '',
-            name: userRecord.displayName || (userRecord as any).firstName + ' ' + (userRecord as any).lastName || userRecord.email,
-            image: userRecord.photoURL || '',
-            role: (userRecord as any).role as UserRole
+            id: userCredential.user.uid,
+            email: userCredential.user.email || '',
+            name: userData.displayName || userCredential.user.displayName || credentials.email,
+            image: userData.photoURL || userCredential.user.photoURL || '',
+            role: userData.role as UserRole
           };
-        } catch (error) {
+        } catch (error: any) {
           console.error('Credentials verification error:', error);
+          // Firebase auth errors
+          if (error.code === 'auth/invalid-credential' || 
+              error.code === 'auth/user-not-found' || 
+              error.code === 'auth/wrong-password') {
+            return null;
+          }
           return null;
         }
       }
@@ -238,15 +260,15 @@ export const authOptions: NextAuthOptions = {
       
       // Role-based redirect after authentication
       if (token?.role === 'customer') {
-        return `${baseUrl}/customer`;
+        return `${baseUrl}/explore`;
       } else if (token?.role === 'admin') {
         return `${baseUrl}/dashboard/admin`;
       } else if (['business_owner', 'designer'].includes(token?.role as string)) {
         return `${baseUrl}/dashboard`;
       }
       
-      // Default redirect to customer page for safety
-      return `${baseUrl}/customer`;
+      // Default redirect to explore page for safety
+      return `${baseUrl}/explore`;
     }
   },
   
