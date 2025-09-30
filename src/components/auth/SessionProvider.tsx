@@ -10,7 +10,11 @@ interface SessionProviderProps {
 
 export function SessionProvider({ children, session }: SessionProviderProps) {
   return (
-    <NextAuthSessionProvider session={session}>
+    <NextAuthSessionProvider 
+      session={session}
+      refetchInterval={0} // Disable automatic session refresh
+      refetchOnWindowFocus={false} // Disable refresh on window focus (prevents alt-tab reloads)
+    >
       {children}
     </NextAuthSessionProvider>
   );

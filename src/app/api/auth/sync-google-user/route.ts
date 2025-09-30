@@ -1,7 +1,7 @@
 // API endpoint to sync Google OAuth users between Firebase Auth and Firestore
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import { Collections } from '@/lib/firebase';
+import { Collections } from '@/services/firebase';
 
 export async function POST(request: NextRequest) {
   try {

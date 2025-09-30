@@ -7,7 +7,7 @@ import { LoadingCard } from '@/components/ui/LoadingCard';
 import { useAuth } from '@/hooks/useAuth';
 import { ProductWithDetails } from '@/types/products';
 
-export default function CustomerMainPage() {
+export default function ExplorePage() {
   const { user } = useAuth();
   const [products, setProducts] = useState<ProductWithDetails[]>([]);
   const [loading, setLoading] = useState(true);

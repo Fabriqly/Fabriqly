@@ -4,10 +4,6 @@ import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
 import { validateEnvironment } from './env-validation';
 
-// Load environment variables from .env.local
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-
 // Validate environment variables on startup
 (async () => {
   try {

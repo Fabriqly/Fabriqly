@@ -25,6 +25,81 @@ export class FirebaseAdminService {
     
     return converted;
   }
+  // Create user in Firebase Auth only (for OAuth users)
+  static async createUserInFirebaseAuth(userData: {
+    uid?: string;
+    email: string;
+    displayName?: string;
+    photoURL?: string;
+    emailVerified?: boolean;
+  }) {
+    try {
+      console.log('🔄 Creating user in Firebase Auth:', {
+        uid: userData.uid,
+        email: userData.email,
+        displayName: userData.displayName
+      });
+
+      // First, check if user already exists by email
+      try {
+        const existingUser = await adminAuth.getUserByEmail(userData.email);
+        console.log('✅ User already exists in Firebase Auth by email:', existingUser.uid);
+        return { uid: existingUser.uid, email: existingUser.email };
+      } catch (error: any) {
+        if (error.code !== 'auth/user-not-found') {
+          console.error('❌ Error checking user by email:', error);
+          throw error;
+        }
+      }
+
+      // If providing UID, check if that specific UID exists
+      if (userData.uid) {
+        try {
+          const existingUser = await adminAuth.getUser(userData.uid);
+          console.log('✅ User already exists in Firebase Auth by UID:', existingUser.uid);
+          return { uid: existingUser.uid, email: existingUser.email };
+        } catch (error: any) {
+          if (error.code !== 'auth/user-not-found') {
+            console.error('❌ Error checking user by UID:', error);
+            throw error;
+          }
+        }
+      }
+
+      // Create user in Firebase Auth
+      const createUserData: any = {
+        email: userData.email,
+        displayName: userData.displayName,
+        photoURL: userData.photoURL,
+        emailVerified: userData.emailVerified || false
+      };
+
+      // Only include UID if provided and it's a valid Firebase UID format
+      if (userData.uid && userData.uid.length >= 10) {
+        createUserData.uid = userData.uid;
+      }
+
+      const userRecord = await adminAuth.createUser(createUserData);
+
+      console.log('✅ User created in Firebase Auth:', {
+        uid: userRecord.uid,
+        email: userRecord.email,
+        providedUid: userData.uid,
+        actualUid: userRecord.uid
+      });
+      
+      return { uid: userRecord.uid, email: userRecord.email };
+    } catch (error: any) {
+      console.error('❌ Error creating user in Firebase Auth:', {
+        error: error.message,
+        code: error.code,
+        email: userData.email,
+        uid: userData.uid
+      });
+      throw error;
+    }
+  }
+
   // User management operations
   static async createUser(userData: {
     email: string;
@@ -127,6 +202,21 @@ export class FirebaseAdminService {
       return { uid, role };
     } catch (error) {
       console.error('Error updating user role:', error);
+      throw error;
+    }
+  }
+
+  // Update user password
+  static async updateUserPassword(uid: string, password: string) {
+    try {
+      await adminAuth.updateUser(uid, {
+        password: password
+      });
+
+      console.log('✅ Password updated for user:', uid);
+      return { uid };
+    } catch (error) {
+      console.error('Error updating user password:', error);
       throw error;
     }
   }
@@ -282,12 +372,16 @@ export class FirebaseAdminService {
   // Create a new document
   static async createDocument(collection: string, data: any, transaction?: FirebaseFirestore.Transaction) {
     try {
+      console.log(`🔍 Creating document in collection: ${collection}`);
+      console.log(`📊 Data to create:`, JSON.stringify(data, null, 2));
+      
       const collectionRef = adminDb.collection(collection);
       
       if (transaction) {
         // In transaction, we need to generate an ID first
         const docRef = collectionRef.doc();
         const docData = prepareCreateData(data);
+        console.log(`📝 Prepared data for transaction:`, JSON.stringify(docData, null, 2));
         transaction.set(docRef, docData);
         return { id: docRef.id, ...data };
       } else {
@@ -314,12 +408,28 @@ export class FirebaseAdminService {
         }
         
         const docData = prepareCreateData(data);
+        console.log(`📝 Prepared data for creation:`, JSON.stringify(docData, null, 2));
+        
         const docRef = await collectionRef.add(docData);
+        console.log(`✅ Document created with ID: ${docRef.id}`);
+        
+        // Verify the document was created by reading it back
+        const createdDoc = await docRef.get();
+        if (createdDoc.exists) {
+          console.log(`✅ Document verified in database:`, createdDoc.data());
+        } else {
+          console.error(`❌ Document was not found after creation`);
+        }
         
         return { id: docRef.id, ...data };
       }
     } catch (error) {
-      console.error('Error creating document:', error);
+      console.error('❌ Error creating document:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        code: error instanceof Error && 'code' in error ? (error as any).code : 'unknown',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
       throw error;
     }
   }

@@ -56,7 +56,9 @@ export class SupabaseStorageService {
 
       if (error) {
         console.error('Supabase upload error:', error)
-        throw new Error(`Upload failed: ${error.message}`)
+        console.error('Upload details:', { bucket: options.bucket, path: filePath, fileType: file.type, fileSize: file.size })
+        console.error('Full error object:', JSON.stringify(error, null, 2))
+        throw new Error(`Upload failed: ${error.message || 'Unknown error'}`)
       }
 
       // Get public URL
@@ -156,6 +158,10 @@ export class SupabaseStorageService {
     filePath: string, 
     expiresIn: number = 3600
   ): Promise<string> {
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY.')
+    }
+
     try {
       const { data, error } = await supabaseAdmin.storage
         .from(bucket)
@@ -174,6 +180,10 @@ export class SupabaseStorageService {
 
   // List files in a folder
   static async listFiles(bucket: string, folder?: string): Promise<any[]> {
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY.')
+    }
+
     try {
       const { data, error } = await supabaseAdmin.storage
         .from(bucket)

@@ -1,6 +1,6 @@
 import { UserRepository, User } from '@/repositories/UserRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
-import { FirebaseAdminService } from '@/lib/firebase-admin';
+import { FirebaseAdminService } from '@/services/firebase-admin';
 import { ActivityType } from '@/types/activity';
 import { IUserService, CreateUserData, UpdateUserData, UserStats } from '@/services/interfaces/IUserService';
 import { AppError } from '@/errors/AppError';
