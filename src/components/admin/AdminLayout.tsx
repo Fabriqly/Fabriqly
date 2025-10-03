@@ -15,7 +15,8 @@ import {
   X,
   LogOut,
   Palette,
-  Activity
+  Activity,
+  Shield
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -52,6 +53,12 @@ const adminNavigation = [
     href: '/dashboard/admin/products',
     icon: Package,
     description: 'Manage all products'
+  },
+  {
+    name: 'Designer Verification',
+    href: '/dashboard/admin/designer-verification',
+    icon: Shield,
+    description: 'Verify designer accounts'
   },
   {
     name: 'Users',
