@@ -3,17 +3,6 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { validateEnvironment } from './env-validation';
-
-// Validate environment variables on startup
-(async () => {
-  try {
-    await validateEnvironment();
-  } catch (error) {
-    console.error('❌ Firebase environment validation failed:', error);
-    throw error;
-  }
-})();
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,

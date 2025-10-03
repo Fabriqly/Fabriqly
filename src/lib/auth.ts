@@ -7,19 +7,8 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { Collections } from '@/services/firebase';
 import { UserRole } from '@/types/next-auth';
-import { validateEnvironment } from './env-validation';
 import { AuthErrorHandler, AuthErrorCode } from './auth-errors';
 import { FirebaseAdminService } from '@/services/firebase-admin';
-
-// Validate environment variables on startup
-(async () => {
-  try {
-    await validateEnvironment();
-  } catch (error) {
-    console.error('❌ Environment validation failed:', error);
-    throw error;
-  }
-})();
 
 export const authOptions: NextAuthOptions = {
   events: {
@@ -348,4 +337,16 @@ export const authOptions: NextAuthOptions = {
       // Role-based redirect after authentication
       if (token?.role === 'customer') {
         return `${baseUrl}/explore`;
-      } else if (t
+      } else if (token?.role === 'designer') {
+        return `${baseUrl}/dashboard/designs`;
+      } else if (token?.role === 'admin') {
+        return `${baseUrl}/dashboard/admin`;
+      } else if (token?.role === 'business') {
+        return `${baseUrl}/dashboard/business`;
+      }
+
+      // Default redirect
+      return baseUrl;
+    }
+  }
+};
