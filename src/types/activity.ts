@@ -31,6 +31,11 @@ export type ActivityType =
   | 'shop_profile_updated'
   | 'designer_profile_created'
   | 'designer_profile_updated'
+  | 'designer_verification_requested'
+  | 'designer_verification_approved'
+  | 'designer_verification_rejected'
+  | 'designer_suspended'
+  | 'designer_restored'
   | 'system_event'
   | 'admin_action';
 
@@ -424,6 +429,51 @@ export const ACTIVITY_TYPE_CONFIGS: Record<ActivityType, ActivityTypeConfig> = {
     icon: 'User',
     color: 'bg-violet-500',
     priority: 'low',
+    defaultStatus: 'active'
+  },
+  designer_verification_requested: {
+    type: 'designer_verification_requested',
+    title: 'Designer Verification Requested',
+    description: 'A designer has requested verification',
+    icon: 'Clock',
+    color: 'bg-yellow-500',
+    priority: 'medium',
+    defaultStatus: 'active'
+  },
+  designer_verification_approved: {
+    type: 'designer_verification_approved',
+    title: 'Designer Verification Approved',
+    description: 'A designer verification has been approved',
+    icon: 'CheckCircle',
+    color: 'bg-green-500',
+    priority: 'medium',
+    defaultStatus: 'active'
+  },
+  designer_verification_rejected: {
+    type: 'designer_verification_rejected',
+    title: 'Designer Verification Rejected',
+    description: 'A designer verification has been rejected',
+    icon: 'XCircle',
+    color: 'bg-red-500',
+    priority: 'medium',
+    defaultStatus: 'active'
+  },
+  designer_suspended: {
+    type: 'designer_suspended',
+    title: 'Designer Account Suspended',
+    description: 'A designer account has been suspended',
+    icon: 'XCircle',
+    color: 'bg-red-500',
+    priority: 'high',
+    defaultStatus: 'active'
+  },
+  designer_restored: {
+    type: 'designer_restored',
+    title: 'Designer Account Restored',
+    description: 'A designer account has been restored',
+    icon: 'CheckCircle',
+    color: 'bg-green-500',
+    priority: 'medium',
     defaultStatus: 'active'
   },
   system_event: {

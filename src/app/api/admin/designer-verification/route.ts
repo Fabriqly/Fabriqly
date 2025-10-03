@@ -136,7 +136,7 @@ export async function PUT(request: NextRequest) {
           title: 'Designer Verification Approved',
           description: `Designer ${updatedProfile.businessName} has been verified`,
           priority: 'medium',
-          status: 'completed',
+          status: 'active',
           metadata: {
             businessName: updatedProfile.businessName,
             approvedBy: session.user.name,
@@ -160,7 +160,7 @@ export async function PUT(request: NextRequest) {
           title: 'Designer Verification Rejected',
           description: `Designer verification rejected for ${updatedProfile.businessName}`,
           priority: 'medium',
-          status: 'completed',
+          status: 'active',
           metadata: {
             businessName: updatedProfile.businessName,
             rejectedBy: session.user.name,
@@ -176,7 +176,7 @@ export async function PUT(request: NextRequest) {
         updatedProfile = await designerProfileService.deactivateDesigner(designerId);
         verificationStatus = 'suspended';
         
-        // Log活动
+        // Log activity
         await activityRepository.create({
           type: 'designer_suspended',
           actorId: session.user.id,
@@ -185,7 +185,7 @@ export async function PUT(request: NextRequest) {
           title: 'Designer Account Suspended',
           description: `Designer ${updatedProfile.businessName} has been suspended`,
           priority: 'high',
-          status: 'completed',
+          status: 'active',
           metadata: {
             businessName: updatedProfile.businessName,
             suspendedBy: session.user.name,
@@ -210,7 +210,7 @@ export async function PUT(request: NextRequest) {
           title: 'Designer Account Restored',
           description: `Designer ${updatedProfile.businessName} has been restored`,
           priority: 'medium',
-          status: 'completed',
+          status: 'active',
           metadata: {
             businessName: updatedProfile.businessName,
             restoredBy: session.user.name,
@@ -339,7 +339,7 @@ export async function POST(request: NextRequest) {
       title: 'Designer Verification Requested',
       description: `Verification requested for ${profile.businessName}`,
       priority: 'medium',
-      status: 'pending',
+      status: 'active',
       metadata: {
         businessName: profile.businessName,
         portfolioUrl,
