@@ -2,17 +2,6 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
-import { validateEnvironment } from './env-validation';
-
-// Validate environment variables on startup
-(async () => {
-  try {
-    await validateEnvironment();
-  } catch (error) {
-    console.error('❌ Firebase Admin environment validation failed:', error);
-    throw error;
-  }
-})();
 
 // Initialize Firebase Admin SDK
 const initializeFirebaseAdmin = () => {
@@ -24,13 +13,16 @@ const initializeFirebaseAdmin = () => {
       if (!process.env.FIREBASE_PROJECT_ID) missing.push('FIREBASE_PROJECT_ID');
       if (!process.env.FIREBASE_CLIENT_EMAIL) missing.push('FIREBASE_CLIENT_EMAIL');
       if (!privateKey) missing.push('FIREBASE_PRIVATE_KEY');
+      
+      console.error(`❌ Firebase Admin SDK environment variables are missing: ${missing.join(', ')}`);
       throw new Error(`Firebase Admin SDK environment variables are missing: ${missing.join(', ')}`);
     }
 
     // Clean up the private key (remove quotes if present)
     const cleanPrivateKey = privateKey.replace(/^["']|["']$/g, '');
 
-
+    console.log('🔥 Initializing Firebase Admin SDK...');
+    
     return initializeApp({
       credential: cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
