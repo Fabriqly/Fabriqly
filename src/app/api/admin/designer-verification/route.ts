@@ -51,8 +51,10 @@ export async function GET(request: NextRequest) {
     );
 
     // Get verification requests if they exist
-    const verificationRequests = await FirebaseAdminService.getAllDocuments(
-      Collections.DESIGNER_VERIFICATION_REQUESTS
+    const verificationRequests = await FirebaseAdminService.queryDocuments(
+      Collections.DESIGNER_VERIFICATION_REQUESTS,
+      [],
+      { field: 'createdAt', direction: 'desc' }
     );
 
     // Combine data
@@ -322,7 +324,7 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date()
     };
 
-    const request = await FirebaseAdminService.createDocument(
+    const createdRequest = await FirebaseAdminService.createDocument(
       Collections.DESIGNER_VERIFICATION_REQUESTS,
       verificationRequest
     );
@@ -349,7 +351,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true,
-      request
+      request: createdRequest
     }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating verification request:', error);
