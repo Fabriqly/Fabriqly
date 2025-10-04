@@ -71,7 +71,7 @@ export default function DesignsPage() {
               Explore a world of creative designs from talented artists and designers
             </p>
             <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-              <Button size="lg" variant="secondary" className="text-blue-600">
+              <Button size="lg" variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100 border-0">
                 <Palette className="w-5 h-5 mr-2" />
                 Browse All Designs
               </Button>

@@ -9,10 +9,10 @@ import { UpdateDesignData } from '@/types/enhanced-products';
 // GET /api/designs/[id] - Get a specific design
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Initialize services
     const designRepository = new DesignRepository();
@@ -47,7 +47,7 @@ export async function GET(
 // PUT /api/designs/[id] - Update a design
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -59,7 +59,7 @@ export async function PUT(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
     const body: UpdateDesignData = await request.json();
 
     // Initialize services
@@ -83,7 +83,7 @@ export async function PUT(
 // DELETE /api/designs/[id] - Delete a design
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -95,7 +95,7 @@ export async function DELETE(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Initialize services
     const designRepository = new DesignRepository();
