@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useCart } from '@/contexts/CartContext';
 import { Button } from '@/components/ui/Button';
 import { ProductWithDetails } from '@/types/products';
-import { ShoppingCart, Check } from 'lucide-react';
+import { ShoppingCart, Check, LogIn } from 'lucide-react';
 
 interface AddToCartButtonProps {
   product: ProductWithDetails;
@@ -34,6 +36,8 @@ export function AddToCartButton({
   size = 'md',
   disabled = false
 }: AddToCartButtonProps) {
+  const router = useRouter();
+  const { data: session } = useSession();
   const { addItem, isItemInCart } = useCart();
   const [isAdding, setIsAdding] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
@@ -55,6 +59,13 @@ export function AddToCartButton({
   };
 
   const handleAddToCart = async () => {
+    // Check if user is logged in
+    if (!session?.user) {
+      // Redirect to login page
+      router.push(`/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+
     if (isAdding || disabled) return;
 
     setIsAdding(true);
@@ -80,6 +91,22 @@ export function AddToCartButton({
   };
 
   const itemExists = isItemInCart(product.id, selectedVariants, selectedColorId);
+
+  // Show "Login to Purchase" for guests
+  if (!session?.user) {
+    return (
+      <Button
+        onClick={handleAddToCart}
+        disabled={disabled}
+        variant={variant}
+        size={size}
+        className={`flex items-center space-x-2 ${className}`}
+      >
+        <LogIn className="w-4 h-4" />
+        <span>Login to Purchase</span>
+      </Button>
+    );
+  }
 
   return (
     <Button

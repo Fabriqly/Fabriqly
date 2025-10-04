@@ -1,4 +1,4 @@
-// lib/auth.ts - UPDATED VERSION WITH BETTER SESSION REFRESH
+// lib/auth.ts - FINAL MERGED VERSION
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
@@ -7,22 +7,10 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { Collections } from '@/services/firebase';
 import { UserRole } from '@/types/next-auth';
-import { validateEnvironment } from './env-validation';
 import { AuthErrorHandler, AuthErrorCode } from './auth-errors';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 
-// Validate environment variables on startup
-(async () => {
-  try {
-    await validateEnvironment();
-  } catch (error) {
-    console.error('❌ Environment validation failed:', error);
-    throw error;
-  }
-})();
-
 export const authOptions: NextAuthOptions = {
-
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -74,14 +62,12 @@ export const authOptions: NextAuthOptions = {
               userData.displayName ||
               userCredential.user.displayName ||
               credentials.email,
-            image:
-              userData.photoURL || userCredential.user.photoURL || '',
+            image: userData.photoURL || userCredential.user.photoURL || '',
             role: userData.role as UserRole
           };
         } catch (error: any) {
           console.error('Credentials verification error:', error);
 
-          // Firebase auth errors
           if (
             error.code === 'auth/invalid-credential' ||
             error.code === 'auth/user-not-found' ||
@@ -90,7 +76,6 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
-          // Handle Firebase permission errors gracefully
           if (
             error?.code === 'auth/internal-error' &&
             error?.message?.includes('PERMISSION_DENIED')
@@ -192,9 +177,7 @@ export const authOptions: NextAuthOptions = {
 
     async jwt({ token, user, account, trigger }) {
       if (trigger === 'update' && token.sub) {
-        console.log(
-          'JWT: Session update triggered, refreshing user data...'
-        );
+        console.log('JWT: Session update triggered, refreshing user data...');
         try {
           const userDocRef = doc(db, Collections.USERS, token.sub);
           const userDoc = await getDoc(userDocRef);
@@ -206,10 +189,7 @@ export const authOptions: NextAuthOptions = {
             token.photoURL = userData.photoURL;
           }
         } catch (error) {
-          console.error(
-            'JWT: Error updating token during session update:',
-            error
-          );
+          console.error('JWT: Error updating token during session update:', error);
         }
       }
 
@@ -242,8 +222,7 @@ export const authOptions: NextAuthOptions = {
                 provider: 'google',
                 profile: {
                   firstName: user.name?.split(' ')[0] || '',
-                  lastName:
-                    user.name?.split(' ').slice(1).join(' ') || '',
+                  lastName: user.name?.split(' ').slice(1).join(' ') || '',
                   preferences: {
                     notifications: {
                       email: true,
@@ -296,10 +275,7 @@ export const authOptions: NextAuthOptions = {
                 { merge: true }
               );
             } catch (error) {
-              console.error(
-                'JWT: Error updating last login time:',
-                error
-              );
+              console.error('JWT: Error updating last login time:', error);
             }
           }
         } catch (error) {
@@ -329,30 +305,41 @@ export const authOptions: NextAuthOptions = {
         return url;
       }
 
-      // Default redirect to explore page for safety
+      // Role-based redirect after authentication
+      if (token?.role === 'customer') {
+        return `${baseUrl}/explore`;
+      } else if (token?.role === 'designer') {
+        return `${baseUrl}/dashboard/designs`;
+      } else if (token?.role === 'admin') {
+        return `${baseUrl}/dashboard/admin`;
+      } else if (token?.role === 'business') {
+        return `${baseUrl}/dashboard/business`;
+      }
+
+      // Default redirect
       return `${baseUrl}/explore`;
     }
   },
-  
+
   pages: {
     signIn: '/login',
     error: '/auth/error',
     signOut: '/auth/signout'
   },
-  
+
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 30 * 24 * 60 * 60 // 30 days
   },
-  
+
   secret: process.env.NEXTAUTH_SECRET,
-  
-  // Enhanced security options
+
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === 'production' 
-        ? '__Secure-next-auth.session-token' 
-        : 'next-auth.session-token',
+      name:
+        process.env.NODE_ENV === 'production'
+          ? '__Secure-next-auth.session-token'
+          : 'next-auth.session-token',
       options: {
         httpOnly: true,
         sameSite: 'lax',
@@ -361,7 +348,6 @@ export const authOptions: NextAuthOptions = {
       }
     }
   },
-  
-  // Enable debug in development
-  debug: process.env.NODE_ENV === 'development',
+
+  debug: process.env.NODE_ENV === 'development'
 };

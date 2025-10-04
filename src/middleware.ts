@@ -14,6 +14,19 @@ export default withAuth(
           return true;
         }
         
+        // Allow public API routes (GET requests only for browsing)
+        if (req.nextUrl.pathname.startsWith('/api/products') && req.method === 'GET') {
+          return true;
+        }
+        
+        if (req.nextUrl.pathname.startsWith('/api/categories') && req.method === 'GET') {
+          return true;
+        }
+        
+        if (req.nextUrl.pathname.startsWith('/api/designs') && req.method === 'GET') {
+          return true;
+        }
+        
         // Allow access to public pages
         if (req.nextUrl.pathname.startsWith('/login') || 
             req.nextUrl.pathname.startsWith('/register') ||
