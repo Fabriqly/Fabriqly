@@ -4,6 +4,8 @@ export { CategoryService, type CategoryValidationResult } from './CategoryServic
 export { UserService, type UserValidationResult } from './UserService';
 export { ActivityService, type ActivityFilters, type ActivityStats } from './ActivityService';
 export { OrderService } from './OrderService';
+export { ShopProfileService } from './ShopProfileService';
+export { DesignerProfileService } from './DesignerProfileService';
 
 // Service Interfaces
 export { type CategoryHierarchy } from './interfaces/ICategoryService';
