@@ -1,4 +1,4 @@
-// lib/auth.ts - UPDATED VERSION WITH BETTER SESSION REFRESH
+// lib/auth.ts - FINAL MERGED VERSION
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
@@ -11,23 +11,6 @@ import { AuthErrorHandler, AuthErrorCode } from './auth-errors';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 
 export const authOptions: NextAuthOptions = {
-  events: {
-    async session({ session, token }) {
-      // Custom session event handling if needed
-    }
-  },
-
-  session: {
-    strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-    updateAge: 24 * 60 * 60, // 24 hours
-  },
-
-  pages: {
-    signIn: '/login',
-    error: '/auth/error',
-  },
-
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -79,14 +62,12 @@ export const authOptions: NextAuthOptions = {
               userData.displayName ||
               userCredential.user.displayName ||
               credentials.email,
-            image:
-              userData.photoURL || userCredential.user.photoURL || '',
+            image: userData.photoURL || userCredential.user.photoURL || '',
             role: userData.role as UserRole
           };
         } catch (error: any) {
           console.error('Credentials verification error:', error);
 
-          // Firebase auth errors
           if (
             error.code === 'auth/invalid-credential' ||
             error.code === 'auth/user-not-found' ||
@@ -95,7 +76,6 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
-          // Handle Firebase permission errors gracefully
           if (
             error?.code === 'auth/internal-error' &&
             error?.message?.includes('PERMISSION_DENIED')
@@ -197,9 +177,7 @@ export const authOptions: NextAuthOptions = {
 
     async jwt({ token, user, account, trigger }) {
       if (trigger === 'update' && token.sub) {
-        console.log(
-          'JWT: Session update triggered, refreshing user data...'
-        );
+        console.log('JWT: Session update triggered, refreshing user data...');
         try {
           const userDocRef = doc(db, Collections.USERS, token.sub);
           const userDoc = await getDoc(userDocRef);
@@ -211,10 +189,7 @@ export const authOptions: NextAuthOptions = {
             token.photoURL = userData.photoURL;
           }
         } catch (error) {
-          console.error(
-            'JWT: Error updating token during session update:',
-            error
-          );
+          console.error('JWT: Error updating token during session update:', error);
         }
       }
 
@@ -247,8 +222,7 @@ export const authOptions: NextAuthOptions = {
                 provider: 'google',
                 profile: {
                   firstName: user.name?.split(' ')[0] || '',
-                  lastName:
-                    user.name?.split(' ').slice(1).join(' ') || '',
+                  lastName: user.name?.split(' ').slice(1).join(' ') || '',
                   preferences: {
                     notifications: {
                       email: true,
@@ -301,10 +275,7 @@ export const authOptions: NextAuthOptions = {
                 { merge: true }
               );
             } catch (error) {
-              console.error(
-                'JWT: Error updating last login time:',
-                error
-              );
+              console.error('JWT: Error updating last login time:', error);
             }
           }
         } catch (error) {
@@ -327,7 +298,7 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
 
-    async redirect({ url, baseUrl, token }) {
+    async redirect({ url, baseUrl }) {
       if (url.startsWith('/')) {
         return `${baseUrl}${url}`;
       } else if (new URL(url).origin === baseUrl) {
@@ -346,7 +317,37 @@ export const authOptions: NextAuthOptions = {
       }
 
       // Default redirect
-      return baseUrl;
+      return `${baseUrl}/explore`;
     }
-  }
+  },
+
+  pages: {
+    signIn: '/login',
+    error: '/auth/error',
+    signOut: '/auth/signout'
+  },
+
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60 // 30 days
+  },
+
+  secret: process.env.NEXTAUTH_SECRET,
+
+  cookies: {
+    sessionToken: {
+      name:
+        process.env.NODE_ENV === 'production'
+          ? '__Secure-next-auth.session-token'
+          : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
+    }
+  },
+
+  debug: process.env.NODE_ENV === 'development'
 };
