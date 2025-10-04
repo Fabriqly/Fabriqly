@@ -12,7 +12,8 @@ import {
   Menu,
   X,
   Palette,
-  Briefcase
+  Briefcase,
+  Store
 } from 'lucide-react';
 
 const getNavigationItems = (userRole?: string | null) => {
@@ -38,6 +39,16 @@ const getNavigationItems = (userRole?: string | null) => {
       href: '/dashboard/designer-profile',
       icon: Briefcase,
       description: 'Manage your designer profile'
+    });
+  }
+
+  // Add Shop Profile link for business owners
+  if (userRole === 'business_owner') {
+    baseItems.push({
+      name: 'Shop Profile',
+      href: '/dashboard/shop-profile',
+      icon: Store,
+      description: 'Manage your shop profile'
     });
   }
 

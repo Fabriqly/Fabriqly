@@ -304,8 +304,12 @@ export class FirebaseAdminService {
     try {
       let query: FirebaseFirestore.Query = adminDb.collection(collection);
 
-      // Apply filters
+      // Apply filters (skip undefined/null values)
       filters.forEach(filter => {
+        if (filter.value === undefined || filter.value === null) {
+          console.warn(`Skipping filter with undefined/null value for field: ${filter.field}`);
+          return;
+        }
         query = query.where(filter.field, filter.operator, filter.value);
       });
 

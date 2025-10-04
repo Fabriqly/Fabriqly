@@ -16,7 +16,8 @@ import {
   LogOut,
   Palette,
   Activity,
-  Shield
+  Shield,
+  Store
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -53,6 +54,12 @@ const adminNavigation = [
     href: '/dashboard/admin/products',
     icon: Package,
     description: 'Manage all products'
+  },
+  {
+    name: 'Shop Management',
+    href: '/dashboard/admin/shops',
+    icon: Store,
+    description: 'Manage shop profiles'
   },
   {
     name: 'Designer Verification',

@@ -6,3 +6,5 @@ export { UserLikeRepository, type UserLike } from './UserLikeRepository';
 export { ActivityRepository } from './ActivityRepository';
 export { OrderRepository, type OrderFilters, type OrderStats } from './OrderRepository';
 export { DesignRepository } from './DesignRepository';
+export { ShopProfileRepository } from './ShopProfileRepository';
+export { DesignerProfileRepository } from './DesignerProfileRepository';
