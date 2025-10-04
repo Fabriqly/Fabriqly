@@ -11,41 +11,60 @@ import {
   User,
   Menu,
   X,
-  Palette
+  Palette,
+  Briefcase
 } from 'lucide-react';
 
-const getNavigationItems = (userRole?: string | null) => [
-  {
-    name: 'Dashboard',
-    href: '/dashboard',
-    icon: LayoutDashboard,
-    description: 'Overview and analytics'
-  },
-  {
-    name: userRole === 'designer' ? 'Designs' : 'Products',
-    href: userRole === 'designer' ? '/dashboard/designs' : '/dashboard/products',
-    icon: userRole === 'designer' ? Palette : Package,
-    description: userRole === 'designer' ? 'Manage your designs' : 'Manage your products'
-  },
-  {
-    name: 'Orders',
-    href: '/dashboard/orders',
-    icon: ShoppingCart,
-    description: 'View and manage orders'
-  },
-  {
-    name: 'Finance',
-    href: '/dashboard/finance',
-    icon: DollarSign,
-    description: 'Earnings and financial reports'
-  },
-  {
-    name: 'Profile',
-    href: '/profile',
-    icon: User,
-    description: 'Edit your profile'
+const getNavigationItems = (userRole?: string | null) => {
+  const baseItems = [
+    {
+      name: 'Dashboard',
+      href: '/dashboard',
+      icon: LayoutDashboard,
+      description: 'Overview and analytics'
+    },
+    {
+      name: userRole === 'designer' ? 'Designs' : 'Products',
+      href: userRole === 'designer' ? '/dashboard/designs' : '/dashboard/products',
+      icon: userRole === 'designer' ? Palette : Package,
+      description: userRole === 'designer' ? 'Manage your designs' : 'Manage your products'
+    }
+  ];
+
+  // Add Designer Profile link only for designers
+  if (userRole === 'designer') {
+    baseItems.push({
+      name: 'Designer Profile',
+      href: '/dashboard/designer-profile',
+      icon: Briefcase,
+      description: 'Manage your designer profile'
+    });
   }
-];
+
+  // Add remaining common items
+  baseItems.push(
+    {
+      name: 'Orders',
+      href: '/dashboard/orders',
+      icon: ShoppingCart,
+      description: 'View and manage orders'
+    },
+    {
+      name: 'Finance',
+      href: '/dashboard/finance',
+      icon: DollarSign,
+      description: 'Earnings and financial reports'
+    },
+    {
+      name: 'Profile',
+      href: '/profile',
+      icon: User,
+      description: 'Edit your profile'
+    }
+  );
+
+  return baseItems;
+};
 
 interface DashboardSidebarProps {
   user?: {

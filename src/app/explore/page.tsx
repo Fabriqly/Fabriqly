@@ -42,6 +42,29 @@ export default function ExplorePage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Guest Banner - Show only if user is not logged in */}
+        {!user && (
+          <div className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg p-4 text-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="font-semibold">Preview Mode</p>
+                  <p className="text-sm text-indigo-100">You're browsing as a guest. Login to purchase items and access your cart.</p>
+                </div>
+              </div>
+              <a 
+                href="/login" 
+                className="bg-white text-indigo-600 px-4 py-2 rounded-lg font-medium hover:bg-indigo-50 transition-colors whitespace-nowrap"
+              >
+                Login Now
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Marketing/Ads Section - Blank for now */}
         <section className="mb-12">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

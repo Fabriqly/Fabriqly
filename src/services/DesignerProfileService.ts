@@ -616,4 +616,123 @@ export class DesignerProfileService implements IDesignerProfileService {
         return true;
     }
   }
+
+  // Verification Management Methods
+  async getVerificationStats(): Promise<{
+    totalPending: number;
+    totalVerified: number;
+    totalRejected: number;
+    totalActive: number;
+  }> {
+    return PerformanceMonitor.measure('DesignerProfileService.getVerificationStats', async () => {
+      return await this.designerProfileRepository.getVerificationStats();
+    });
+  }
+
+  async getPendingVerifications(limit: number = 20): Promise<DesignerProfile[]> {
+    return PerformanceMonitor.measure('DesignerProfileService.getPendingVerifications', async () => {
+      const profiles = await this.designerProfileRepository.getPendingVerifications(limit);
+      
+      // Cache the results
+      const cacheKey = CacheService.generateKey('designer_profiles', 'pending');
+      CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
+      
+      return profiles;
+    });
+  }
+
+  async getVerifiedDesignersWithDetails(): Promise<DesignerProfile[]> {
+    return PerformanceMonitor.measure('DesignerProfileService.getVerifiedDesignersWithDetails', async () => {
+      const profiles = await this.designerProfileRepository.getVerifiedDesignersWithDetails();
+      
+      // Cache the results
+      const cacheKey = CacheService.generateKey('designer_profiles', 'verified');
+      CacheService.set(cacheKey, profiles, 10 * 60 * 1000); // 10 minutes
+      
+      return profiles;
+    });
+  }
+
+  async getSuspendedDesigners(): Promise<DesignerProfile[]> {
+    return PerformanceMonitor.measure('DesignerProfileService.getSuspendedDesigners', async () => {
+      const profiles = await this.designerProfileRepository.getSuspendedDesigners();
+      
+      // Cache the results
+      const cacheKey = CacheService.generateKey('designer_profiles', 'suspended');
+      CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
+      
+      return profiles;
+    });
+  }
+
+  async getRecentVerifications(days: number = 30): Promise<DesignerProfile[]> {
+    return PerformanceMonitor.measure('DesignerProfileService.getRecentVerifications', async () => {
+      const profiles = await this.designerProfileRepository.getRecentVerifications(days);
+      
+      // Cache the results
+      const cacheKey = CacheService.generateKey('designer_profiles', 'recent_verified', days.toString());
+      CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
+      
+      return profiles;
+    });
+  }
+
+  async bulkUpdateVerificationStatus(designerIds: string[], isVerified: boolean, adminId: string): Promise<void> {
+    return PerformanceMonitor.measure('DesignerProfileService.bulkUpdateVerificationStatus', async () => {
+      await this.designerProfileRepository.bulkUpdateVerificationStatus(designerIds, isVerified, adminId);
+      
+      // Invalidate cache for affected designers
+      designerIds.forEach(id => {
+        CacheService.invalidate(`designer_profile_${id}`);
+        CacheService.invalidate(`designer_stats_${id}`);
+      });
+      
+      // Invalidate relevant cached lists
+      CacheService.invalidate('designer_profiles', 'verified');
+      CacheService.invalidate('designer_profiles', 'pending');
+      
+      // Log activity
+      await this.activityRepository.create({
+        type: 'designer_bulk_verification_update',
+        actorId: adminId,
+        targetId: designerIds.join(','),
+        targetType: 'designer_profile',
+        title: 'Bulk Designer Verification Update',
+        description: `Updated verification status for ${designerIds.length} designers`,
+        priority: 'high',
+        status: 'completed',
+        metadata: {
+          designerIds,
+          isVerified,
+          count: designerIds.length
+        },
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    });
+  }
+
+  async searchUnverifiedDesigners(searchTerm: string): Promise<DesignerProfile[]> {
+    return PerformanceMonitor.measure('DesignerProfileService.searchUnverifiedDesigners', async () => {
+      const profiles = await this.designerProfileRepository.searchUnverifiedDesigners(searchTerm);
+      
+      // Cache the search results
+      const cacheKey = CacheService.generateKey('designer_profiles', 'search_unverified', searchTerm);
+      CacheService.set(cacheKey, profiles, 2 * 60 * 1000); // 2 minutes
+      
+      return profiles;
+    });
+  }
+
+  async getDesignersRequiringReview(thresholdDesigns: number = 5): Promise<DesignerProfile[]> {
+    return PerformanceMonitor.measure('DesignerProfileService.getDesignersRequiringReview', async () => {
+      const profiles = await this.designerProfileRepository.getDesignersRequiringReview(thresholdDesigns);
+      
+      // Cache the results
+      const cacheKey = CacheService.generateKey('designer_profiles', 'requiring_review', thresholdDesigns.toString());
+      CacheService.set(cacheKey, profiles, 5 * 60 * 1000); // 5 minutes
+      
+      return profiles;
+    });
+  }
 }

@@ -58,6 +58,21 @@ export interface IDesignerProfileService {
   activateDesigner(designerId: string): Promise<DesignerProfile>;
   deactivateDesigner(designerId: string): Promise<DesignerProfile>;
   
+  // Verification Management
+  getVerificationStats(): Promise<{
+    totalPending: number;
+ totalVerified: number;
+ totalRejected: number;
+ totalActive: number;
+  }>;
+  getPendingVerifications(limit?: number): Promise<DesignerProfile[]>;
+  getVerifiedDesignersWithDetails(): Promise<DesignerProfile[]>;
+  getSuspendedDesigners(): Promise<DesignerProfile[]>;
+  getRecentVerifications(days?: number): Promise<DesignerProfile[]>;
+  bulkUpdateVerificationStatus(designerIds: string[], isVerified: boolean, adminId: string): Promise<void>;
+  searchUnverifiedDesigners(searchTerm: string): Promise<DesignerProfile[]>;
+  getDesignersRequiringReview(thresholdDesigns?: number): Promise<DesignerProfile[]>;
+  
   // Validation
   validateDesignerProfileData(data: CreateDesignerProfileData): DesignerProfileValidationResult;
   canUserModifyProfile(profileId: string, userId: string): Promise<boolean>;
