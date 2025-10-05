@@ -29,6 +29,11 @@ export type ActivityType =
   | 'design_published'
   | 'shop_profile_created'
   | 'shop_profile_updated'
+  | 'shop_approved'
+  | 'shop_rejected'
+  | 'shop_suspended'
+  | 'shop_restored'
+  | 'shop_activated'
   | 'designer_profile_created'
   | 'designer_profile_updated'
   | 'designer_verification_requested'
@@ -411,6 +416,51 @@ export const ACTIVITY_TYPE_CONFIGS: Record<ActivityType, ActivityTypeConfig> = {
     icon: 'Store',
     color: 'bg-emerald-500',
     priority: 'low',
+    defaultStatus: 'active'
+  },
+  shop_approved: {
+    type: 'shop_approved',
+    title: 'Shop Approved',
+    description: 'A shop has been approved by admin',
+    icon: 'CheckCircle',
+    color: 'bg-green-500',
+    priority: 'high',
+    defaultStatus: 'active'
+  },
+  shop_rejected: {
+    type: 'shop_rejected',
+    title: 'Shop Rejected',
+    description: 'A shop has been rejected by admin',
+    icon: 'XCircle',
+    color: 'bg-red-500',
+    priority: 'high',
+    defaultStatus: 'active'
+  },
+  shop_suspended: {
+    type: 'shop_suspended',
+    title: 'Shop Suspended',
+    description: 'A shop has been suspended',
+    icon: 'AlertTriangle',
+    color: 'bg-orange-500',
+    priority: 'high',
+    defaultStatus: 'active'
+  },
+  shop_restored: {
+    type: 'shop_restored',
+    title: 'Shop Restored',
+    description: 'A shop has been restored',
+    icon: 'CheckCircle',
+    color: 'bg-green-500',
+    priority: 'medium',
+    defaultStatus: 'active'
+  },
+  shop_activated: {
+    type: 'shop_activated',
+    title: 'Shop Activated',
+    description: 'A shop has been activated',
+    icon: 'CheckCircle',
+    color: 'bg-green-500',
+    priority: 'medium',
     defaultStatus: 'active'
   },
   designer_profile_created: {

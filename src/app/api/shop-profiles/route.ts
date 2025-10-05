@@ -1,130 +1,103 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ShopProfileService } from '@/services/ShopProfileService';
+import { ShopProfileRepository } from '@/repositories/ShopProfileRepository';
+import { ActivityRepository } from '@/repositories/ActivityRepository';
+import { CreateShopProfileData, ShopProfileFilters } from '@/types/shop-profile';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { FirebaseAdminService } from '@/services/firebase-admin';
-import { Collections } from '@/services/firebase';
-import { 
-  ShopProfile, 
-  CreateShopProfileData, 
-  UpdateShopProfileData 
-} from '@/types/enhanced-products';
 
-// GET /api/shop-profiles - List shop profiles
+// Initialize services
+const shopProfileRepository = new ShopProfileRepository();
+const activityRepository = new ActivityRepository();
+const shopProfileService = new ShopProfileService(shopProfileRepository, activityRepository);
+
+// GET /api/shop-profiles - Get all shops or search
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    const isVerified = searchParams.get('isVerified');
-    const isActive = searchParams.get('isActive');
-    const limit = parseInt(searchParams.get('limit') || '20');
-
-    // Build query constraints
-    const constraints = [];
+    const searchParams = request.nextUrl.searchParams;
     
-    if (userId) {
-      constraints.push({ field: 'userId', operator: '==' as const, value: userId });
-    }
+    // Build filters from query params
+    const filters: ShopProfileFilters = {};
     
-    if (isVerified !== null) {
-      constraints.push({ field: 'isVerified', operator: '==' as const, value: isVerified === 'true' });
+    if (searchParams.get('userId')) filters.userId = searchParams.get('userId')!;
+    if (searchParams.get('username')) filters.username = searchParams.get('username')!;
+    if (searchParams.get('businessType')) filters.businessType = searchParams.get('businessType') as any;
+    if (searchParams.get('approvalStatus')) filters.approvalStatus = searchParams.get('approvalStatus') as any;
+    if (searchParams.get('isVerified')) filters.isVerified = searchParams.get('isVerified') === 'true';
+    if (searchParams.get('isActive')) filters.isActive = searchParams.get('isActive') === 'true';
+    if (searchParams.get('isFeatured')) filters.isFeatured = searchParams.get('isFeatured') === 'true';
+    if (searchParams.get('search')) filters.search = searchParams.get('search')!;
+    if (searchParams.get('city')) {
+      filters.location = { city: searchParams.get('city')! };
     }
+    if (searchParams.get('province')) {
+      filters.location = { ...filters.location, province: searchParams.get('province')! };
+    }
+    if (searchParams.get('minRating')) filters.minRating = parseFloat(searchParams.get('minRating')!);
+    if (searchParams.get('sortBy')) filters.sortBy = searchParams.get('sortBy') as any;
+    if (searchParams.get('sortOrder')) filters.sortOrder = searchParams.get('sortOrder') as any;
+    if (searchParams.get('limit')) filters.limit = parseInt(searchParams.get('limit')!);
     
-    if (isActive !== null) {
-      constraints.push({ field: 'isActive', operator: '==' as const, value: isActive === 'true' });
-    }
-
-    const profiles = await FirebaseAdminService.queryDocuments(
-      Collections.SHOP_PROFILES,
-      constraints,
-      { field: 'createdAt', direction: 'desc' },
-      limit
-    );
-
-    return NextResponse.json({ profiles });
-  } catch (error) {
+    const shops = await shopProfileService.getShopProfiles(filters);
+    
+    return NextResponse.json({
+      success: true,
+      data: shops,
+      total: shops.length
+    });
+  } catch (error: any) {
     console.error('Error fetching shop profiles:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      {
+        success: false,
+        error: error.message || 'Failed to fetch shop profiles'
+      },
+      { status: error.statusCode || 500 }
     );
   }
 }
 
-// POST /api/shop-profiles - Create shop profile
+// POST /api/shop-profiles - Create new shop profile
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session) {
+    const session = await getServerSession();
+    if (!session || !session.user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const body: CreateShopProfileData = await request.json();
+    // Try different possible user ID fields
+    const userId = (session.user as any).id || 
+                   (session.user as any).uid || 
+                   (session.user as any).sub ||
+                   (session.user as any).email; // Fallback to email as unique identifier
     
-    // Validate required fields
-    if (!body.businessName || !body.contactInfo?.email) {
+    if (!userId) {
+      console.error('No user ID found in session:', session.user);
       return NextResponse.json(
-        { error: 'Business name and contact email are required' },
+        { success: false, error: 'Unable to identify user. Please log out and log in again.' },
         { status: 400 }
       );
     }
 
-    // Check if user already has a shop profile
-    const existingProfile = await FirebaseAdminService.queryDocuments(
-      Collections.SHOP_PROFILES,
-      [{ field: 'userId', operator: '==' as const, value: session.user.id }]
-    );
-
-    if (existingProfile.length > 0) {
-      return NextResponse.json(
-        { error: 'User already has a shop profile' },
-        { status: 400 }
-      );
-    }
-
-    const profileData = {
-      businessName: body.businessName,
-      userId: session.user.id,
-      description: body.description,
-      website: body.website,
-      address: body.address,
-      contactInfo: body.contactInfo,
-      businessHours: body.businessHours,
-      socialMedia: body.socialMedia,
-      isVerified: false,
-      isActive: true,
-      shopStats: {
-        totalProducts: 0,
-        totalOrders: 0,
-        totalRevenue: 0,
-        averageRating: 0
-      }
-    };
-
-    const profile = await FirebaseAdminService.createDocument(
-      Collections.SHOP_PROFILES,
-      profileData
-    );
-
-    // Update user role to business_owner if not already
-    const user = await FirebaseAdminService.getDocument(Collections.USERS, session.user.id);
-    if (user && user.role !== 'business_owner') {
-      await FirebaseAdminService.updateDocument(
-        Collections.USERS,
-        session.user.id,
-        { role: 'business_owner', updatedAt: new Date() }
-      );
-    }
-
-    return NextResponse.json({ profile }, { status: 201 });
+    const data: CreateShopProfileData = await request.json();
+    
+    const shop = await shopProfileService.createShopProfile(data, userId);
+    
+    return NextResponse.json({
+      success: true,
+      data: shop,
+      message: 'Shop profile created successfully'
+    }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating shop profile:', error);
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
+      {
+        success: false,
+        error: error.message || 'Failed to create shop profile'
+      },
+      { status: error.statusCode || 500 }
     );
   }
 }
