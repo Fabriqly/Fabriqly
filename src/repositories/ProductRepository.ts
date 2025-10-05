@@ -5,6 +5,7 @@ import { Product, ProductStatus } from '@/types/products';
 export interface ProductFilters {
   categoryId?: string;
   businessOwnerId?: string;
+  shopId?: string;
   status?: ProductStatus;
   isCustomizable?: boolean;
   isDigital?: boolean;
@@ -28,6 +29,12 @@ export class ProductRepository extends BaseRepository<Product> {
   async findByBusinessOwner(businessOwnerId: string): Promise<Product[]> {
     return this.findAll({
       filters: [{ field: 'businessOwnerId', operator: '==', value: businessOwnerId }]
+    });
+  }
+
+  async findByShop(shopId: string): Promise<Product[]> {
+    return this.findAll({
+      filters: [{ field: 'shopId', operator: '==', value: shopId }]
     });
   }
 
@@ -113,6 +120,10 @@ export class ProductRepository extends BaseRepository<Product> {
       queryFilters.push({ field: 'businessOwnerId', operator: '==', value: filters.businessOwnerId });
     }
 
+    if (filters.shopId) {
+      queryFilters.push({ field: 'shopId', operator: '==', value: filters.shopId });
+    }
+
     if (filters.isCustomizable !== undefined) {
       queryFilters.push({ field: 'isCustomizable', operator: '==', value: filters.isCustomizable });
     }
@@ -157,6 +168,10 @@ export class ProductRepository extends BaseRepository<Product> {
 
   async getProductCountByBusinessOwner(businessOwnerId: string): Promise<number> {
     return this.count([{ field: 'businessOwnerId', operator: '==', value: businessOwnerId }]);
+  }
+
+  async getProductCountByShop(shopId: string): Promise<number> {
+    return this.count([{ field: 'shopId', operator: '==', value: shopId }]);
   }
 
   async getLowStockProducts(threshold: number = 10): Promise<Product[]> {

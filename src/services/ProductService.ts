@@ -2,7 +2,7 @@ import { ProductRepository, ProductFilters } from '@/repositories/ProductReposit
 import { CategoryRepository } from '@/repositories/CategoryRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { Product, CreateProductData, UpdateProductData, ProductStatus, ProductSearchResult } from '@/types/products';
-import { FirebaseAdminService } from '@/services/firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
 import { Collections } from '@/services/firebase';
 import { ActivityType } from '@/types/activity';
 import { IProductService, ProductSearchOptions } from '@/services/interfaces/IProductService';
@@ -37,6 +37,14 @@ export class ProductService implements IProductService {
         throw AppError.notFound('Category not found');
       }
 
+      // If shopId is provided, verify the shop belongs to the business owner
+      if (data.shopId) {
+        const shopValid = await this.validateShopOwnership(data.shopId, businessOwnerId);
+        if (!shopValid) {
+          throw AppError.forbidden('Shop does not belong to this business owner');
+        }
+      }
+
       // Generate SKU if not provided
       const sku = data.sku?.trim() || this.generateSKU(data.name);
 
@@ -56,6 +64,7 @@ export class ProductService implements IProductService {
       stockQuantity: Number(data.stockQuantity) || 0,
       sku,
       businessOwnerId,
+      ...(data.shopId && { shopId: data.shopId }),
       status: data.status || 'draft',
       isCustomizable: Boolean(data.isCustomizable),
       isDigital: Boolean(data.isDigital),
@@ -72,6 +81,11 @@ export class ProductService implements IProductService {
 
       const product = await this.productRepository.create(productData);
 
+      // Update shop product count if shopId is present
+      if (data.shopId) {
+        await this.updateShopProductCount(data.shopId, 1);
+      }
+
       // Emit event
       await eventBus.emit(EventTypes.PRODUCT_CREATED, product, 'ProductService');
 
@@ -79,7 +93,8 @@ export class ProductService implements IProductService {
       await this.logProductActivity('product_created', product.id, businessOwnerId, {
         productName: product.name,
         categoryId: product.categoryId,
-        sku: product.sku
+        sku: product.sku,
+        ...(data.shopId && { shopId: data.shopId })
       });
 
       return product;
@@ -139,10 +154,16 @@ export class ProductService implements IProductService {
 
     await this.productRepository.delete(productId);
 
+    // Update shop product count if product was associated with a shop
+    if (product.shopId) {
+      await this.updateShopProductCount(product.shopId, -1);
+    }
+
     // Log activity
     await this.logProductActivity('product_deleted', productId, userId, {
       productName: product.name,
-      sku: product.sku
+      sku: product.sku,
+      ...(product.shopId && { shopId: product.shopId })
     });
   }
 
@@ -501,6 +522,53 @@ export class ProductService implements IProductService {
         return `Product "${productName}" has been deactivated`;
       default:
         return `Product "${productName}" activity`;
+    }
+  }
+
+  /**
+   * Validates that a shop belongs to the specified business owner
+   */
+  private async validateShopOwnership(shopId: string, businessOwnerId: string): Promise<boolean> {
+    try {
+      const shopDoc = await adminDb.collection('shopProfiles').doc(shopId).get();
+      
+      if (!shopDoc.exists) {
+        return false;
+      }
+      
+      const shopData = shopDoc.data();
+      return shopData?.userId === businessOwnerId && shopData?.approvalStatus === 'approved';
+    } catch (error) {
+      console.error('Error validating shop ownership:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Updates the product count for a shop
+   */
+  private async updateShopProductCount(shopId: string, delta: number): Promise<void> {
+    try {
+      const shopRef = adminDb.collection('shopProfiles').doc(shopId);
+      
+      // Get current shop data
+      const shopDoc = await shopRef.get();
+      if (!shopDoc.exists) {
+        return;
+      }
+
+      const shopData = shopDoc.data();
+      const currentCount = shopData?.shopStats?.totalProducts || 0;
+      const newCount = Math.max(0, currentCount + delta);
+
+      // Update the count
+      await shopRef.update({
+        'shopStats.totalProducts': newCount,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      console.error('Error updating shop product count:', error);
+      // Don't fail the operation if this fails
     }
   }
 }
