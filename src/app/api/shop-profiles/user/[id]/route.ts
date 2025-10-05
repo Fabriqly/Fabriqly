@@ -8,31 +8,28 @@ const shopProfileRepository = new ShopProfileRepository();
 const activityRepository = new ActivityRepository();
 const shopProfileService = new ShopProfileService(shopProfileRepository, activityRepository);
 
-// GET /api/shop-profiles/username/[username] - Get shop by username
+// GET /api/shop-profiles/user/[id] - Get shop by user ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ username: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { username } = await params;
-    const shop = await shopProfileService.getShopProfileByUsername(username);
+    const { id: userId } = await params;
+    const shop = await shopProfileService.getShopProfileByUserId(userId);
     
     if (!shop) {
       return NextResponse.json(
-        { success: false, error: 'Shop profile not found' },
-        { status: 404 }
+        { success: true, data: null },
+        { status: 200 }
       );
     }
-    
-    // Increment view count (in background, don't wait)
-    shopProfileService.incrementViewCount(shop.id).catch(console.error);
     
     return NextResponse.json({
       success: true,
       data: shop
     });
   } catch (error: any) {
-    console.error('Error fetching shop profile by username:', error);
+    console.error('Error fetching shop profile by user ID:', error);
     return NextResponse.json(
       {
         success: false,
@@ -42,5 +39,3 @@ export async function GET(
     );
   }
 }
-
-

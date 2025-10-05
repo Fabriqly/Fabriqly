@@ -230,6 +230,34 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
         </div>
       )}
 
+      {/* Products Section */}
+      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Products</h2>
+          {shop.approvalStatus === 'approved' && (
+            <Link
+              href={`/shops/${shop.username}/products`}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              View All Products →
+            </Link>
+          )}
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-3xl font-bold text-gray-900">{shop.shopStats.totalProducts}</p>
+            <p className="text-sm text-gray-600">Products Available</p>
+          </div>
+          {shop.approvalStatus === 'approved' && shop.shopStats.totalProducts > 0 && (
+            <Link href={`/shops/${shop.username}/products`}>
+              <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                Browse Products
+              </button>
+            </Link>
+          )}
+        </div>
+      </div>
+
       {/* Social Media & Links */}
       {(shop.socialMedia || shop.website) && (
         <div className="bg-white rounded-lg shadow-sm border p-6">
