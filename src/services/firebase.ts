@@ -138,6 +138,7 @@ export const Collections = {
   DESIGNER_PROFILES: 'designerProfiles',
   DESIGNS: 'designs',
   DESIGN_ANALYTICS: 'designAnalytics',
+  DESIGNER_VERIFICATION_REQUESTS: 'designerVerificationRequests',
   
   // Shop System
   SHOP_PROFILES: 'shopProfiles',
@@ -169,9 +170,12 @@ export const Collections = {
   
 
   // Password Reset
-  PASSWORD_RESET_TOKENS: 'passwordResetTokens'
-
+  PASSWORD_RESET_TOKENS: 'passwordResetTokens',
+  
   // User Likes System
-  USER_LIKES: 'userLikes'
+  USER_LIKES: 'userLikes',
+
+  // Designer Verification Requests
+  DESIGNER_VERIFICATION_REQUESTS: 'designerVerificationRequests'
 
 } as const;

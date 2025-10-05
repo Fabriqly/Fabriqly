@@ -54,25 +54,25 @@ export function DesignerProfileDisplay({ profile, showActions = false, onEdit }:
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="text-center">
           <div className="text-2xl font-bold text-blue-600">
-            {profile.portfolioStats.totalDesigns}
+            {profile.portfolioStats?.totalDesigns || 0}
           </div>
           <div className="text-sm text-gray-500">Designs</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-green-600">
-            {profile.portfolioStats.totalDownloads}
+            {profile.portfolioStats?.totalDownloads || 0}
           </div>
           <div className="text-sm text-gray-500">Downloads</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-purple-600">
-            {profile.portfolioStats.totalViews}
+            {profile.portfolioStats?.totalViews || 0}
           </div>
           <div className="text-sm text-gray-500">Views</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-yellow-600">
-            {profile.portfolioStats.averageRating.toFixed(1)}
+            {profile.portfolioStats?.averageRating?.toFixed(1) || '0.0'}
           </div>
           <div className="text-sm text-gray-500">Rating</div>
         </div>

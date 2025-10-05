@@ -74,6 +74,11 @@ const ActivityIcons: Record<ActivityType, React.ComponentType<any>> = {
   shop_profile_updated: Store,
   designer_profile_created: User,
   designer_profile_updated: User,
+  designer_verification_requested: Clock,
+  designer_verification_approved: CheckCircle,
+  designer_verification_rejected: XCircle,
+  designer_suspended: XCircle,
+  designer_restored: CheckCircle,
   system_event: Settings,
   admin_action: Shield
 };

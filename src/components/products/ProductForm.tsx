@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
   import { useRouter } from 'next/navigation';
+  import { useSession } from 'next-auth/react';
   import { Button } from '@/components/ui/Button';
   import { Input } from '@/components/ui/Input';
   import { 
@@ -39,7 +40,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
   }
 
 // Break down the form into smaller components for better maintainability
-const BasicInfoSection = ({ formData, handleInputChange, categories }: any) => (
+const BasicInfoSection = ({ formData, handleInputChange, categories, shops, loadingShops }: any) => (
             <div className="space-y-6">
               <div className="flex items-center space-x-2 mb-4">
                 <Package className="w-5 h-5 text-blue-600" />
@@ -96,16 +97,43 @@ const BasicInfoSection = ({ formData, handleInputChange, categories }: any) => (
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Category *
-                </label>
-                <CategorySelector
-                  value={formData.categoryId}
-                  onChange={(categoryId) => handleInputChange('categoryId', categoryId)}
-                  placeholder="Select a category"
-                  required
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Category *
+                  </label>
+                  <CategorySelector
+                    value={formData.categoryId}
+                    onChange={(categoryId) => handleInputChange('categoryId', categoryId)}
+                    placeholder="Select a category"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Shop (Optional)
+                  </label>
+                  {loadingShops ? (
+                    <div className="text-sm text-gray-500">Loading shops...</div>
+                  ) : (
+                    <select
+                      value={formData.shopId || ''}
+                      onChange={(e) => handleInputChange('shopId', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">No shop (personal product)</option>
+                      {shops.map((shop: any) => (
+                        <option key={shop.id} value={shop.id}>
+                          {shop.shopName} (@{shop.username})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Associate this product with one of your shops or keep it as a personal product
+                  </p>
+                </div>
               </div>
             </div>
 );
@@ -360,11 +388,14 @@ const SEOSection = ({ formData, handleInputChange }: any) => (
 
 export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
   const router = useRouter();
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(!!productId);
   const [error, setError] = useState<string | null>(null);
   const [product, setProduct] = useState<ProductWithDetails | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [shops, setShops] = useState<any[]>([]);
+  const [loadingShops, setLoadingShops] = useState(false);
   const [showColorManagement, setShowColorManagement] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<any[]>([]);
   const [isDraftCreated, setIsDraftCreated] = useState(false);
@@ -378,6 +409,7 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
     price: 0,
     stockQuantity: 0,
     sku: '',
+    shopId: '',
     status: 'draft', // Default to draft for new products
     isCustomizable: false,
     isDigital: false,
@@ -426,6 +458,7 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
         price: productData.price || 0,
         stockQuantity: productData.stockQuantity || 0,
         sku: productData.sku || '',
+        shopId: productData.shopId || '',
         status: productData.status || 'draft',
         isCustomizable: productData.isCustomizable || false,
         isDigital: productData.isDigital || false,
@@ -456,6 +489,39 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
     }
   }, []);
 
+  const loadUserShops = useCallback(async () => {
+    if (!session?.user?.id) {
+      console.log('No user session available for loading shops');
+      return;
+    }
+
+    setLoadingShops(true);
+    try {
+      // Use the user-specific endpoint to get only the current user's shop
+      const response = await fetch(`/api/shop-profiles/user/${session.user.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        // If user has a shop, add it to the shops array
+        if (data.success && data.data) {
+          // Only include approved shops
+          if (data.data.approvalStatus === 'approved') {
+            setShops([data.data]);
+          } else {
+            console.log('User shop is not approved yet:', data.data.approvalStatus);
+            setShops([]);
+          }
+        } else {
+          setShops([]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading shops:', error);
+      setShops([]);
+    } finally {
+      setLoadingShops(false);
+    }
+  }, [session?.user?.id]);
+
   // Update currentProductId when productId prop changes
   useEffect(() => {
     setCurrentProductId(productId);
@@ -469,7 +535,14 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
       setLoadingProduct(false);
     }
     loadCategories();
-  }, [isEditMode, currentProductId]);
+  }, [isEditMode, currentProductId, loadProduct, loadCategories]);
+
+  // Load user shops when session is available
+  useEffect(() => {
+    if (session?.user?.id) {
+      loadUserShops();
+    }
+  }, [session?.user?.id, loadUserShops]);
 
   const handleInputChange = useCallback((field: keyof CreateProductData, value: any) => {
     setFormData(prev => ({
@@ -758,7 +831,9 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
             <BasicInfoSection 
               formData={formData} 
               handleInputChange={handleInputChange} 
-              categories={categories} 
+              categories={categories}
+              shops={shops}
+              loadingShops={loadingShops}
             />
 
             <PricingInventorySection 

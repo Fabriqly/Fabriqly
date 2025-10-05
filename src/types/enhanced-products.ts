@@ -399,4 +399,29 @@ export interface UpdateCategoryData extends Partial<CreateCategoryData> {
 export interface UpdateSizeChartData extends Partial<CreateSizeChartData> {
   id: string;
 }
+
+// Designer Verification Request
+export interface DesignerVerificationRequest {
+  id: string;
+  designerId: string;
+  userId: string;
+  status: 'pending' | 'approved' | 'rejected' | 'suspended' | 'restored';
+  portfolioUrl?: string;
+  portfolioDescription?: string;
+  specializations?: string[];
+  yearsExperience?: number;
+  certifications?: string[];
+  documents?: {
+    businessLicense?: string;
+    portfolio?: string;
+    certifications?: string[];
+  };
+  submittedAt: Date;
+  reviewedBy?: string;
+  reviewedAt?: Date;
+  reviewReason?: string;
+  reviewNotes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 ```
