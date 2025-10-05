@@ -1,16 +1,18 @@
 'use client';
 
+import { use } from 'react';
 import { ProductForm } from '@/components/products/ProductForm';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useAuth } from '@/hooks/useAuth';
 
 interface EditProductPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 function EditProductContent({ params }: EditProductPageProps) {
+  const { id } = use(params);
   const { user, isLoading } = useAuth();
 
   // Check if user is a business owner or admin
@@ -38,7 +40,7 @@ function EditProductContent({ params }: EditProductPageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <ProductForm productId={params.id} />
+      <ProductForm productId={id} />
     </div>
   );
 }

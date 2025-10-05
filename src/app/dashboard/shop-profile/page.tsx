@@ -26,11 +26,12 @@ export default function ShopProfilePage() {
     if (!user?.id) return;
 
     try {
-      const response = await fetch(`/api/shop-profiles?userId=${user.id}`);
+      // Use the dedicated endpoint for fetching user's own shop
+      const response = await fetch(`/api/shop-profiles/user/${user.id}`);
       const data = await response.json();
 
-      if (data.success && data.data.length > 0) {
-        setShop(data.data[0]);
+      if (data.success && data.data) {
+        setShop(data.data);
       }
     } catch (err: any) {
       console.error('Error fetching shop:', err);
