@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     const filters: ProductFilters = {
       categoryId: searchParams.get('categoryId') || undefined,
       businessOwnerId: searchParams.get('businessOwnerId') || undefined,
+      shopId: searchParams.get('shopId') || undefined,
       status: statusParam === 'all' ? undefined : (statusParam as any) || undefined,
       isCustomizable: searchParams.get('isCustomizable') === 'true' ? true : 
                      searchParams.get('isCustomizable') === 'false' ? false : undefined,

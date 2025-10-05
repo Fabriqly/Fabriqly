@@ -64,6 +64,7 @@ export interface Product {
   stockQuantity: number; // Total stock across all variants
   sku: string; // Product code
   businessOwnerId: string; // Who owns this product
+  shopId?: string; // Shop this product belongs to (optional for business owners without shops)
   status: ProductStatus;
   isCustomizable: boolean; // Can customers add designs?
   isDigital: boolean; // Digital product vs physical
@@ -92,6 +93,11 @@ export interface ProductWithDetails extends Product {
     name: string;
     businessName?: string;
   };
+  shop?: {
+    id: string;
+    shopName: string;
+    username: string;
+  };
 }
 
 // Product Creation/Update DTOs
@@ -103,6 +109,7 @@ export interface CreateProductData {
   price: number;
   stockQuantity: number;
   sku: string;
+  shopId?: string; // Optional shop association
   status: ProductStatus;
   isCustomizable: boolean;
   isDigital: boolean;
@@ -127,6 +134,7 @@ export interface UpdateProductData extends Partial<CreateProductData> {
 export interface ProductFilters {
   categoryId?: string;
   businessOwnerId?: string;
+  shopId?: string; // Filter by shop
   status?: ProductStatus;
   isCustomizable?: boolean;
   isDigital?: boolean;

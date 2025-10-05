@@ -202,4 +202,114 @@ export class DesignerProfileRepository extends BaseRepository<DesignerProfile> {
       createdAt: profile.createdAt instanceof Date ? profile.createdAt : profile.createdAt.toDate()
     };
   }
+
+  // Verification-specific queries
+  async getVerificationStats(): Promise<{
+    totalPending: number;
+    totalVerified: number;
+    totalRejected: number;
+    totalActive: number;
+  }> {
+    const allProfiles = await this.findAll();
+    
+    return {
+      totalPending: allProfiles.filter(p => !p.isVerified && p.isActive).length,
+      totalVerified: allProfiles.filter(p => p.isVerified && p.isActive).length,
+      totalRejected: allProfiles.filter(p => !p.isVerified && !p.isActive).length,
+      totalActive: allProfiles.filter(p => p.isActive).length,
+    };
+  }
+
+  async getPendingVerifications(limit: number = 20): Promise<DesignerProfile[]> {
+    return this.findAll({
+      filters: [
+        { field: 'isVerified', operator: '==', value: false },
+        { field: 'isActive', operator: '==', value: true }
+      ],
+      orderBy: { field: 'createdAt', direction: 'asc' },
+      limit
+    });
+  }
+
+  async getVerifiedDesignersWithDetails(): Promise<DesignerProfile[]> {
+    return this.findAll({
+      filters: [
+        { field: 'isVerified', operator: '==', value: true },
+        { field: 'isActive', operator: '==', value: true }
+      ],
+      orderBy: { field: 'portfolioStats.averageRating', direction: 'desc' }
+    });
+  }
+
+  async getSuspendedDesigners(): Promise<DesignerProfile[]> {
+    return this.findAll({
+      filters: [
+        { field: 'isActive', operator: '==', value: false }
+      ],
+      orderBy: { field: 'updatedAt', direction: 'desc' }
+    });
+  }
+
+  async getRecentVerifications(days: number = 30): Promise<DesignerProfile[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    
+    return this.findAll({
+      filters: [
+        { field: 'updatedAt', operator: '>=', value: cutoffDate },
+        { field: 'isVerified', operator: '==', value: true }
+      ],
+      orderBy: { field: 'updatedAt', direction: 'desc' }
+    });
+  }
+
+  async bulkUpdateVerificationStatus(designerIds: string[], isVerified: boolean, adminId: string): Promise<void> {
+    const batch = [];
+    
+    for (const designerId of designerIds) {
+      batch.push({
+        id: designerId,
+        data: {
+          isVerified,
+          updatedAt: new Date()
+        }
+      });
+    }
+    
+    // Note: In a real implementation, you'd want to use Firestore batch writes
+    // This is a simplified version for the repository pattern
+    await Promise.all(
+      batch.map(item => this.update(item.id, item.data))
+    );
+  }
+
+  async searchUnverifiedDesigners(searchTerm: string): Promise<DesignerProfile[]> {
+    const unverifiedProfiles = await this.findAll({
+      filters: [
+        { field: 'isVerified', operator: '==', value: false },
+        { field: 'isActive', operator: '==', value: true }
+      ]
+    });
+
+    return unverifiedProfiles.filter(profile => 
+      profile.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (profile.bio && profile.bio.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      profile.specialties.some(specialty => 
+        specialty.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+  }
+
+  async getDesignersRequiringReview(thresholdDesigns: number = 5): Promise<DesignerProfile[]> {
+    const profiles = await this.findAll({
+      filters: [
+        { field: 'portfolioStats.totalDesigns', operator: '>=', value: thresholdDesigns },
+        { field: 'isVerified', operator: '==', value: false },
+        { field: 'isActive', operator: '==', value: true }
+      ],
+      orderBy: { field: 'portfolioStats.totalDesigns', direction: 'desc' }
+    });
+
+    return profiles;
+  }
 }

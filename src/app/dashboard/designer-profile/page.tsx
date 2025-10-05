@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { DesignerProfile } from '@/types/enhanced-products';
 import { DesignerProfileForm } from '@/components/designer/DesignerProfileForm';
 import { DesignerProfileDisplay } from '@/components/designer/DesignerProfileDisplay';
+import VerificationRequestForm from '@/components/designer/VerificationRequestForm';
 import { Button } from '@/components/ui/Button';
+import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 import { 
   Edit, 
   Plus, 
@@ -20,7 +22,8 @@ import {
   Facebook,
   Twitter,
   Linkedin,
-  RefreshCw
+  RefreshCw,
+  X
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSession } from 'next-auth/react';
@@ -35,6 +38,7 @@ export default function DesignerProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [syncingStats, setSyncingStats] = useState(false);
+  const [showVerificationForm, setShowVerificationForm] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -137,10 +141,16 @@ export default function DesignerProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading your profile...</p>
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <DashboardHeader user={user} />
+        <div className="flex flex-1">
+          <DashboardSidebar user={user} />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading your profile...</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -148,22 +158,38 @@ export default function DesignerProfilePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 mb-4">
-            <User className="h-12 w-12 mx-auto" />
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <DashboardHeader user={user} />
+        <div className="flex flex-1">
+          <DashboardSidebar user={user} />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-red-600 mb-4">
+                <User className="h-12 w-12 mx-auto" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Profile</h2>
+              <p className="text-gray-600 mb-4">{error}</p>
+              <Button onClick={loadProfile}>Try Again</Button>
+            </div>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Profile</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <Button onClick={loadProfile}>Try Again</Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Dashboard Header */}
+      <DashboardHeader user={user} />
+
+      <div className="flex flex-1">
+        {/* Dashboard Sidebar */}
+        <DashboardSidebar user={user} />
+
+        {/* Main Content */}
+        <div className="flex-1">
+          <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
+            <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between">
@@ -348,7 +374,12 @@ export default function DesignerProfilePage() {
                       </p>
                     </div>
                     <div className="mt-4">
-                      <Button size="sm" variant="outline" className="text-yellow-800 border-yellow-300 hover:bg-yellow-100">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="text-yellow-800 border-yellow-300 hover:bg-yellow-100"
+                        onClick={() => setShowVerificationForm(true)}
+                      >
                         Request Verification
                       </Button>
                     </div>
@@ -358,6 +389,29 @@ export default function DesignerProfilePage() {
             )}
           </div>
         )}
+
+        {/* Verification Request Modal */}
+        {showVerificationForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Request Verification</h2>
+                  <button
+                    onClick={() => setShowVerificationForm(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+                <VerificationRequestForm />
+              </div>
+            </div>
+          </div>
+        )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

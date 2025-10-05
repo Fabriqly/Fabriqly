@@ -15,12 +15,6 @@ import { ErrorHandler } from '@/errors/ErrorHandler';
 import { FieldValue } from 'firebase-admin/firestore';
 import { DashboardSummaryService } from '@/services/DashboardSummaryService';
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
 // Cache for frequently accessed data with TTL and size limits
 const categoryCache = new Map();
 const imageCache = new Map();
@@ -49,10 +43,10 @@ function getCacheWithTTL(cache: Map<any, any>, key: any) {
 // GET /api/products/[id] - Get single product with full details
 export async function GET(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const productId = params.id;
+    const { id: productId } = await params;
     
     if (!productId) {
       return NextResponse.json(
@@ -115,11 +109,11 @@ export async function GET(
 // PUT /api/products/[id] - Update product
 export async function PUT(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    const productId = params.id;
+    const { id: productId } = await params;
     
     if (!session || !['business_owner', 'admin'].includes(session.user.role)) {
       return NextResponse.json(
@@ -330,10 +324,8 @@ export async function PUT(
         entityId: productId,
         timestamp: new Date().toISOString(),
         entityData: {
-          ...updatedProduct,
-          status: updateData.status || existingProduct.status
-        },
-        timestamp: new Date().toISOString()
+          ...updatedProduct
+        }
       });
     } catch (summaryError) {
       console.warn('Failed to update dashboard summary for product update:', summaryError);
@@ -373,11 +365,11 @@ export async function PUT(
 // DELETE /api/products/[id] - Delete product
 export async function DELETE(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    const productId = params.id;
+    const { id: productId } = await params;
     
     if (!session || !['business_owner', 'admin'].includes(session.user.role)) {
       return NextResponse.json(
