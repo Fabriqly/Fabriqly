@@ -762,7 +762,7 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
   // Loading state for product fetch
   if (loadingProduct) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading product...</p>
@@ -772,9 +772,8 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto py-8">
-        <div className="bg-white rounded-lg shadow-sm">
+    <div>
+      <div className="bg-white rounded-lg shadow-sm">
           {/* Header */}
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
@@ -952,6 +951,5 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
             </form>
           </div>
         </div>
-      </div>
     );
   }
