@@ -176,6 +176,9 @@ export const Collections = {
   USER_LIKES: 'userLikes',
 
   // Designer Verification Requests
-  DESIGNER_VERIFICATION_REQUESTS: 'designerVerificationRequests'
+  DESIGNER_VERIFICATION_REQUESTS: 'designerVerificationRequests',
+  
+  // Customization System
+  CUSTOMIZATION_REQUESTS: 'customizationRequests'
 
 } as const;
