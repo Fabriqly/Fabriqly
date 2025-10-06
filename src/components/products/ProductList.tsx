@@ -201,6 +201,7 @@ const ProductGrid = ({ products, viewMode, onEditProduct, onDeleteProduct, onPub
         onPublish={onPublishProduct}
         showActions={true}
         variant="management"
+        compactActions={viewMode === 'grid'}
       />
     ))}
   </div>

@@ -231,6 +231,13 @@ export class ProductService implements IProductService {
       );
     }
 
+    // Apply tag filtering in memory
+    if (filters?.tags && filters.tags.length > 0) {
+      filteredProducts = filteredProducts.filter(product => 
+        product.tags && filters.tags!.every(tag => product.tags!.includes(tag))
+      );
+    }
+
     // Populate category, image, and business owner information for each product
     const productsWithDetails = await Promise.all(
       filteredProducts.map(async (product) => {
