@@ -177,6 +177,10 @@ export const Collections = {
 
   // Designer Verification Requests
   DESIGNER_VERIFICATION_REQUESTS: 'designerVerificationRequests',
+  DESIGNER_APPEALS: 'designerAppeals',
+  
+  // Shop Appeals
+  SHOP_APPEALS: 'shopAppeals',
   
   // Customization System
   CUSTOMIZATION_REQUESTS: 'customizationRequests'
