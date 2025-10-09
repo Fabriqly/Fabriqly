@@ -424,4 +424,38 @@ export interface DesignerVerificationRequest {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Designer Appeal
+export interface DesignerAppeal {
+  id: string;
+  designerId: string;
+  userId: string;
+  businessName: string;
+  appealReason: string;
+  additionalInfo?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: Date;
+  reviewedBy?: string;
+  reviewedAt?: Date;
+  reviewNotes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Shop Appeal
+export interface ShopAppeal {
+  id: string;
+  shopId: string;
+  userId: string;
+  shopName: string;
+  appealReason: string;
+  additionalInfo?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: Date;
+  reviewedBy?: string;
+  reviewedAt?: Date;
+  reviewNotes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 ```

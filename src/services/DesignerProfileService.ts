@@ -490,6 +490,7 @@ export class DesignerProfileService implements IDesignerProfileService {
   async verifyDesigner(designerId: string): Promise<DesignerProfile> {
     const profile = await this.designerProfileRepository.update(designerId, {
       isVerified: true,
+      isActive: true,
       updatedAt: Timestamp.now()
     });
 

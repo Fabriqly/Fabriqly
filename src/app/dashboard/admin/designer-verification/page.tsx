@@ -33,7 +33,7 @@ export default function DesignerVerificationPage() {
   const [profiles, setProfiles] = useState<DesignerProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'suspended'>('all');
   const [selectedProfile, setSelectedProfile] = useState<DesignerProfile | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [actionReason, setActionReason] = useState('');
@@ -131,6 +131,9 @@ export default function DesignerVerificationPage() {
   };
 
   const getStatusBadge = (profile: DesignerProfile) => {
+    if (profile.isVerified && !profile.isActive) {
+      return <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs font-medium rounded-full">Suspended</span>;
+    }
     if (profile.isVerified) {
       return <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">Verified</span>;
     }
@@ -147,24 +150,46 @@ export default function DesignerVerificationPage() {
   };
 
   const getActionButtons = (profile: DesignerProfile) => {
-    if (profile.isVerified) {
+    // Suspended profiles (verified but inactive)
+    if (profile.isVerified && !profile.isActive) {
       return (
         <div className="space-x-2">
+          <button
+            onClick={() => handleAction(profile, 'restore')}
+            className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+          >
+            Restore
+          </button>
           <button
             onClick={() => handleAction(profile, 'reject')}
             className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
           >
             Revoke
           </button>
+        </div>
+      );
+    }
+    // Verified and active profiles
+    if (profile.isVerified && profile.isActive) {
+      return (
+        <div className="space-x-2">
           <button
             onClick={() => handleAction(profile, 'suspend')}
             className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
           >
             Suspend
           </button>
+          <button
+            onClick={() => handleAction(profile, 'reject')}
+            className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Revoke
+          </button>
         </div>
       );
-    } else if (profile.verificationRequest?.status === 'rejected' || !profile.isActive) {
+    }
+    // Rejected profiles (not verified and not active)
+    if (profile.verificationRequest?.status === 'rejected' || (!profile.isVerified && !profile.isActive)) {
       return (
         <div className="space-x-2">
           <button
@@ -181,24 +206,24 @@ export default function DesignerVerificationPage() {
           </button>
         </div>
       );
-    } else {
-      return (
-        <div className="space-x-2">
-          <button
-            onClick={() => handleAction(profile, 'approve')}
-            className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-          >
-            Approve
-          </button>
-          <button
-            onClick={() => handleAction(profile, 'reject')}
-            className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Reject
-          </button>
-        </div>
-      );
     }
+    // Pending or new profiles
+    return (
+      <div className="space-x-2">
+        <button
+          onClick={() => handleAction(profile, 'approve')}
+          className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+        >
+          Approve
+        </button>
+        <button
+          onClick={() => handleAction(profile, 'reject')}
+          className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          Reject
+        </button>
+      </div>
+    );
   };
 
   const formatDate = (date: string | Date) => {
@@ -277,7 +302,17 @@ export default function DesignerVerificationPage() {
                   : 'bg-white text-gray-700 hover:bg-gray-50'
               }`}
             >
-              Rejected ({profiles.filter(p => p.verificationRequest?.status === 'rejected' || !p.isActive).length})
+              Rejected ({profiles.filter(p => p.verificationRequest?.status === 'rejected' || (!p.isVerified && !p.isActive)).length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('suspended')}
+              className={`px-4 py-2 rounded-lg font-medium ${
+                statusFilter === 'suspended'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Suspended ({profiles.filter(p => p.isVerified && !p.isActive).length})
             </button>
           </div>
 
