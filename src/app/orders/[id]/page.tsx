@@ -389,7 +389,7 @@ export default function OrderDetailPage() {
                   </Button>
                 )}
                 
-                <Link href="/products" className="block">
+                <Link href="/explore" className="block">
                   <Button className="w-full" variant="outline">
                     Continue Shopping
                   </Button>

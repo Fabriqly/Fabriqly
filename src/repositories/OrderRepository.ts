@@ -29,29 +29,33 @@ export class OrderRepository extends BaseRepository<Order> {
 
   async findByCustomer(customerId: string): Promise<Order[]> {
     return this.findAll({
-      filters: [{ field: 'customerId', operator: '==', value: customerId }],
-      orderBy: { field: 'createdAt', direction: 'desc' }
+      filters: [{ field: 'customerId', operator: '==', value: customerId }]
+      // Temporarily removed ordering to avoid composite index requirement
+      // orderBy: { field: 'createdAt', direction: 'desc' }
     });
   }
 
   async findByBusinessOwner(businessOwnerId: string): Promise<Order[]> {
     return this.findAll({
-      filters: [{ field: 'businessOwnerId', operator: '==', value: businessOwnerId }],
-      orderBy: { field: 'createdAt', direction: 'desc' }
+      filters: [{ field: 'businessOwnerId', operator: '==', value: businessOwnerId }]
+      // Temporarily removed ordering to avoid composite index requirement
+      // orderBy: { field: 'createdAt', direction: 'desc' }
     });
   }
 
-  async findByStatus(status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'): Promise<Order[]> {
+  async findByStatus(status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled'): Promise<Order[]> {
     return this.findAll({
-      filters: [{ field: 'status', operator: '==', value: status }],
-      orderBy: { field: 'createdAt', direction: 'desc' }
+      filters: [{ field: 'status', operator: '==', value: status }]
+      // Temporarily removed ordering to avoid composite index requirement
+      // orderBy: { field: 'createdAt', direction: 'desc' }
     });
   }
 
   async findByPaymentStatus(paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded'): Promise<Order[]> {
     return this.findAll({
-      filters: [{ field: 'paymentStatus', operator: '==', value: paymentStatus }],
-      orderBy: { field: 'createdAt', direction: 'desc' }
+      filters: [{ field: 'paymentStatus', operator: '==', value: paymentStatus }]
+      // Temporarily removed ordering to avoid composite index requirement
+      // orderBy: { field: 'createdAt', direction: 'desc' }
     });
   }
 
@@ -60,8 +64,9 @@ export class OrderRepository extends BaseRepository<Order> {
       filters: [
         { field: 'createdAt', operator: '>=', value: dateFrom },
         { field: 'createdAt', operator: '<=', value: dateTo }
-      ],
-      orderBy: { field: 'createdAt', direction: 'desc' }
+      ]
+      // Temporarily removed ordering to avoid composite index requirement
+      // orderBy: { field: 'createdAt', direction: 'desc' }
     });
   }
 
@@ -70,8 +75,9 @@ export class OrderRepository extends BaseRepository<Order> {
       filters: [
         { field: 'totalAmount', operator: '>=', value: minAmount },
         { field: 'totalAmount', operator: '<=', value: maxAmount }
-      ],
-      orderBy: { field: 'totalAmount', direction: 'desc' }
+      ]
+      // Temporarily removed ordering to avoid composite index requirement
+      // orderBy: { field: 'totalAmount', direction: 'desc' }
     });
   }
 
@@ -112,11 +118,12 @@ export class OrderRepository extends BaseRepository<Order> {
 
     const options: any = { filters: queryFilters };
     
-    if (sortBy) {
-      options.orderBy = { field: sortBy, direction: sortOrder || 'desc' };
-    } else {
-      options.orderBy = { field: 'createdAt', direction: 'desc' };
-    }
+    // Temporarily removed ordering to avoid composite index requirements
+    // if (sortBy) {
+    //   options.orderBy = { field: sortBy, direction: sortOrder || 'desc' };
+    // } else {
+    //   options.orderBy = { field: 'createdAt', direction: 'desc' };
+    // }
     
     if (limit) {
       options.limit = limit;
