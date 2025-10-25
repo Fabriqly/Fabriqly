@@ -262,22 +262,41 @@ export class OrderService implements IOrderService {
         maxAmount: options.maxAmount
       };
 
-      // Get orders from repository
-      const orders = await this.orderRepository.findWithFilters(
-        filters,
-        options.sortBy,
-        options.sortOrder,
-        options.limit
-      );
+      // Get orders from repository (without sorting to avoid composite index issues)
+      const orders = await this.orderRepository.findWithFilters(filters);
 
       // Filter orders based on user permissions
       const filteredOrders = orders.filter(order => this.canUserViewOrder(order, userId));
+
+      // Sort in memory to avoid composite index requirements
+      const sortedOrders = filteredOrders.sort((a, b) => {
+        const sortField = options.sortBy || 'createdAt';
+        const sortOrder = options.sortOrder || 'desc';
+        
+        let aValue = a[sortField as keyof Order];
+        let bValue = b[sortField as keyof Order];
+        
+        // Handle timestamp fields
+        if (sortField === 'createdAt' || sortField === 'updatedAt') {
+          aValue = aValue instanceof Date ? aValue : new Date(aValue as any);
+          bValue = bValue instanceof Date ? bValue : new Date(bValue as any);
+        }
+        
+        if (sortOrder === 'asc') {
+          return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        } else {
+          return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+        }
+      });
+
+      // Apply limit after sorting
+      const limitedOrders = options.limit ? sortedOrders.slice(0, options.limit) : sortedOrders;
 
       // Calculate totals
       const totalRevenue = filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0);
 
       return {
-        orders: filteredOrders,
+        orders: limitedOrders,
         total: filteredOrders.length,
         totalRevenue,
         hasMore: filteredOrders.length === (options.limit || 50)
@@ -285,7 +304,7 @@ export class OrderService implements IOrderService {
     });
   }
 
-  async updateOrderStatus(orderId: string, status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled', userId: string): Promise<Order> {
+  async updateOrderStatus(orderId: string, status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled', userId: string): Promise<Order> {
     return this.updateOrder(orderId, { status }, userId);
   }
 
@@ -459,7 +478,8 @@ export class OrderService implements IOrderService {
   canUpdateStatus(currentStatus: string, newStatus: string): boolean {
     const validTransitions: Record<string, string[]> = {
       'pending': ['processing', 'cancelled'],
-      'processing': ['shipped', 'cancelled'],
+      'processing': ['to_ship', 'cancelled'],
+      'to_ship': ['shipped', 'cancelled'],
       'shipped': ['delivered'],
       'delivered': [],
       'cancelled': []
@@ -471,7 +491,8 @@ export class OrderService implements IOrderService {
   getValidStatusTransitions(currentStatus: string): string[] {
     const validTransitions: Record<string, string[]> = {
       'pending': ['processing', 'cancelled'],
-      'processing': ['shipped', 'cancelled'],
+      'processing': ['to_ship', 'cancelled'],
+      'to_ship': ['shipped', 'cancelled'],
       'shipped': ['delivered'],
       'delivered': [],
       'cancelled': []
@@ -486,6 +507,90 @@ export class OrderService implements IOrderService {
 
   async getOrdersByDateRange(dateFrom: Date, dateTo: Date): Promise<Order[]> {
     return this.orderRepository.findByDateRange(dateFrom, dateTo);
+  }
+
+  // New functions for order management
+  async markOrderToShip(orderId: string, userId: string): Promise<Order> {
+    return PerformanceMonitor.measure('OrderService.markOrderToShip', async () => {
+      const existingOrder = await this.orderRepository.findById(orderId);
+      if (!existingOrder) {
+        throw AppError.notFound('Order not found');
+      }
+
+      // Check if user can update this order
+      if (!this.canUserUpdateOrder(existingOrder, userId)) {
+        throw AppError.forbidden('Insufficient permissions to update this order');
+      }
+
+      // Validate status transition
+      if (!this.canUpdateStatus(existingOrder.status, 'to_ship')) {
+        throw AppError.badRequest(`Cannot mark order as 'to_ship' from current status: ${existingOrder.status}`);
+      }
+
+      // Update order status to 'to_ship'
+      const updatedOrder = await this.updateOrderStatus(orderId, 'to_ship', userId);
+
+      // Log activity
+      await this.activityRepository.create({
+        type: 'order_status_changed',
+        title: 'Order Ready to Ship',
+        description: `Order #${orderId} has been marked as ready to ship`,
+        priority: 'high',
+        status: 'active',
+        targetId: orderId,
+        actorId: userId,
+        metadata: {
+          orderId,
+          previousStatus: existingOrder.status,
+          newStatus: 'to_ship',
+          customerId: existingOrder.customerId,
+          businessOwnerId: existingOrder.businessOwnerId
+        },
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+
+      // Emit event
+      eventBus.emit('order.status_changed', {
+        orderId,
+        previousStatus: existingOrder.status,
+        newStatus: 'to_ship',
+        customerId: existingOrder.customerId,
+        businessOwnerId: existingOrder.businessOwnerId
+      });
+
+      return updatedOrder;
+    });
+  }
+
+  async getOrdersToShip(businessOwnerId?: string, userId?: string): Promise<Order[]> {
+    return PerformanceMonitor.measure('OrderService.getOrdersToShip', async () => {
+      const searchOptions: OrderSearchOptions = {
+        status: 'to_ship',
+        businessOwnerId,
+        limit: 100,
+        sortBy: 'createdAt',
+        sortOrder: 'desc'
+      };
+
+      const result = await this.getOrders(searchOptions, userId || 'system');
+      return result.orders;
+    });
+  }
+
+  async getOrdersByStatus(status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled', businessOwnerId?: string, userId?: string): Promise<Order[]> {
+    return PerformanceMonitor.measure('OrderService.getOrdersByStatus', async () => {
+      const searchOptions: OrderSearchOptions = {
+        status,
+        businessOwnerId,
+        limit: 100,
+        sortBy: 'createdAt',
+        sortOrder: 'desc'
+      };
+
+      const result = await this.getOrders(searchOptions, userId || 'system');
+      return result.orders;
+    });
   }
 
   async getOrdersByAmountRange(minAmount: number, maxAmount: number): Promise<Order[]> {

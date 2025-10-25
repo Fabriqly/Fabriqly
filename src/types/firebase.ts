@@ -79,7 +79,7 @@ export interface Order extends BaseDocument {
   tax: number;
   shippingCost: number;
   totalAmount: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled';
   shippingAddress: Address;
   billingAddress?: Address;
   paymentMethod: string;

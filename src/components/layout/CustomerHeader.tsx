@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown, Settings } from 'lucide-react';
+import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown, Settings, Package } from 'lucide-react';
 import { CartButton } from '@/components/cart/CartButton';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -119,6 +119,14 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                       <p className="text-sm font-medium text-gray-900">{user.name || 'User'}</p>
                       <p className="text-xs text-gray-500">{user.email}</p>
                     </div>
+                    <Link
+                      href="/orders"
+                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <Package className="w-4 h-4 mr-3" />
+                      My Orders
+                    </Link>
                     <Link
                       href="/profile"
                       className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"

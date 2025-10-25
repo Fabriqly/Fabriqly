@@ -7,12 +7,12 @@ import { Input } from '@/components/ui/Input';
 import { 
   Package, 
   Search, 
-  Eye, 
   Truck, 
   CheckCircle, 
-  XCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  MapPin
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -42,94 +42,68 @@ interface OrderItem {
   customizations?: Record<string, string>;
 }
 
-export default function OrdersPage() {
+export default function OrdersToShipPage() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [updatingOrders, setUpdatingOrders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    loadOrders();
+    loadOrdersToShip();
   }, []);
 
-  const loadOrders = async () => {
+  const loadOrdersToShip = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/orders');
+      const response = await fetch('/api/orders/to-ship');
       const data = await response.json();
       
       if (response.ok) {
         setOrders(data.orders || []);
       } else {
-        setError(data.error || 'Failed to load orders');
+        setError(data.error || 'Failed to load orders ready to ship');
       }
     } catch (error) {
-      console.error('Error loading orders:', error);
-      setError('Failed to load orders');
+      console.error('Error loading orders ready to ship:', error);
+      setError('Failed to load orders ready to ship');
     } finally {
       setLoading(false);
     }
   };
 
-  const markOrderToShip = async (orderId: string) => {
+  const markOrderAsShipped = async (orderId: string, trackingNumber?: string) => {
     try {
-      const response = await fetch(`/api/orders/${orderId}/to-ship`, {
+      setUpdatingOrders(prev => new Set(prev).add(orderId));
+      
+      const response = await fetch(`/api/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          status: 'shipped',
+          trackingNumber: trackingNumber || undefined
+        }),
       });
 
       if (response.ok) {
         // Reload orders to show updated status
-        await loadOrders();
+        await loadOrdersToShip();
       } else {
         const data = await response.json();
-        setError(data.error || 'Failed to mark order as ready to ship');
+        setError(data.error || 'Failed to mark order as shipped');
       }
     } catch (error) {
-      console.error('Error marking order as ready to ship:', error);
-      setError('Failed to mark order as ready to ship');
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Clock className="w-4 h-4 text-yellow-500" />;
-      case 'processing':
-        return <Package className="w-4 h-4 text-blue-500" />;
-      case 'to_ship':
-        return <Truck className="w-4 h-4 text-orange-500" />;
-      case 'shipped':
-        return <Truck className="w-4 h-4 text-purple-500" />;
-      case 'delivered':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'cancelled':
-        return <XCircle className="w-4 h-4 text-red-500" />;
-      default:
-        return <AlertCircle className="w-4 h-4 text-gray-500" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'processing':
-        return 'bg-blue-100 text-blue-800';
-      case 'to_ship':
-        return 'bg-orange-100 text-orange-800';
-      case 'shipped':
-        return 'bg-purple-100 text-purple-800';
-      case 'delivered':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      console.error('Error marking order as shipped:', error);
+      setError('Failed to mark order as shipped');
+    } finally {
+      setUpdatingOrders(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(orderId);
+        return newSet;
+      });
     }
   };
 
@@ -151,13 +125,10 @@ export default function OrdersPage() {
   };
 
   const filteredOrders = orders.filter(order => {
-    const matchesSearch = searchQuery === '' || 
+    return searchQuery === '' || 
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.status.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
+      order.shippingAddress?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.shippingAddress?.city?.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   if (loading) {
@@ -165,7 +136,7 @@ export default function OrdersPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <Package className="w-16 h-16 text-gray-300 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-600">Loading orders...</p>
+          <p className="text-gray-600">Loading orders ready to ship...</p>
         </div>
       </div>
     );
@@ -178,73 +149,57 @@ export default function OrdersPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">My Orders</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Orders Ready to Ship</h1>
               <p className="text-gray-600 mt-1">
-                Track and manage your orders
+                Manage orders that are ready for shipping
               </p>
             </div>
-            <Link href="/explore">
-              <Button>Continue Shopping</Button>
-            </Link>
+            <div className="flex items-center space-x-4">
+              <Link href="/orders">
+                <Button variant="outline">View All Orders</Button>
+              </Link>
+              <Link href="/dashboard">
+                <Button>Dashboard</Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filters */}
+        {/* Search */}
         <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Search orders..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            {/* Status Filter */}
-            <div className="md:w-48">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="to_ship">Ready to Ship</option>
-                <option value="shipped">Shipped</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              placeholder="Search by order ID, customer name, or city..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
           </div>
         </div>
 
-        {/* Orders List */}
+        {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
             <p className="text-red-600">{error}</p>
           </div>
         )}
 
+        {/* Orders List */}
         {filteredOrders.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">No orders found</h3>
+            <Truck className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-600 mb-2">No orders ready to ship</h3>
             <p className="text-gray-500 mb-4">
-              {searchQuery || statusFilter !== 'all' 
-                ? 'Try adjusting your search or filters'
-                : 'You haven\'t placed any orders yet'
+              {searchQuery 
+                ? 'No orders match your search criteria'
+                : 'All orders have been processed or there are no orders in "ready to ship" status'
               }
             </p>
-            <Link href="/explore">
-              <Button>Start Shopping</Button>
+            <Link href="/orders">
+              <Button>View All Orders</Button>
             </Link>
           </div>
         ) : (
@@ -254,15 +209,15 @@ export default function OrdersPage() {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2">
-                      {getStatusIcon(order.status)}
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                      <Truck className="w-4 h-4 text-orange-500" />
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                        Ready to Ship
                       </span>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Order #{order.id.slice(-8)}</p>
                       <p className="text-xs text-gray-400">
-                        Placed on {formatDate(order.createdAt)}
+                        Ready since {formatDate(order.updatedAt)}
                       </p>
                     </div>
                   </div>
@@ -275,8 +230,25 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
+                {/* Shipping Address */}
+                <div className="border-t pt-4 mb-4">
+                  <div className="flex items-start space-x-3">
+                    <MapPin className="w-4 h-4 text-gray-400 mt-1" />
+                    <div>
+                      <h4 className="font-medium text-gray-900">Shipping Address</h4>
+                      <div className="text-sm text-gray-600 mt-1">
+                        <p>{order.shippingAddress?.name}</p>
+                        <p>{order.shippingAddress?.address}</p>
+                        <p>{order.shippingAddress?.city}, {order.shippingAddress?.state} {order.shippingAddress?.zipCode}</p>
+                        <p>{order.shippingAddress?.country}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Order Items */}
-                <div className="border-t pt-4">
+                <div className="border-t pt-4 mb-4">
+                  <h4 className="font-medium text-gray-900 mb-2">Items to Ship</h4>
                   <div className="space-y-2">
                     {order.items.map((item, index) => (
                       <div key={index} className="flex items-center justify-between text-sm">
@@ -302,7 +274,7 @@ export default function OrdersPage() {
                 </div>
 
                 {/* Order Actions */}
-                <div className="border-t pt-4 mt-4 flex items-center justify-between">
+                <div className="border-t pt-4 flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <Link href={`/orders/${order.id}`}>
                       <Button variant="outline" size="sm">
@@ -310,43 +282,30 @@ export default function OrdersPage() {
                         View Details
                       </Button>
                     </Link>
-                    
-                    {order.trackingNumber && (
-                      <Link href={`/orders/${order.id}/tracking`}>
-                        <Button variant="outline" size="sm">
-                          <Truck className="w-4 h-4 mr-2" />
-                          Track Package
-                        </Button>
-                      </Link>
-                    )}
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    {order.status === 'processing' && user?.role === 'business_owner' && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                        onClick={() => markOrderToShip(order.id)}
-                      >
-                        <Truck className="w-4 h-4 mr-2" />
-                        Mark as Ready to Ship
-                      </Button>
-                    )}
-                    
-                    {order.status === 'pending' && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="text-red-600 border-red-300 hover:bg-red-50"
-                        onClick={() => {
-                          // TODO: Implement cancel order functionality
-                          console.log('Cancel order:', order.id);
-                        }}
-                      >
-                        Cancel Order
-                      </Button>
-                    )}
+                    <Button 
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => {
+                        const trackingNumber = prompt('Enter tracking number (optional):');
+                        markOrderAsShipped(order.id, trackingNumber || undefined);
+                      }}
+                      disabled={updatingOrders.has(order.id)}
+                    >
+                      {updatingOrders.has(order.id) ? (
+                        <>
+                          <Clock className="w-4 h-4 mr-2 animate-spin" />
+                          Updating...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Mark as Shipped
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -357,5 +316,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-
