@@ -14,14 +14,12 @@ export interface CustomizationFormData {
   productId: string;
   productName: string;
   productImage?: string;
-  quantity: number;
   customizationNotes: string;
   customerDesignFile?: any;
   customerPreviewImage?: any;
 }
 
 export function CustomizationRequestForm({ product, onSubmit, onCancel }: CustomizationRequestFormProps) {
-  const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
   const [designFile, setDesignFile] = useState<File | null>(null);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
@@ -115,7 +113,6 @@ export function CustomizationRequestForm({ product, onSubmit, onCancel }: Custom
         productId: product.id,
         productName: product.name,
         productImage: product.images?.[0] || undefined,
-        quantity,
         customizationNotes: notes,
         customerDesignFile: designFileData,
         customerPreviewImage: previewFileData
@@ -158,20 +155,6 @@ export function CustomizationRequestForm({ product, onSubmit, onCancel }: Custom
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Quantity */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Quantity
-          </label>
-          <input
-            type="number"
-            min="1"
-            value={quantity}
-            onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-
         {/* Customization Notes */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">

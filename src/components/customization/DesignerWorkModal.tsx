@@ -156,7 +156,6 @@ export function DesignerWorkModal({ request, onClose, onSubmit }: DesignerWorkMo
               <div>
                 <p className="font-medium">{request.productName}</p>
                 <p className="text-sm text-gray-600">Customer: {request.customerName}</p>
-                <p className="text-sm text-gray-600">Quantity: {request.quantity}</p>
                 <p className="text-xs text-gray-500 mt-1">
                   Requested: {formatDate(request.requestedAt)}
                 </p>

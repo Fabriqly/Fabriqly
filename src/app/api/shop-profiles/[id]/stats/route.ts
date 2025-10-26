@@ -14,7 +14,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const stats = await shopProfileService.getShopStats(params.id);
+    const stats = await shopProfileService.getShopStats(    const { id } = await params;);
     
     if (!stats) {
       return NextResponse.json(

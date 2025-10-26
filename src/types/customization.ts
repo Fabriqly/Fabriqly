@@ -46,7 +46,6 @@ export interface CustomizationRequest {
   productId: string;
   productName: string;
   productImage?: string;
-  quantity: number;
   
   // Design Files
   customerDesignFile?: CustomizationFile; // Original customer upload
@@ -88,7 +87,6 @@ export interface CreateCustomizationRequest {
   productId: string;
   productName: string;
   productImage?: string;
-  quantity: number;
   customizationNotes: string;
   customerDesignFile?: CustomizationFile;
   customerPreviewImage?: CustomizationFile;

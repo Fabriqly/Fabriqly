@@ -7,6 +7,7 @@ import { CustomizationRequestList } from '@/components/customization/Customizati
 import { CustomizationReviewModal } from '@/components/customization/CustomizationReviewModal';
 import { DesignerPendingRequests } from '@/components/customization/DesignerPendingRequests';
 import { DesignerWorkModal } from '@/components/customization/DesignerWorkModal';
+import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 import { CustomizationRequest, CustomizationRequestWithDetails } from '@/types/customization';
 import { Loader } from 'lucide-react';
 
@@ -199,70 +200,81 @@ export default function CustomizationsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            {isDesigner ? 'Customization Requests' : 'My Customization Requests'}
-          </h1>
-          <p className="mt-2 text-gray-600">
-            {isDesigner 
-              ? 'Manage customization requests from customers'
-              : 'Track your custom design requests'
-            }
-          </p>
-        </div>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Dashboard Header */}
+      <DashboardHeader user={session.user} />
 
-        {/* Designer View: Show pending requests first */}
-        {isDesigner && (
-          <div className="mb-8">
-            <DesignerPendingRequests
-              key={`pending-${refreshKey}`}
-              onViewRequest={handleViewRequest}
-              onClaimRequest={handleClaimRequest}
-            />
+      <div className="flex flex-1">
+        {/* Dashboard Sidebar */}
+        <DashboardSidebar user={session.user} />
+
+        {/* Main Content */}
+        <div className="flex-1">
+          <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-gray-900">
+                {isDesigner ? 'Customization Requests' : 'My Customization Requests'}
+              </h1>
+              <p className="mt-2 text-gray-600">
+                {isDesigner 
+                  ? 'Manage customization requests from customers'
+                  : 'Track your custom design requests'
+                }
+              </p>
+            </div>
+
+            {/* Designer View: Show pending requests first */}
+            {isDesigner && (
+              <div className="mb-8">
+                <DesignerPendingRequests
+                  key={`pending-${refreshKey}`}
+                  onViewRequest={handleViewRequest}
+                  onClaimRequest={handleClaimRequest}
+                />
+              </div>
+            )}
+
+            {/* My Requests (both customer and designer) */}
+            <div>
+              <h2 className="text-xl font-semibold mb-4">
+                {isDesigner ? 'My Active Requests' : 'All Requests'}
+              </h2>
+              <CustomizationRequestList
+                key={`list-${refreshKey}`}
+                userId={session.user.id}
+                userRole={session.user.role}
+                onViewRequest={isDesigner ? handleWorkOnRequest : handleViewRequest}
+              />
+            </div>
           </div>
-        )}
-
-        {/* My Requests (both customer and designer) */}
-        <div>
-          <h2 className="text-xl font-semibold mb-4">
-            {isDesigner ? 'My Active Requests' : 'All Requests'}
-          </h2>
-          <CustomizationRequestList
-            key={`list-${refreshKey}`}
-            userId={session.user.id}
-            userRole={session.user.role}
-            onViewRequest={isDesigner ? handleWorkOnRequest : handleViewRequest}
-          />
         </div>
-
-        {/* Modals */}
-        {showReviewModal && selectedRequest && (
-          <CustomizationReviewModal
-            request={selectedRequest}
-            onClose={() => {
-              setShowReviewModal(false);
-              setSelectedRequest(null);
-            }}
-            onApprove={isCustomer ? handleApprove : undefined}
-            onReject={isCustomer ? handleReject : undefined}
-            onCancel={isCustomer ? handleCancel : undefined}
-            userRole={session.user.role}
-          />
-        )}
-
-        {showWorkModal && selectedRequest && (
-          <DesignerWorkModal
-            request={selectedRequest}
-            onClose={() => {
-              setShowWorkModal(false);
-              setSelectedRequest(null);
-            }}
-            onSubmit={handleSubmitWork}
-          />
-        )}
       </div>
+
+      {/* Modals */}
+      {showReviewModal && selectedRequest && (
+        <CustomizationReviewModal
+          request={selectedRequest}
+          onClose={() => {
+            setShowReviewModal(false);
+            setSelectedRequest(null);
+          }}
+          onApprove={isCustomer ? handleApprove : undefined}
+          onReject={isCustomer ? handleReject : undefined}
+          onCancel={isCustomer ? handleCancel : undefined}
+          userRole={session.user.role}
+        />
+      )}
+
+      {showWorkModal && selectedRequest && (
+        <DesignerWorkModal
+          request={selectedRequest}
+          onClose={() => {
+            setShowWorkModal(false);
+            setSelectedRequest(null);
+          }}
+          onSubmit={handleSubmitWork}
+        />
+      )}
     </div>
   );
 }

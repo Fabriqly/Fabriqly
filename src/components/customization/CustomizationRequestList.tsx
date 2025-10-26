@@ -232,7 +232,6 @@ export function CustomizationRequestList({
                   )}
                   <div className="flex-1">
                     <h3 className="font-semibold text-lg">{request.productName}</h3>
-                    <p className="text-sm text-gray-600">Quantity: {request.quantity}</p>
                     {userRole === 'customer' && request.designerName && (
                       <p className="text-sm text-gray-600">Designer: {request.designerName}</p>
                     )}
