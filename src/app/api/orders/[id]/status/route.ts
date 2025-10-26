@@ -22,7 +22,7 @@ export async function PUT(
       );
     }
 
-    const orderId = params.id;
+    const { id: orderId } = await params;
     const body = await request.json();
     const { status, trackingNumber, notes } = body;
 

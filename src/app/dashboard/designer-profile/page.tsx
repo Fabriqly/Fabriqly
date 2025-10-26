@@ -6,6 +6,7 @@ import { DesignerProfile } from '@/types/enhanced-products';
 import { DesignerProfileForm } from '@/components/designer/DesignerProfileForm';
 import { DesignerProfileDisplay } from '@/components/designer/DesignerProfileDisplay';
 import VerificationRequestForm from '@/components/designer/VerificationRequestForm';
+import DesignerAppealForm from '@/components/designer/DesignerAppealForm';
 import { Button } from '@/components/ui/Button';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 import { 
@@ -23,7 +24,12 @@ import {
   Twitter,
   Linkedin,
   RefreshCw,
-  X
+  X,
+  CheckCircle,
+  XCircle,
+  Clock,
+  AlertTriangle,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSession } from 'next-auth/react';
@@ -39,6 +45,9 @@ export default function DesignerProfilePage() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [syncingStats, setSyncingStats] = useState(false);
   const [showVerificationForm, setShowVerificationForm] = useState(false);
+  const [showAppealForm, setShowAppealForm] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<any>(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -54,6 +63,7 @@ export default function DesignerProfilePage() {
     // Only load profile once when user is available and we haven't loaded yet
     if (user && !hasLoaded) {
       loadProfile();
+      loadVerificationStatus();
       setHasLoaded(true);
     }
   }, [user, isLoading, router, hasLoaded]);
@@ -85,10 +95,39 @@ export default function DesignerProfilePage() {
     }
   };
 
+  const loadVerificationStatus = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoadingStatus(true);
+      const response = await fetch('/api/designer-verification-status');
+      const data = await response.json();
+
+      if (response.ok) {
+        setVerificationStatus(data);
+      } else {
+        console.error('Failed to load verification status:', data.error);
+      }
+    } catch (error: any) {
+      console.error('Error loading verification status:', error);
+    } finally {
+      setLoadingStatus(false);
+    }
+  };
+
   const handleSave = async (savedProfile: DesignerProfile) => {
     setProfile(savedProfile);
     setIsEditing(false);
-    // No need to reload - we already have the saved profile data
+    // Reload verification status after profile update
+    loadVerificationStatus();
+  };
+
+  const handleVerificationSuccess = () => {
+    loadVerificationStatus();
+  };
+
+  const handleAppealSuccess = () => {
+    loadVerificationStatus();
   };
 
   // Prevent session refresh on window focus to avoid alt+tab reloads
@@ -357,35 +396,162 @@ export default function DesignerProfilePage() {
             </div>
 
             {/* Verification Status */}
-            {profile && !profile.isVerified && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <Award className="h-6 w-6 text-yellow-600" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-yellow-800">
-                      Profile Verification
-                    </h3>
-                    <div className="mt-2 text-sm text-yellow-700">
-                      <p>
-                        Your profile is not yet verified. Verification helps build trust with customers 
-                        and can increase your visibility on the platform.
-                      </p>
-                    </div>
-                    <div className="mt-4">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="text-yellow-800 border-yellow-300 hover:bg-yellow-100"
-                        onClick={() => setShowVerificationForm(true)}
-                      >
-                        Request Verification
-                      </Button>
+            {profile && verificationStatus && (
+              <>
+                {/* Approved Status */}
+                {verificationStatus.verificationStatus === 'approved' && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <CheckCircle className="h-6 w-6 text-green-600" />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-green-800">
+                          Profile Verified ✅
+                        </h3>
+                        <div className="mt-2 text-sm text-green-700">
+                          <p>
+                            Congratulations! Your designer profile has been verified. This helps build trust with customers 
+                            and increases your visibility on the platform.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                )}
+
+                {/* Pending Status */}
+                {verificationStatus.verificationStatus === 'pending' && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <Clock className="h-6 w-6 text-yellow-600" />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-yellow-800">
+                          Verification Under Review
+                        </h3>
+                        <div className="mt-2 text-sm text-yellow-700">
+                          <p>
+                            Your verification request is currently under review. We'll notify you once the review is complete.
+                          </p>
+                          {verificationStatus.verificationRequest?.submittedAt && (
+                            <p className="mt-1">
+                              Submitted: {new Date(verificationStatus.verificationRequest.submittedAt).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Rejected Status */}
+                {verificationStatus.verificationStatus === 'rejected' && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <XCircle className="h-6 w-6 text-red-600" />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-red-800">
+                          Verification Rejected
+                        </h3>
+                        <div className="mt-2 text-sm text-red-700">
+                          <p>
+                            Your verification request was not approved. You can review the feedback and submit a new request.
+                          </p>
+                          {verificationStatus.rejectionReason && (
+                            <div className="mt-3 p-3 bg-red-100 rounded-lg">
+                              <p className="font-medium text-red-800">Reason:</p>
+                              <p className="text-red-700">{verificationStatus.rejectionReason}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-4">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-red-800 border-red-300 hover:bg-red-100"
+                            onClick={() => setShowVerificationForm(true)}
+                          >
+                            Re-submit Verification Request
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Suspended Status */}
+                {verificationStatus.verificationStatus === 'suspended' && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <AlertTriangle className="h-6 w-6 text-red-600" />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-red-800">
+                          Account Suspended
+                        </h3>
+                        <div className="mt-2 text-sm text-red-700">
+                          <p>
+                            Your designer account has been suspended. You can submit an appeal to request a review of this decision.
+                          </p>
+                          {verificationStatus.suspensionReason && (
+                            <div className="mt-3 p-3 bg-red-100 rounded-lg">
+                              <p className="font-medium text-red-800">Reason:</p>
+                              <p className="text-red-700">{verificationStatus.suspensionReason}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-4">
+                          <Button 
+                            size="sm" 
+                            className="bg-orange-600 hover:bg-orange-700 text-white"
+                            onClick={() => setShowAppealForm(true)}
+                          >
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Submit Appeal
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Not Requested Status */}
+                {verificationStatus.verificationStatus === 'not_requested' && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <Award className="h-6 w-6 text-yellow-600" />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-yellow-800">
+                          Profile Verification
+                        </h3>
+                        <div className="mt-2 text-sm text-yellow-700">
+                          <p>
+                            Your profile is not yet verified. Verification helps build trust with customers 
+                            and can increase your visibility on the platform.
+                          </p>
+                        </div>
+                        <div className="mt-4">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-yellow-800 border-yellow-300 hover:bg-yellow-100"
+                            onClick={() => setShowVerificationForm(true)}
+                          >
+                            Request Verification
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -409,6 +575,14 @@ export default function DesignerProfilePage() {
             </div>
           </div>
         )}
+
+        {/* Appeal Form Modal */}
+        <DesignerAppealForm
+          isOpen={showAppealForm}
+          onClose={() => setShowAppealForm(false)}
+          onSuccess={handleAppealSuccess}
+          suspensionReason={verificationStatus?.suspensionReason}
+        />
             </div>
           </div>
         </div>

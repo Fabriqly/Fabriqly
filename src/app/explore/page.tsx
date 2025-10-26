@@ -10,10 +10,16 @@ import { ProductWithDetails } from '@/types/products';
 export default function ExplorePage() {
   const { user } = useAuth();
   const [products, setProducts] = useState<ProductWithDetails[]>([]);
+  const [merchandiseProducts, setMerchandiseProducts] = useState<ProductWithDetails[]>([]);
+  const [graphicsProducts, setGraphicsProducts] = useState<ProductWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [merchandiseLoading, setMerchandiseLoading] = useState(true);
+  const [graphicsLoading, setGraphicsLoading] = useState(true);
 
   useEffect(() => {
     loadFeaturedProducts();
+    loadMerchandiseProducts();
+    loadGraphicsServices();
   }, []);
 
   const loadFeaturedProducts = async () => {
@@ -32,6 +38,42 @@ export default function ExplorePage() {
       console.error('Error loading products:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMerchandiseProducts = async () => {
+    try {
+      setMerchandiseLoading(true);
+      const response = await fetch('/api/products?tags=merchandise&status=active&limit=4');
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setMerchandiseProducts(data.data.products || []);
+      } else {
+        console.error('Error loading merchandise products:', data.error);
+      }
+    } catch (error) {
+      console.error('Error loading merchandise products:', error);
+    } finally {
+      setMerchandiseLoading(false);
+    }
+  };
+
+  const loadGraphicsServices = async () => {
+    try {
+      setGraphicsLoading(true);
+      const response = await fetch('/api/products?tags=design&status=active&limit=4');
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setGraphicsProducts(data.data.products || []);
+      } else {
+        console.error('Error loading graphics services:', data.error);
+      }
+    } catch (error) {
+      console.error('Error loading graphics services:', error);
+    } finally {
+      setGraphicsLoading(false);
     }
   };
 
@@ -78,18 +120,24 @@ export default function ExplorePage() {
 
             {/* Smaller promotional cards */}
             <div className="space-y-6">
-              <div className="bg-gradient-to-r from-green-500 to-teal-600 rounded-lg p-6 text-white min-h-[90px] flex items-center justify-center">
+              <a 
+                href="/explore/merchandise" 
+                className="block bg-gradient-to-r from-green-500 to-teal-600 rounded-lg p-6 text-white min-h-[90px] flex items-center justify-center hover:shadow-lg transition-shadow cursor-pointer"
+              >
                 <div className="text-center">
-                  <h3 className="font-semibold">Custom Designs</h3>
-                  <p className="text-green-100 text-sm">Made just for you</p>
+                  <h3 className="font-semibold">Merchandise</h3>
+                  <p className="text-green-100 text-sm">Official branded products</p>
                 </div>
-              </div>
-              <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-lg p-6 text-white min-h-[90px] flex items-center justify-center">
+              </a>
+              <a 
+                href="/graphics-services" 
+                className="block bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg p-6 text-white min-h-[90px] flex items-center justify-center hover:shadow-lg transition-shadow cursor-pointer"
+              >
                 <div className="text-center">
-                  <h3 className="font-semibold">Fast Delivery</h3>
-                  <p className="text-orange-100 text-sm">Quick turnaround</p>
+                  <h3 className="font-semibold">Graphics Services</h3>
+                  <p className="text-purple-100 text-sm">Professional design work</p>
                 </div>
-              </div>
+              </a>
             </div>
           </div>
         </section>
@@ -139,6 +187,90 @@ export default function ExplorePage() {
             )}
           </div>
         </section>
+
+        {/* Merchandise Section */}
+        {merchandiseProducts.length > 0 && (
+          <section className="mt-16">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-green-500 to-teal-600 p-2 rounded-lg">
+                  <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-3xl font-bold text-gray-900">Official Merchandise</h2>
+                  <p className="text-gray-600 mt-1">Exclusive branded products and merchandise</p>
+                </div>
+              </div>
+              <a 
+                href="/explore/merchandise" 
+                className="text-green-600 hover:text-green-500 font-medium transition-colors"
+              >
+                View All →
+              </a>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {merchandiseLoading ? (
+                Array.from({ length: 4 }).map((_, index) => (
+                  <LoadingCard key={index} />
+                ))
+              ) : (
+                merchandiseProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    variant="customer"
+                    showActions={false}
+                  />
+                ))
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Graphics Services Section */}
+        {graphicsProducts.length > 0 && (
+          <section className="mt-16">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-2 rounded-lg">
+                  <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-3xl font-bold text-gray-900">Graphics & Design Services</h2>
+                  <p className="text-gray-600 mt-1">Professional design work for your creative needs</p>
+                </div>
+              </div>
+              <a 
+                href="/graphics-services" 
+                className="text-purple-600 hover:text-purple-500 font-medium transition-colors"
+              >
+                View All →
+              </a>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {graphicsLoading ? (
+                Array.from({ length: 4 }).map((_, index) => (
+                  <LoadingCard key={index} />
+                ))
+              ) : (
+                graphicsProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    variant="customer"
+                    showActions={false}
+                  />
+                ))
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Additional Sections - Placeholder for future content */}
         <section className="mt-16">

@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
       search: searchParams.get('search') || undefined
     };
 
+
     const sortBy = (searchParams.get('sortBy') as any) || 'createdAt';
     const sortOrder = (searchParams.get('sortOrder') as any) || 'desc';
     const limit = parseInt(searchParams.get('limit') || '20');

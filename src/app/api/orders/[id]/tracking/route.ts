@@ -22,7 +22,7 @@ export async function GET(
       );
     }
 
-    const orderId = params.id;
+    const { id: orderId } = await params;
 
     // Initialize services
     const orderRepository = new OrderRepository();
@@ -77,7 +77,7 @@ export async function PUT(
       );
     }
 
-    const orderId = params.id;
+    const { id: orderId } = await params;
     const body = await request.json();
     const { trackingNumber, carrier, estimatedDelivery } = body;
 

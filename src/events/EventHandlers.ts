@@ -122,6 +122,117 @@ export class NotificationEventHandlers {
         console.error('Failed to send product published notification:', error);
       }
     });
+
+    // ===== CUSTOMIZATION SYSTEM NOTIFICATIONS =====
+
+    // Notify designers when new customization request is created
+    eventBus.on('customization.request.created', async (event) => {
+      try {
+        console.log('📨 Notifying designers of new customization request:', {
+          requestId: event.data.requestId,
+          productName: event.data.productName,
+          customerId: event.data.customerId
+        });
+        
+        // In a real implementation, you would:
+        // - Send email/push notification to available designers
+        // - Create in-app notification
+        // - Send SMS if urgent
+      } catch (error) {
+        console.error('Failed to send new request notification:', error);
+      }
+    });
+
+    // Notify customer when designer is assigned
+    eventBus.on('customization.designer.assigned', async (event) => {
+      try {
+        console.log('📨 Notifying customer that designer has been assigned:', {
+          requestId: event.data.requestId,
+          designerId: event.data.designerId,
+          customerId: event.data.customerId
+        });
+        
+        // In a real implementation, you would:
+        // - Send email to customer
+        // - Create in-app notification
+        // - Include designer profile info
+      } catch (error) {
+        console.error('Failed to send designer assigned notification:', error);
+      }
+    });
+
+    // Notify customer when designer completes work
+    eventBus.on('customization.design.completed', async (event) => {
+      try {
+        console.log('📨 Notifying customer that design is ready for review:', {
+          requestId: event.data.requestId,
+          designerId: event.data.designerId,
+          customerId: event.data.customerId
+        });
+        
+        // In a real implementation, you would:
+        // - Send email to customer with preview
+        // - Create in-app notification with action button
+        // - Send push notification
+      } catch (error) {
+        console.error('Failed to send design completed notification:', error);
+      }
+    });
+
+    // Notify designer when customer approves design
+    eventBus.on('customization.design.approved', async (event) => {
+      try {
+        console.log('✅ Notifying designer of design approval:', {
+          requestId: event.data.requestId,
+          designerId: event.data.designerId,
+          customerId: event.data.customerId
+        });
+        
+        // In a real implementation, you would:
+        // - Send email to designer
+        // - Create in-app notification
+        // - Update designer stats/earnings
+      } catch (error) {
+        console.error('Failed to send design approved notification:', error);
+      }
+    });
+
+    // Notify designer when customer rejects design
+    eventBus.on('customization.design.rejected', async (event) => {
+      try {
+        console.log('🔄 Notifying designer of design rejection:', {
+          requestId: event.data.requestId,
+          designerId: event.data.designerId,
+          customerId: event.data.customerId,
+          reason: event.data.reason
+        });
+        
+        // In a real implementation, you would:
+        // - Send email to designer with feedback
+        // - Create in-app notification with revision notes
+        // - Include customer's rejection reason
+      } catch (error) {
+        console.error('Failed to send design rejected notification:', error);
+      }
+    });
+
+    // Notify relevant parties when request is cancelled
+    eventBus.on('customization.request.cancelled', async (event) => {
+      try {
+        console.log('❌ Notifying parties of request cancellation:', {
+          requestId: event.data.requestId,
+          customerId: event.data.customerId,
+          designerId: event.data.designerId
+        });
+        
+        // In a real implementation, you would:
+        // - Send email to designer if assigned
+        // - Update designer's workload
+        // - Process any refunds if applicable
+      } catch (error) {
+        console.error('Failed to send cancellation notification:', error);
+      }
+    });
   }
 }
 

@@ -41,6 +41,12 @@ export type ActivityType =
   | 'designer_verification_rejected'
   | 'designer_suspended'
   | 'designer_restored'
+  | 'designer_appeal_submitted'
+  | 'designer_appeal_approved'
+  | 'designer_appeal_rejected'
+  | 'shop_appeal_submitted'
+  | 'shop_appeal_approved'
+  | 'shop_appeal_rejected'
   | 'system_event'
   | 'admin_action';
 
@@ -524,6 +530,60 @@ export const ACTIVITY_TYPE_CONFIGS: Record<ActivityType, ActivityTypeConfig> = {
     icon: 'CheckCircle',
     color: 'bg-green-500',
     priority: 'medium',
+    defaultStatus: 'active'
+  },
+  designer_appeal_submitted: {
+    type: 'designer_appeal_submitted',
+    title: 'Designer Appeal Submitted',
+    description: 'A designer has submitted an appeal',
+    icon: 'MessageSquare',
+    color: 'bg-orange-500',
+    priority: 'high',
+    defaultStatus: 'active'
+  },
+  designer_appeal_approved: {
+    type: 'designer_appeal_approved',
+    title: 'Designer Appeal Approved',
+    description: 'A designer appeal has been approved',
+    icon: 'CheckCircle',
+    color: 'bg-green-500',
+    priority: 'high',
+    defaultStatus: 'active'
+  },
+  designer_appeal_rejected: {
+    type: 'designer_appeal_rejected',
+    title: 'Designer Appeal Rejected',
+    description: 'A designer appeal has been rejected',
+    icon: 'XCircle',
+    color: 'bg-red-500',
+    priority: 'high',
+    defaultStatus: 'active'
+  },
+  shop_appeal_submitted: {
+    type: 'shop_appeal_submitted',
+    title: 'Shop Appeal Submitted',
+    description: 'A shop has submitted an appeal',
+    icon: 'MessageSquare',
+    color: 'bg-orange-500',
+    priority: 'high',
+    defaultStatus: 'active'
+  },
+  shop_appeal_approved: {
+    type: 'shop_appeal_approved',
+    title: 'Shop Appeal Approved',
+    description: 'A shop appeal has been approved',
+    icon: 'CheckCircle',
+    color: 'bg-green-500',
+    priority: 'high',
+    defaultStatus: 'active'
+  },
+  shop_appeal_rejected: {
+    type: 'shop_appeal_rejected',
+    title: 'Shop Appeal Rejected',
+    description: 'A shop appeal has been rejected',
+    icon: 'XCircle',
+    color: 'bg-red-500',
+    priority: 'high',
     defaultStatus: 'active'
   },
   system_event: {
