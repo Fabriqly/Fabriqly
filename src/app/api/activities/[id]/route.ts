@@ -63,7 +63,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const activityService = ServiceContainer.getInstance().get<ActivityService>('activityService');
-    const activity = await activityService.getActivity(params.id);
+    const activity = await activityService.getActivity(    const { id } = await params;);
     
     if (!activity) {
       return NextResponse.json(
@@ -167,7 +167,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const body: UpdateActivityData = await request.json();
     
     const activityService = ServiceContainer.getInstance().get<ActivityService>('activityService');
-    const activity = await activityService.updateActivity(params.id, body);
+    const activity = await activityService.updateActivity(    const { id } = await params;, body);
 
     return NextResponse.json(ResponseBuilder.success(activity));
   } catch (error) {
@@ -192,7 +192,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const activityService = ServiceContainer.getInstance().get<ActivityService>('activityService');
-    await activityService.deleteActivity(params.id);
+    await activityService.deleteActivity(    const { id } = await params;);
 
     return NextResponse.json(ResponseBuilder.success({ success: true }));
   } catch (error) {

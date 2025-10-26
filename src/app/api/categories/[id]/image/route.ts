@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const categoryId = params.id;
+    const { id: categoryId } = await params;
     
     if (!categoryId) {
       return NextResponse.json(
@@ -113,7 +113,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const categoryId = params.id;
+    const { id: categoryId } = await params;
     
     if (!categoryId) {
       return NextResponse.json(

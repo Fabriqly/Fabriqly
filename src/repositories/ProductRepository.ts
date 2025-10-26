@@ -146,6 +146,9 @@ export class ProductRepository extends BaseRepository<Product> {
       queryFilters.push({ field: 'status', operator: '==', value: filters.status });
     }
 
+    // Note: Tags filtering is handled in the service layer after fetching products
+    // since Firestore array-contains can be complex with multiple tags
+
     // Note: Search filter is handled in the service layer after fetching products
     // since Firestore doesn't support full-text search natively
 

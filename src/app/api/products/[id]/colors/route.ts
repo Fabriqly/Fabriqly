@@ -20,7 +20,7 @@ interface RouteParams {
 // GET /api/products/[id]/colors - Get all colors for a product
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const productId = params.id;
+    const { id: productId } = await params;
 
     if (!productId) {
       return NextResponse.json(
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const productId = params.id;
+    const { id: productId } = await params;
     const body: CreateProductColorData = await request.json();
 
     if (!productId) {
@@ -230,7 +230,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const productId = params.id;
+    const { id: productId } = await params;
 
     if (!productId) {
       return NextResponse.json(
