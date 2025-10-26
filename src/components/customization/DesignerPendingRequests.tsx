@@ -157,10 +157,6 @@ export function DesignerPendingRequests({
                             {request.customerName}
                           </span>
                           <span className="flex items-center gap-1">
-                            <Package className="w-4 h-4" />
-                            Qty: {request.quantity}
-                          </span>
-                          <span className="flex items-center gap-1">
                             <Clock className="w-4 h-4" />
                             {formatDate(request.requestedAt)}
                           </span>

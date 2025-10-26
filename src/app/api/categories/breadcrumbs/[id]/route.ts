@@ -5,7 +5,7 @@ import { Collections } from '@/services/firebase';
 // GET /api/categories/breadcrumbs/[id] - Get breadcrumb path for a category
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const categoryId = params.id;
+    const { id: categoryId } = await params;
 
     if (!categoryId) {
       return NextResponse.json(

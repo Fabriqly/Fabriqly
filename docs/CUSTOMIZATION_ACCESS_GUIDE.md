@@ -4,7 +4,7 @@
 
 | Role | Primary Access | URL |
 |------|---------------|-----|
-| **Customer** | Dashboard or Product Page | `/dashboard/customizations                            ` or `/products/{id}/customize` |
+| **Customer** | Dashboard or Product Page | `/dashboard/customizations       ` or `/products/{id}/customize` |
 | **Designer** | Dashboard | `/dashboard/customizations` |
 | **Business Owner** | Dashboard (same as Designer) | `/dashboard/customizations` |
 | **Admin** | Dashboard (full access) | `/dashboard/customizations` |

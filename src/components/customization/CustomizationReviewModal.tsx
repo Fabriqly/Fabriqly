@@ -163,7 +163,6 @@ export function CustomizationReviewModal({
               )}
               <div>
                 <p className="font-medium text-lg">{request.productName}</p>
-                <p className="text-gray-600">Quantity: {request.quantity}</p>
                 <p className="text-sm text-gray-500 mt-2">
                   Requested: {formatDate(request.requestedAt)}
                 </p>

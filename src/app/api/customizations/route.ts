@@ -92,10 +92,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Validate required fields
-    if (!body.productId || !body.productName || !body.quantity || !body.customizationNotes) {
+    if (!body.productId || !body.productName || !body.customizationNotes) {
       return NextResponse.json(
         ResponseBuilder.error({ 
-          message: 'Missing required fields: productId, productName, quantity, customizationNotes', 
+          message: 'Missing required fields: productId, productName, customizationNotes', 
           statusCode: 400 
         }),
         { status: 400 }
@@ -109,7 +109,6 @@ export async function POST(request: NextRequest) {
       productId: body.productId,
       productName: body.productName,
       productImage: body.productImage,
-      quantity: body.quantity,
       customizationNotes: body.customizationNotes,
       customerDesignFile: body.customerDesignFile,
       customerPreviewImage: body.customerPreviewImage

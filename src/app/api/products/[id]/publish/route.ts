@@ -14,7 +14,7 @@ interface RouteParams {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
-    const productId = params.id;
+    const { id: productId } = await params;
     
     if (!session || !['business_owner', 'admin'].includes(session.user.role)) {
       return NextResponse.json(

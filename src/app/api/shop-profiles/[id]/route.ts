@@ -16,7 +16,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const shop = await shopProfileService.getShopProfile(params.id);
+    const shop = await shopProfileService.getShopProfile(    const { id } = await params;);
     
     if (!shop) {
       return NextResponse.json(
@@ -26,7 +26,7 @@ export async function GET(
     }
     
     // Increment view count (in background, don't wait)
-    shopProfileService.incrementViewCount(params.id).catch(console.error);
+    shopProfileService.incrementViewCount(    const { id } = await params;).catch(console.error);
     
     return NextResponse.json({
       success: true,
@@ -72,7 +72,7 @@ export async function PATCH(
 
     const data: UpdateShopProfileData = await request.json();
     
-    const shop = await shopProfileService.updateShopProfile(params.id, data, userId);
+    const shop = await shopProfileService.updateShopProfile(    const { id } = await params;, data, userId);
     
     return NextResponse.json({
       success: true,
@@ -117,7 +117,7 @@ export async function DELETE(
       );
     }
     
-    await shopProfileService.deleteShopProfile(params.id, userId);
+    await shopProfileService.deleteShopProfile(    const { id } = await params;, userId);
     
     return NextResponse.json({
       success: true,
