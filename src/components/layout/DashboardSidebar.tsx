@@ -101,6 +101,20 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigationItems = getNavigationItems(user?.role);
 
+  // Helper function to check if a route is active (including child routes)
+  const isRouteActive = (href: string) => {
+    // Exact match
+    if (pathname === href) return true;
+    
+    // For non-root dashboard routes, check if current path starts with the href
+    // But avoid matching /dashboard for everything
+    if (href !== '/dashboard' && pathname.startsWith(href + '/')) {
+      return true;
+    }
+    
+    return false;
+  };
+
   return (
     <>
       {/* Mobile sidebar button */}
@@ -132,7 +146,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
             <nav className="px-2 space-y-1">
               {navigationItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href;
+                const isActive = isRouteActive(item.href);
                 return (
                   <Link
                     key={item.name}
@@ -179,7 +193,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
               <nav className="flex-1 px-2 space-y-1">
                 {navigationItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href;
+                  const isActive = isRouteActive(item.href);
                   return (
                     <Link
                       key={item.name}
