@@ -312,6 +312,57 @@ export class CustomizationService {
   }
 
   /**
+   * Select printing shop for approved design
+   */
+  async selectPrintingShop(
+    requestId: string,
+    customerId: string,
+    shopId: string
+  ): Promise<CustomizationRequest> {
+    const request = await this.customizationRepo.findById(requestId);
+    if (!request) {
+      throw new Error('Request not found');
+    }
+
+    if (request.customerId !== customerId) {
+      throw new Error('Unauthorized');
+    }
+
+    if (request.status !== 'approved') {
+      throw new Error('Design must be approved before selecting printing shop');
+    }
+
+    // Get shop details (assuming shop profile exists)
+    const { FirebaseAdminService } = await import('./firebase-admin');
+    const { Collections } = await import('./firebase');
+    const shop = await FirebaseAdminService.getDocument(Collections.SHOP_PROFILES, shopId);
+    
+    if (!shop) {
+      throw new Error('Shop not found');
+    }
+
+    if (!shop.isActive || shop.approvalStatus !== 'approved') {
+      throw new Error('Shop is not available');
+    }
+
+    const updatedRequest = await this.customizationRepo.update(requestId, {
+      printingShopId: shopId as any,
+      printingShopName: shop.businessName as any,
+      updatedAt: Timestamp.now() as any
+    });
+
+    // Emit event
+    await eventBus.emit('customization.shop.selected', {
+      requestId,
+      customerId,
+      shopId,
+      shopName: shop.businessName
+    });
+
+    return updatedRequest;
+  }
+
+  /**
    * Update request with order ID after order is created
    */
   async linkToOrder(requestId: string, orderId: string): Promise<CustomizationRequest> {

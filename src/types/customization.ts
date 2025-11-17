@@ -7,6 +7,8 @@ import { Timestamp } from 'firebase/firestore';
  * - awaiting_customer_approval: Designer uploaded final design, customer needs to review
  * - approved: Customer approved, ready for order processing
  * - rejected: Customer rejected, needs revision
+ * - in_production: Being printed by shop
+ * - ready_for_pickup: Production complete, ready for delivery
  * - completed: Order fulfilled
  * - cancelled: Request cancelled
  */
@@ -16,8 +18,35 @@ export type CustomizationStatus =
   | 'awaiting_customer_approval'
   | 'approved'
   | 'rejected'
+  | 'in_production'
+  | 'ready_for_pickup'
   | 'completed'
   | 'cancelled';
+
+/**
+ * Production Status
+ */
+export type ProductionStatus = 
+  | 'pending'
+  | 'confirmed'
+  | 'in_progress'
+  | 'quality_check'
+  | 'completed';
+
+/**
+ * Production Details
+ */
+export interface ProductionDetails {
+  status: ProductionStatus;
+  confirmedAt?: Timestamp;
+  startedAt?: Timestamp;
+  estimatedCompletionDate?: Timestamp;
+  actualCompletionDate?: Timestamp;
+  materials?: string;
+  notes?: string;
+  qualityCheckPassed?: boolean;
+  qualityCheckNotes?: string;
+}
 
 /**
  * File types for customization
@@ -29,6 +58,62 @@ export interface CustomizationFile {
   fileSize: number;
   contentType: string;
   uploadedAt: Timestamp;
+}
+
+/**
+ * Payment Type for Customization
+ */
+export type PaymentType = 'upfront' | 'half_payment' | 'milestone';
+
+/**
+ * Payment Status
+ */
+export type PaymentStatus = 'pending' | 'partially_paid' | 'fully_paid' | 'refunded';
+
+/**
+ * Payment Details
+ */
+export interface PaymentDetails {
+  paymentType: PaymentType;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  paymentStatus: PaymentStatus;
+  currency: string;
+  
+  // Payment breakdown for milestone
+  milestones?: Array<{
+    id: string;
+    description: string;
+    amount: number;
+    isPaid: boolean;
+    paidAt?: Timestamp;
+    paymentId?: string;
+  }>;
+  
+  // Payment history
+  payments: Array<{
+    id: string;
+    amount: number;
+    paymentMethod: string;
+    status: 'pending' | 'success' | 'failed';
+    paidAt: Timestamp;
+    transactionId?: string;
+    invoiceUrl?: string;
+  }>;
+}
+
+/**
+ * Pricing Agreement
+ */
+export interface PricingAgreement {
+  designFee: number;
+  productCost: number;
+  printingCost: number;
+  totalCost: number;
+  agreedAt: Timestamp;
+  agreedByCustomer: boolean;
+  agreedByDesigner: boolean;
 }
 
 /**
@@ -61,6 +146,17 @@ export interface CustomizationRequest {
   customizationNotes: string; // Customer instructions
   designerNotes?: string; // Designer notes/comments
   rejectionReason?: string; // If customer rejects
+  
+  // Payment & Pricing
+  pricingAgreement?: PricingAgreement;
+  paymentDetails?: PaymentDetails;
+  
+  // Printing Shop Selection
+  printingShopId?: string;
+  printingShopName?: string;
+  
+  // Production
+  productionDetails?: ProductionDetails;
   
   // Status & Timeline
   status: CustomizationStatus;

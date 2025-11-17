@@ -149,11 +149,15 @@ export interface ShopStats {
 export interface Review extends BaseDocument {
   productId?: string;
   shopId?: string;
+  designerId?: string;
+  customizationRequestId?: string;
   customerId: string;
+  customerName?: string;
   rating: number;
   comment: string;
   images?: string[];
   isVerified: boolean;
+  reviewType: 'product' | 'shop' | 'designer' | 'customization';
 }
 
 // Message types

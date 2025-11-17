@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const imageType = formData.get('type') as string; // 'logo', 'banner', or 'thumbnail'
+    const imageType = formData.get('type') as string; // 'logo', 'banner', 'thumbnail', or 'permit'
 
     if (!file) {
       return NextResponse.json(
@@ -38,27 +38,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!imageType || !['logo', 'banner', 'thumbnail'].includes(imageType)) {
+    if (!imageType || !['logo', 'banner', 'thumbnail', 'permit'].includes(imageType)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid image type. Must be logo, banner, or thumbnail' },
+        { success: false, error: 'Invalid image type. Must be logo, banner, thumbnail, or permit' },
         { status: 400 }
       );
     }
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    // Validate file type - allow PDFs for permits
+    const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    const allowedDocTypes = ['application/pdf'];
+    const allowedTypes = imageType === 'permit' 
+      ? [...allowedImageTypes, ...allowedDocTypes]
+      : allowedImageTypes;
+      
     if (!allowedTypes.includes(file.type)) {
+      const errorMsg = imageType === 'permit'
+        ? 'Invalid file type. Only JPEG, PNG, WebP, GIF, and PDF are allowed for permits'
+        : 'Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed';
       return NextResponse.json(
-        { success: false, error: 'Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed' },
+        { success: false, error: errorMsg },
         { status: 400 }
       );
     }
 
-    // Validate file size (5MB max)
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    // Validate file size - 10MB for permits, 5MB for images
+    const maxSize = imageType === 'permit' ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
     if (file.size > maxSize) {
+      const sizeLimit = imageType === 'permit' ? '10MB' : '5MB';
       return NextResponse.json(
-        { success: false, error: 'File too large. Maximum size is 5MB' },
+        { success: false, error: `File too large. Maximum size is ${sizeLimit}` },
         { status: 400 }
       );
     }

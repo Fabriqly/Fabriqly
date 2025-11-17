@@ -130,6 +130,14 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                       My Orders
                     </Link>
                     <Link
+                      href="/my-customizations"
+                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <MessageCircle className="w-4 h-4 mr-3" />
+                      My Customizations
+                    </Link>
+                    <Link
                       href="/profile"
                       className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                       onClick={() => setIsDropdownOpen(false)}

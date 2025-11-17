@@ -5,7 +5,7 @@ import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Mail, Lock, User, Eye, EyeOff, Briefcase } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 
 interface RegisterFormData {
@@ -14,7 +14,6 @@ interface RegisterFormData {
   email: string;
   password: string;
   confirmPassword: string;
-  role: 'customer' | 'designer' | 'business_owner';
   agreeToTerms: boolean;
 }
 
@@ -26,7 +25,6 @@ export function RegisterForm() {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'customer',
     agreeToTerms: false
   });
   const [errors, setErrors] = useState<Partial<Record<keyof RegisterFormData, string>>>({});
@@ -110,7 +108,7 @@ export function RegisterForm() {
           lastName: formData.lastName,
           email: formData.email,
           password: formData.password,
-          role: formData.role,
+          role: 'customer', // All new registrations are customers
         }),
       });
 
@@ -135,7 +133,8 @@ export function RegisterForm() {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      await signIn('google', { callbackUrl: '/role-selection' });
+      // Google sign-in users will be created as customers by default
+      await signIn('google', { callbackUrl: '/explore' });
     } catch (error) {
       setGeneralError('Google sign-in failed. Please try again.');
       setLoading(false);
@@ -194,23 +193,6 @@ export function RegisterForm() {
             placeholder="john@example.com"
             autoComplete="email"
           />
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none">Account Type</label>
-            <div className="relative">
-              <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <select
-                name="role"
-                value={formData.role}
-                onChange={handleInputChange}
-                className="flex h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value="customer">Customer</option>
-                <option value="designer">Designer</option>
-                <option value="business_owner">Business Owner</option>
-              </select>
-            </div>
-          </div>
 
           <div className="relative">
             <Input

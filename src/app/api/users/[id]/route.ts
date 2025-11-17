@@ -7,9 +7,9 @@ import { ResponseBuilder } from '@/utils/ResponseBuilder';
 import { ErrorHandler } from '@/errors/ErrorHandler';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // GET /api/users/[id] - Get single user
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Users can only view their own profile unless they're admin
     if (session.user.id !== id && session.user.role !== 'admin') {
@@ -66,7 +66,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
 
     // Users can only update their own profile unless they're admin
@@ -102,7 +102,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     const userService = ServiceContainer.getInstance().get<UserService>('userService');
     await userService.deleteUser(id, session.user.id);
