@@ -57,7 +57,7 @@ const getNavigationItems = (userRole?: string | null) => {
   if (userRole === 'designer' || userRole === 'business_owner') {
     baseItems.push({
       name: 'Customization',
-      href: '/dashboard/customizations',
+      href: '/my-customizations',
       icon: Settings,
       description: 'Manage customization requests'
     });

@@ -65,8 +65,8 @@ export default function CustomizeProductPage() {
         throw new Error(result.error?.message || 'Failed to create request');
       }
 
-      // Redirect to customizations dashboard
-      router.push('/dashboard/customizations?success=true');
+      // Redirect to customizations page
+      router.push('/my-customizations?success=true');
     } catch (error: any) {
       throw error;
     }

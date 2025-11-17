@@ -16,12 +16,14 @@ interface CustomizationRequestListProps {
   userId: string;
   userRole: string;
   onViewRequest: (request: CustomizationRequest) => void;
+  onSetPricing?: (request: CustomizationRequest) => void;
 }
 
 export function CustomizationRequestList({ 
   userId, 
   userRole,
-  onViewRequest 
+  onViewRequest,
+  onSetPricing
 }: CustomizationRequestListProps) {
   const [requests, setRequests] = useState<CustomizationRequest[]>([]);
   const [stats, setStats] = useState<CustomizationStats | null>(null);
@@ -245,15 +247,26 @@ export function CustomizationRequestList({
                 </div>
 
                 {/* Status */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2">
                   <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(request.status)}`}>
                     {getStatusIcon(request.status)}
                     {formatStatus(request.status)}
                   </span>
+                  
+                  {/* Pricing Status for Designers */}
+                  {userRole === 'designer' && request.status === 'awaiting_customer_approval' && (
+                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
+                      request.pricingAgreement 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {request.pricingAgreement ? '✓ Pricing Set' : '⚠️ Pricing Needed'}
+                    </span>
+                  )}
                 </div>
 
                 {/* Actions */}
-                <div>
+                <div className="flex flex-col gap-2">
                   <button
                     onClick={() => onViewRequest(request)}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
@@ -261,6 +274,19 @@ export function CustomizationRequestList({
                     <Eye className="w-4 h-4" />
                     View Details
                   </button>
+                  
+                  {/* Set Pricing Button for Designers */}
+                  {userRole === 'designer' && 
+                   request.status === 'awaiting_customer_approval' && 
+                   !request.pricingAgreement && 
+                   onSetPricing && (
+                    <button
+                      onClick={() => onSetPricing(request)}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 flex items-center gap-2"
+                    >
+                      💰 Set Pricing
+                    </button>
+                  )}
                 </div>
               </div>
 

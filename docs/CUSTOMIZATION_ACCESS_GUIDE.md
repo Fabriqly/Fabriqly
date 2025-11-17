@@ -4,10 +4,10 @@
 
 | Role | Primary Access | URL |
 |------|---------------|-----|
-| **Customer** | Dashboard or Product Page | `/dashboard/customizations       ` or `/products/{id}/customize` |
-| **Designer** | Dashboard | `/dashboard/customizations` |
-| **Business Owner** | Dashboard (same as Designer) | `/dashboard/customizations` |
-| **Admin** | Dashboard (full access) | `/dashboard/customizations` |
+| **Customer** | My Customizations or Product Page | `/my-customizations` or `/products/{id}/customize` |
+| **Designer** | My Customizations | `/my-customizations` |
+| **Business Owner** | My Customizations (same as Designer) | `/my-customizations` |
+| **Admin** | My Customizations (full access) | `/my-customizations` |
 
 ---
 
@@ -36,11 +36,11 @@
    - Upload preview image (optional, 5MB max)
    - Submit request
 
-### Method 2: From Dashboard (Track Existing Requests)
+### Method 2: From My Customizations (Track Existing Requests)
 
-1. **Navigate to customizations dashboard:**
+1. **Navigate to my customizations page:**
    ```
-   /dashboard/customizations
+   /my-customizations
    ```
 
 2. **What you see:**
@@ -66,10 +66,10 @@ Step 2: Click "Customize This Product"
    → Redirected to /products/abc123/customize
 
 Step 3: Fill Form & Submit
-   → Redirected to /dashboard/customizations?success=true
+   → Redirected to /my-customizations?success=true
 
 Step 4: Track Progress
-   → Stay on /dashboard/customizations
+   → Stay on /my-customizations
    → Wait for designer to claim and work on it
 
 Step 5: Review (when notified)
@@ -86,7 +86,7 @@ Step 5: Review (when notified)
 
 1. **Navigate to customizations dashboard:**
    ```
-   /dashboard/customizations
+   /my-customizations
    ```
 
 2. **What you see:**
@@ -109,7 +109,7 @@ Step 5: Review (when notified)
 
 ```
 Step 1: Open Dashboard
-   → /dashboard/customizations
+   → /my-customizations
 
 Step 2: View Available Requests
    → See list of pending requests
@@ -146,7 +146,7 @@ Step 6: Handle Revisions (if needed)
 
 1. **Navigate to:**
    ```
-   /dashboard/customizations
+   /my-customizations
    ```
 
 2. **Features:**
@@ -163,7 +163,7 @@ Step 6: Handle Revisions (if needed)
 
 1. **Navigate to customizations dashboard:**
    ```
-   /dashboard/customizations
+   /my-customizations
    ```
 
 2. **What you see (expanded access):**
@@ -212,7 +212,7 @@ const navigationItems = [
   // Add this for all authenticated users
   {
     name: 'Customizations',
-    href: '/dashboard/customizations',
+    href: '/my-customizations',
     icon: Paintbrush, // or any icon you prefer
     roles: ['customer', 'designer', 'business_owner', 'admin']
   }
@@ -252,29 +252,29 @@ export default function ProductDetailPage({ product }) {
 ### For Customers
 ```
 Create Request:  /products/{productId}/customize
-View Requests:   /dashboard/customizations
+View Requests:   /my-customizations
 ```
 
 ### For Designers
 ```
-Dashboard:       /dashboard/customizations
+Dashboard:       /my-customizations
 ```
 
 ### For Business Owners
 ```
-Dashboard:       /dashboard/customizations
+Dashboard:       /my-customizations
 ```
 
 ### For Admins
 ```
-Dashboard:       /dashboard/customizations
+Dashboard:       /my-customizations
 ```
 
 ---
 
 ## 🎭 Role-Based UI Differences
 
-### Customer View (`/dashboard/customizations`)
+### Customer View (`/my-customizations`)
 ```
 ┌─────────────────────────────────────────┐
 │  My Customization Requests              │
@@ -292,7 +292,7 @@ Dashboard:       /dashboard/customizations
 └─────────────────────────────────────────┘
 ```
 
-### Designer View (`/dashboard/customizations`)
+### Designer View (`/my-customizations`)
 ```
 ┌─────────────────────────────────────────┐
 │  Available Requests                     │
@@ -315,7 +315,7 @@ Dashboard:       /dashboard/customizations
 └─────────────────────────────────────────┘
 ```
 
-### Admin View (`/dashboard/customizations`)
+### Admin View (`/my-customizations`)
 ```
 ┌─────────────────────────────────────────┐
 │  Customization Requests (System-wide)   │
@@ -356,12 +356,12 @@ Dashboard:       /dashboard/customizations
 2. **Go to any product page** with `isCustomizable: true`
 3. **Click "Customize This Product"**
 4. **Submit a test request**
-5. **Go to `/dashboard/customizations`** to track it
+5. **Go to `/my-customizations`** to track it
 
 ### Test as Designer
 
 1. **Login as designer**
-2. **Go to `/dashboard/customizations`**
+2. **Go to `/my-customizations`**
 3. **See pending requests in "Available Requests" section**
 4. **Click "Claim Request"**
 5. **Upload final work**
@@ -369,7 +369,7 @@ Dashboard:       /dashboard/customizations
 ### Test as Admin
 
 1. **Login as admin**
-2. **Go to `/dashboard/customizations`**
+2. **Go to `/my-customizations`**
 3. **See all system requests**
 4. **View statistics**
 5. **Monitor designer workload**
@@ -410,14 +410,14 @@ Dashboard:       /dashboard/customizations
 **Can't access dashboard?**
 - Verify you're authenticated
 - Check your user role
-- URL: `/dashboard/customizations`
+- URL: `/my-customizations`
 
 ---
 
 ## 🎯 Summary
 
 **One Dashboard, Different Views:**
-- **Everyone goes to**: `/dashboard/customizations`
+- **Everyone goes to**: `/my-customizations`
 - **What you see depends on your role**
 - **System automatically shows the right interface**
 

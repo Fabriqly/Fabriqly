@@ -3,14 +3,16 @@
 import { useState } from 'react';
 import { X, Upload, FileText, Image as ImageIcon, Loader, Send } from 'lucide-react';
 import { CustomizationRequestWithDetails } from '@/types/customization';
+import { TransactionChat } from '@/components/messaging/TransactionChat';
 
 interface DesignerWorkModalProps {
   request: CustomizationRequestWithDetails;
   onClose: () => void;
   onSubmit: (finalFile: any, previewImage: any, notes: string) => Promise<void>;
+  onSetPricing?: () => void;
 }
 
-export function DesignerWorkModal({ request, onClose, onSubmit }: DesignerWorkModalProps) {
+export function DesignerWorkModal({ request, onClose, onSubmit, onSetPricing }: DesignerWorkModalProps) {
   const [finalFile, setFinalFile] = useState<File | null>(null);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
@@ -169,6 +171,40 @@ export function DesignerWorkModal({ request, onClose, onSubmit }: DesignerWorkMo
             <p className="text-gray-700 whitespace-pre-wrap">{request.customizationNotes}</p>
           </div>
 
+          {/* Pricing Agreement Status */}
+          {request.status === 'awaiting_customer_approval' && (
+            <div className={`p-4 rounded-lg border ${request.pricingAgreement ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold mb-1">
+                    {request.pricingAgreement ? '✅ Pricing Set' : '⚠️ Pricing Required'}
+                  </h3>
+                  {request.pricingAgreement ? (
+                    <div className="text-sm text-gray-700">
+                      <p>Design Fee: ₱{request.pricingAgreement.designFee.toLocaleString()}</p>
+                      <p className="text-xs text-gray-500">
+                        Payment: {request.pricingAgreement.paymentType === 'upfront' ? 'Upfront' : 
+                                  request.pricingAgreement.paymentType === 'half_payment' ? 'Half Payment' : 'Milestone'}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-700">
+                      You must set your design fee before customer can proceed
+                    </p>
+                  )}
+                </div>
+                {!request.pricingAgreement && onSetPricing && (
+                  <button
+                    onClick={onSetPricing}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Set Pricing
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Customer Files Reference */}
           {(request.customerDesignFile || request.customerPreviewImage) && (
             <div className="border border-gray-200 rounded-lg p-4">
@@ -207,6 +243,21 @@ export function DesignerWorkModal({ request, onClose, onSubmit }: DesignerWorkMo
               <p className="text-yellow-800">{request.rejectionReason}</p>
             </div>
           )}
+
+          {/* Transaction Chat */}
+          <div className="border border-gray-200 rounded-lg">
+            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+              <h3 className="font-semibold">💬 Chat with Customer</h3>
+            </div>
+            <div className="p-4">
+              <TransactionChat
+                customizationRequestId={request.id}
+                otherUserId={request.customerId}
+                otherUserName={request.customerName}
+                otherUserRole="customer"
+              />
+            </div>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Final Design File Upload */}
