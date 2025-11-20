@@ -9,13 +9,15 @@ interface TransactionChatProps {
   otherUserId: string;
   otherUserName: string;
   otherUserRole: 'customer' | 'designer';
+  onDesignApproved?: () => void; // Callback when design is approved
 }
 
 export function TransactionChat({
   customizationRequestId,
   otherUserId,
   otherUserName,
-  otherUserRole
+  otherUserRole,
+  onDesignApproved
 }: TransactionChatProps) {
   const { data: session } = useSession();
   const user = session?.user;
@@ -24,7 +26,12 @@ export function TransactionChat({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [markAsFinal, setMarkAsFinal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadConversation();
@@ -62,9 +69,85 @@ export function TransactionChat({
     }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleUploadFile = async () => {
+    if (!selectedFile || !user) return;
+
+    try {
+      setUploading(true);
+
+      // Upload file first
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('folder', 'design-attachments');
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const uploadData = await uploadResponse.json();
+
+      if (!uploadData.success) {
+        throw new Error('File upload failed');
+      }
+
+      // Send message with attachment
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          receiverId: otherUserId,
+          content: newMessage.trim() || `Sent a file: ${selectedFile.name}`,
+          type: 'file',
+          customizationRequestId,
+          attachments: [
+            {
+              name: selectedFile.name,
+              url: uploadData.data.url,
+              type: selectedFile.type,
+              size: selectedFile.size,
+              isFinalDesign: markAsFinal,
+            },
+          ],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMessages((prev) => [...prev, data.data]);
+        setNewMessage('');
+        setSelectedFile(null);
+        setMarkAsFinal(false);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Failed to upload file');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (selectedFile) {
+      await handleUploadFile();
+      return;
+    }
+
     if (!newMessage.trim() || !user) return;
 
     try {
@@ -93,6 +176,39 @@ export function TransactionChat({
       alert('Failed to send message');
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleApproveDesign = async (messageId: string) => {
+    if (!confirm('Are you sure you want to approve this design? This will trigger payment to the designer.')) {
+      return;
+    }
+
+    try {
+      setApproving(true);
+      const response = await fetch(`/api/customizations/${customizationRequestId}/approve-design`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messageId }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert('Design approved! Designer will be paid shortly.');
+        if (onDesignApproved) {
+          onDesignApproved();
+        }
+      } else {
+        throw new Error(data.error || 'Failed to approve design');
+      }
+    } catch (error: any) {
+      console.error('Error approving design:', error);
+      alert(error.message || 'Failed to approve design');
+    } finally {
+      setApproving(false);
     }
   };
 
@@ -167,10 +283,13 @@ export function TransactionChat({
         ) : (
           messages.map((message) => {
             const isOwn = message.senderId === user?.id;
+            const hasFinalDesign = message.attachments?.some((att) => att.isFinalDesign);
+            const canApprove = !isOwn && hasFinalDesign && otherUserRole === 'designer';
+            
             return (
               <div
                 key={message.id}
-                className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
               >
                 <div
                   className={`max-w-[70%] rounded-lg px-4 py-2 ${
@@ -180,6 +299,50 @@ export function TransactionChat({
                   }`}
                 >
                   <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                  
+                  {/* Display attachments */}
+                  {message.attachments && message.attachments.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {message.attachments.map((attachment, index) => (
+                        <div
+                          key={index}
+                          className={`p-2 rounded border ${
+                            isOwn ? 'border-blue-400 bg-blue-500' : 'border-gray-300 bg-white'
+                          }`}
+                        >
+                          {attachment.isFinalDesign && (
+                            <span className="inline-block px-2 py-1 text-xs font-semibold bg-green-500 text-white rounded mb-2">
+                              ✓ Final Design
+                            </span>
+                          )}
+                          {attachment.type.startsWith('image/') ? (
+                            <a
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block"
+                            >
+                              <img
+                                src={attachment.url}
+                                alt={attachment.name}
+                                className="max-w-full h-auto rounded"
+                              />
+                            </a>
+                          ) : (
+                            <a
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`text-sm underline ${isOwn ? 'text-blue-100' : 'text-blue-600'}`}
+                            >
+                              📎 {attachment.name} ({Math.round(attachment.size / 1024)} KB)
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
                   <p
                     className={`text-xs mt-1 ${
                       isOwn ? 'text-blue-100' : 'text-gray-500'
@@ -188,6 +351,17 @@ export function TransactionChat({
                     {formatTimestamp(message.createdAt)}
                   </p>
                 </div>
+                
+                {/* Approve button for customer viewing final design */}
+                {canApprove && (
+                  <button
+                    onClick={() => handleApproveDesign(message.id)}
+                    disabled={approving}
+                    className="mt-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {approving ? 'Approving...' : '✓ Approve Final Design'}
+                  </button>
+                )}
               </div>
             );
           })
@@ -196,22 +370,76 @@ export function TransactionChat({
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSendMessage} className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+      <form onSubmit={handleSendMessage} className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg space-y-3">
+        {/* File upload section */}
+        {selectedFile && (
+          <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-700">
+                📎 {selectedFile.name} ({Math.round(selectedFile.size / 1024)} KB)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedFile(null);
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = '';
+                }
+              }}
+              className="text-red-600 hover:text-red-700 text-sm font-medium"
+            >
+              Remove
+            </button>
+          </div>
+        )}
+
+        {/* Designer: Mark as final design checkbox */}
+        {otherUserRole === 'customer' && selectedFile && (
+          <label className="flex items-center space-x-2 text-sm">
+            <input
+              type="checkbox"
+              checked={markAsFinal}
+              onChange={(e) => setMarkAsFinal(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-gray-700 font-medium">Mark as Final Design</span>
+          </label>
+        )}
+
         <div className="flex space-x-2">
           <input
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type your message..."
+            placeholder={selectedFile ? 'Add a message (optional)...' : 'Type your message...'}
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            disabled={sending}
+            disabled={sending || uploading}
+          />
+          
+          {/* File upload button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileSelect}
+            className="hidden"
+            accept="image/*,.pdf,.ai,.psd,.zip"
           />
           <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+            disabled={sending || uploading}
+          >
+            📎
+          </button>
+
+          <button
             type="submit"
-            disabled={sending || !newMessage.trim()}
+            disabled={sending || uploading || (!newMessage.trim() && !selectedFile)}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
-            {sending ? 'Sending...' : 'Send'}
+            {uploading ? 'Uploading...' : sending ? 'Sending...' : 'Send'}
           </button>
         </div>
       </form>

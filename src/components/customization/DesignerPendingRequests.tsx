@@ -138,6 +138,23 @@ export function DesignerPendingRequests({
               className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow"
             >
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                {/* Fully Funded Badge - Prominent Display */}
+                {request.paymentDetails?.escrowStatus === 'held' && (
+                  <div className="md:order-last md:ml-auto">
+                    <div className="inline-flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-lg font-bold shadow-md">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span>Fully Funded</span>
+                    </div>
+                    {request.pricingAgreement && (
+                      <p className="text-xs text-gray-600 mt-1 text-center">
+                        ₱{request.pricingAgreement.designFee.toLocaleString()} secured
+                      </p>
+                    )}
+                  </div>
+                )}
+                
                 {/* Request Info */}
                 <div className="flex items-start gap-4 flex-1">
                   {request.productImage && (
@@ -173,8 +190,8 @@ export function DesignerPendingRequests({
                       </div>
                     )}
 
-                    {/* File Indicators */}
-                    <div className="flex gap-2 mt-3">
+                    {/* File Indicators & Payment Info */}
+                    <div className="flex flex-wrap gap-2 mt-3">
                       {request.customerDesignFile && (
                         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
                           📎 Design File Attached
@@ -184,6 +201,20 @@ export function DesignerPendingRequests({
                         <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
                           🖼️ Preview Image Attached
                         </span>
+                      )}
+                      
+                      {/* Payment Status - Show if pricing agreement exists */}
+                      {request.pricingAgreement && (
+                        <>
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-semibold">
+                            💰 ₱{request.pricingAgreement.designFee.toLocaleString()} Design Fee
+                          </span>
+                          {request.paymentDetails?.escrowStatus === 'held' && (
+                            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-semibold border border-emerald-300">
+                              ✓ Fully Funded
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

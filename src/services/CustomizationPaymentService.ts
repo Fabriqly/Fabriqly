@@ -6,7 +6,7 @@ import {
   PaymentDetails,
   PricingAgreement 
 } from '@/types/customization';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import { eventBus } from '@/events/EventBus';
 import { AppError } from '@/errors/AppError';
 
@@ -53,8 +53,9 @@ export class CustomizationPaymentService {
       throw AppError.forbidden('Only the assigned designer can create pricing');
     }
 
-    if (request.status !== 'in_progress') {
-      throw AppError.badRequest('Request must be in progress to create pricing');
+    // Allow pricing to be set during in_progress or awaiting_customer_approval
+    if (!['in_progress', 'awaiting_customer_approval'].includes(request.status)) {
+      throw AppError.badRequest('Cannot set pricing at current status: ' + request.status);
     }
 
     const totalCost = pricingData.designFee + pricingData.productCost + pricingData.printingCost;
@@ -69,7 +70,7 @@ export class CustomizationPaymentService {
       agreedByDesigner: true
     };
 
-    // Initialize payment details
+    // Initialize payment details with escrow status
     const paymentDetails: PaymentDetails = {
       paymentType: pricingData.paymentType,
       totalAmount: totalCost,
@@ -77,7 +78,11 @@ export class CustomizationPaymentService {
       remainingAmount: totalCost,
       paymentStatus: 'pending',
       currency: 'PHP',
-      payments: []
+      payments: [],
+      // Escrow tracking - funds will be held until design approval and order completion
+      escrowStatus: 'held',
+      designerPayoutAmount: pricingData.designFee,
+      shopPayoutAmount: pricingData.productCost + pricingData.printingCost
     };
 
     // Setup milestones if milestone payment
@@ -199,10 +204,15 @@ export class CustomizationPaymentService {
     // Create Xendit invoice
     try {
       const invoice = await this.xenditService.createInvoice({
-        externalId: `customization-${requestId}-${Date.now()}`,
+        external_id: `customization-${requestId}-${Date.now()}`,
         amount: paymentData.amount,
-        payerEmail: request.customerEmail,
         description: `Payment for customization request #${requestId}`,
+        currency: 'PHP',
+        customer: {
+          given_names: request.customerName || 'Customer',
+          surname: '',
+          email: request.customerEmail,
+        },
         items: [
           {
             name: `Customization - ${request.productName}`,
@@ -210,15 +220,23 @@ export class CustomizationPaymentService {
             price: paymentData.amount
           }
         ],
-        successRedirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/my-customizations?payment=success`,
-        failureRedirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/my-customizations?payment=failed`
+        success_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/my-customizations?payment=success`,
+        failure_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/my-customizations?payment=failed`
       });
 
-      // Update payment details
+      console.log('Invoice response:', {
+        id: invoice.id,
+        invoice_url: invoice.invoice_url,
+        status: invoice.status
+      });
+
+      // Update payment details - keep escrow status as 'held' since funds are now secured
+      const existingPayments = request.paymentDetails?.payments || [];
       const updatedPaymentDetails = {
         ...request.paymentDetails,
+        escrowStatus: 'held', // Funds are held in escrow
         payments: [
-          ...request.paymentDetails.payments,
+          ...existingPayments,
           {
             id: invoice.id,
             amount: paymentData.amount,
@@ -226,7 +244,7 @@ export class CustomizationPaymentService {
             status: 'pending' as const,
             paidAt: Timestamp.now(),
             transactionId: invoice.id,
-            invoiceUrl: invoice.invoiceUrl
+            ...(invoice.invoice_url && { invoiceUrl: invoice.invoice_url })
           }
         ]
       };
@@ -235,6 +253,9 @@ export class CustomizationPaymentService {
         paymentDetails: updatedPaymentDetails as any,
         updatedAt: Timestamp.now() as any
       });
+
+      // Attach invoice URL for easy access
+      (updatedRequest as any).invoiceUrl = invoice.invoice_url;
 
       return updatedRequest;
     } catch (error) {
@@ -251,22 +272,32 @@ export class CustomizationPaymentService {
     status: 'PAID' | 'EXPIRED' | 'FAILED',
     paidAmount?: number
   ): Promise<void> {
+    console.log('[CustomizationPayment] Processing webhook', {
+      invoice_id: invoiceId,
+      status,
+      amount: paidAmount
+    });
+
     // Find customization request by payment ID
     const allRequests = await this.customizationRepo.findAll();
+    
     const request = allRequests.find(r => 
       r.paymentDetails?.payments.some(p => p.id === invoiceId)
     );
 
     if (!request || !request.paymentDetails) {
-      console.error('Customization request not found for invoice:', invoiceId);
+      console.error('[CustomizationPayment] Request not found for invoice:', invoiceId);
       return;
     }
 
+    console.log('[CustomizationPayment] Found request:', request.id);
+
     // Update payment status
-    const paymentIndex = request.paymentDetails.payments.findIndex(p => p.id === invoiceId);
+    const payments = request.paymentDetails.payments || [];
+    const paymentIndex = payments.findIndex(p => p.id === invoiceId);
     if (paymentIndex === -1) return;
 
-    const updatedPayments = [...request.paymentDetails.payments];
+    const updatedPayments = [...payments];
     updatedPayments[paymentIndex] = {
       ...updatedPayments[paymentIndex],
       status: status === 'PAID' ? 'success' : 'failed',
@@ -275,20 +306,23 @@ export class CustomizationPaymentService {
 
     let updatedPaymentDetails = {
       ...request.paymentDetails,
-      payments: updatedPayments
+      payments: updatedPayments,
+      // Keep escrowStatus as 'held' - will be updated when design is approved/order completed
+      escrowStatus: request.paymentDetails.escrowStatus || 'held'
     };
 
     // If payment successful, update amounts
     if (status === 'PAID' && paidAmount) {
-      updatedPaymentDetails.paidAmount += paidAmount;
-      updatedPaymentDetails.remainingAmount -= paidAmount;
+      const amountNumber = typeof paidAmount === 'number' ? paidAmount : parseFloat(paidAmount as any);
+      updatedPaymentDetails.paidAmount = (updatedPaymentDetails.paidAmount || 0) + amountNumber;
+      updatedPaymentDetails.remainingAmount = (updatedPaymentDetails.remainingAmount || 0) - amountNumber;
 
       // Update milestone if applicable
-      const payment = request.paymentDetails.payments[paymentIndex];
+      const payment = payments[paymentIndex];
       if (request.paymentDetails.paymentType === 'milestone' && request.paymentDetails.milestones) {
         // Find matching milestone by amount
         const milestoneIndex = request.paymentDetails.milestones.findIndex(
-          m => !m.isPaid && m.amount === paidAmount
+          m => !m.isPaid && m.amount === amountNumber
         );
 
         if (milestoneIndex !== -1) {
@@ -314,6 +348,13 @@ export class CustomizationPaymentService {
     await this.customizationRepo.update(request.id, {
       paymentDetails: updatedPaymentDetails as any,
       updatedAt: Timestamp.now() as any
+    });
+
+    console.log('[CustomizationPayment] Updated successfully', {
+      request_id: request.id,
+      paid_amount: updatedPaymentDetails.paidAmount,
+      remaining: updatedPaymentDetails.remainingAmount,
+      status: updatedPaymentDetails.paymentStatus
     });
 
     // Emit event

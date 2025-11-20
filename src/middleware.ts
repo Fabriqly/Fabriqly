@@ -14,6 +14,12 @@ export default withAuth(
           return true;
         }
         
+        // Allow webhook endpoints (called by external services like Xendit)
+        if (req.nextUrl.pathname.startsWith('/api/payments/webhook') || 
+            req.nextUrl.pathname.startsWith('/api/webhooks/')) {
+          return true;
+        }
+        
         // Allow public API routes (GET requests only for browsing)
         if (req.nextUrl.pathname.startsWith('/api/products') && req.method === 'GET') {
           return true;

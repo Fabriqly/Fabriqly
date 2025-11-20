@@ -99,26 +99,26 @@ export async function PATCH(
 
     if (action === 'approve') {
       // Update application status
-      await FirebaseAdminService.updateDocument(
-        Collections.SHOP_APPLICATIONS,
-        id,
+    await FirebaseAdminService.updateDocument(
+      Collections.SHOP_APPLICATIONS,
+      id,
         {
           status: 'approved',
           reviewedAt: Timestamp.now(),
           reviewedBy: session.user.id,
           adminNotes: adminNotes || null
         }
-      );
+    );
 
       // Update user role to business_owner
-      await FirebaseAdminService.updateDocument(
-        Collections.USERS,
-        application.userId,
+    await FirebaseAdminService.updateDocument(
+      Collections.USERS,
+      application.userId,
         {
           role: 'business_owner',
           updatedAt: Timestamp.now()
         }
-      );
+    );
 
       // Create shop profile automatically from application data
       try {
@@ -200,32 +200,32 @@ export async function PATCH(
           Collections.SHOP_PROFILES,
           shopProfileData
         );
-
+        
         console.log('Shop profile created successfully for user:', application.userId);
       } catch (profileError) {
         console.error('Error creating shop profile:', profileError);
         // Don't fail the approval if profile creation fails, but log it
-      }
+    }
 
-      // Log activity
-      try {
-        await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
+    // Log activity
+    try {
+      await FirebaseAdminService.createDocument(Collections.ACTIVITIES, {
           type: 'shop_application_approved',
-          userId: session.user.id,
-          userName: session.user.name || session.user.email,
-          metadata: {
-            applicationId: id,
-            applicantId: application.userId,
+        userId: session.user.id,
+        userName: session.user.name || session.user.email,
+        metadata: {
+          applicationId: id,
+          applicantId: application.userId,
             shopName: application.shopName
-          },
-          timestamp: Timestamp.now()
-        });
-      } catch (activityError) {
-        console.error('Error logging activity:', activityError);
-      }
+        },
+        timestamp: Timestamp.now()
+      });
+    } catch (activityError) {
+      console.error('Error logging activity:', activityError);
+    }
 
-      return NextResponse.json({
-        success: true,
+    return NextResponse.json({
+      success: true,
         message: 'Shop application approved successfully and shop profile created'
       });
     } else {

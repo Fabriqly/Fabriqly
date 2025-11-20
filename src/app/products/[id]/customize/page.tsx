@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { CustomizationRequestForm } from '@/components/customization/CustomizationRequestForm';
-import { Product } from '@/types/products';
+import { ProductWithDetails } from '@/types/products';
 import { Loader, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export default function CustomizeProductPage() {
@@ -13,7 +13,7 @@ export default function CustomizeProductPage() {
   const params = useParams();
   const productId = params.id as string;
 
-  const [product, setProduct] = useState<Product | null>(null);
+  const [product, setProduct] = useState<ProductWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 

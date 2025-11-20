@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { Upload, X, FileText, Image as ImageIcon } from 'lucide-react';
-import { Product } from '@/types/products';
+import { Product, ProductWithDetails } from '@/types/products';
 
 interface CustomizationRequestFormProps {
-  product: Product;
+  product: Product | ProductWithDetails;
   onSubmit: (data: CustomizationFormData) => Promise<void>;
   onCancel: () => void;
 }
@@ -112,7 +112,7 @@ export function CustomizationRequestForm({ product, onSubmit, onCancel }: Custom
       await onSubmit({
         productId: product.id,
         productName: product.name,
-        productImage: product.images?.[0] || undefined,
+        productImage: product.images?.[0]?.imageUrl || undefined,
         customizationNotes: notes,
         customerDesignFile: designFileData,
         customerPreviewImage: previewFileData
@@ -140,9 +140,9 @@ export function CustomizationRequestForm({ product, onSubmit, onCancel }: Custom
       {/* Product Info */}
       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
         <div className="flex items-center gap-4">
-          {product.images?.[0] && (
+          {product.images?.[0]?.imageUrl && (
             <img 
-              src={product.images[0]} 
+              src={product.images[0].imageUrl} 
               alt={product.name}
               className="w-20 h-20 object-cover rounded"
             />

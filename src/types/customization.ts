@@ -2,11 +2,12 @@ import { Timestamp } from 'firebase/firestore';
 
 /**
  * Customization Request Status
- * - pending_designer_review: Customer submitted, waiting for designer
- * - in_progress: Designer is working on it
+ * - pending_designer_review: Customer submitted, waiting for designer (Job posted to marketplace)
+ * - in_progress: Designer claimed and is working on it
  * - awaiting_customer_approval: Designer uploaded final design, customer needs to review
  * - approved: Customer approved, ready for order processing
  * - rejected: Customer rejected, needs revision
+ * - ready_for_production: Design handed off to shop, ready to start production
  * - in_production: Being printed by shop
  * - ready_for_pickup: Production complete, ready for delivery
  * - completed: Order fulfilled
@@ -18,6 +19,7 @@ export type CustomizationStatus =
   | 'awaiting_customer_approval'
   | 'approved'
   | 'rejected'
+  | 'ready_for_production'
   | 'in_production'
   | 'ready_for_pickup'
   | 'completed'
@@ -101,6 +103,15 @@ export interface PaymentDetails {
     transactionId?: string;
     invoiceUrl?: string;
   }>;
+
+  // Escrow tracking
+  escrowStatus: 'held' | 'designer_paid' | 'shop_paid' | 'fully_released';
+  designerPayoutId?: string;  // Xendit disbursement ID
+  designerPaidAt?: Timestamp;
+  designerPayoutAmount?: number;
+  shopPayoutId?: string;      // Xendit disbursement ID  
+  shopPaidAt?: Timestamp;
+  shopPayoutAmount?: number;
 }
 
 /**

@@ -92,6 +92,26 @@ export async function POST(request: NextRequest) {
     const body: CreateProductData = await request.json();
     const productService = ServiceContainer.getInstance().get<ProductService>('productService');
 
+    // If shopId is not provided and user is a business_owner, automatically link to their shop
+    if (!body.shopId && session.user.role === 'business_owner') {
+      const { FirebaseAdminService } = await import('@/services/firebase-admin');
+      const { Collections } = await import('@/services/firebase');
+      
+      // Find the shop profile for this user
+      const shopProfiles = await FirebaseAdminService.queryDocuments(
+        Collections.SHOP_PROFILES,
+        [{ field: 'userId', operator: '==', value: session.user.id }],
+        1
+      );
+
+      if (shopProfiles.length > 0) {
+        body.shopId = shopProfiles[0].id;
+        console.log('Auto-linked product to shop:', shopProfiles[0].id);
+      } else {
+        console.warn('No shop profile found for business owner:', session.user.id);
+      }
+    }
+
     const product = await productService.createProduct(body, session.user.id);
 
     return NextResponse.json(ResponseBuilder.created(product), { status: 201 });
