@@ -141,6 +141,45 @@ export function ProductionTracker({ request }: ProductionTrackerProps) {
         ))}
       </div>
 
+      {/* Design File - Show final design if available */}
+      {request.designerFinalFile && (
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <h4 className="text-sm font-semibold text-gray-900 mb-3">Final Approved Design</h4>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            {request.status === 'ready_for_production' && (
+              <div className="mb-3 flex items-center text-green-700 bg-green-50 px-3 py-2 rounded border border-green-200">
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium">Design Approved - Ready for Production</span>
+              </div>
+            )}
+            
+            <a
+              href={request.designerFinalFile.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center text-blue-600 hover:text-blue-700 font-medium"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {request.designerFinalFile.fileName}
+            </a>
+            
+            {request.designerPreviewImage && (
+              <div className="mt-3">
+                <img 
+                  src={request.designerPreviewImage.url} 
+                  alt="Design Preview"
+                  className="w-full max-w-md rounded border border-gray-300"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Details */}
       <div className="mt-6 pt-6 border-t border-gray-200 space-y-3">
         {productionDetails.estimatedCompletionDate && (

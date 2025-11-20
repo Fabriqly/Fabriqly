@@ -242,10 +242,22 @@ export class ProductionService {
     };
 
     const updatedRequest = await this.customizationRepo.update(requestId, {
-      status: 'ready_for_pickup' as any,
+      status: 'completed' as any, // Mark as completed when production is done
       productionDetails: updatedProductionDetails as any,
       updatedAt: Timestamp.now() as any
     });
+
+    // Release shop payment from escrow
+    console.log('[ProductionService] Production completed, releasing shop payment...');
+    try {
+      const { escrowService } = await import('./EscrowService');
+      await escrowService.releaseShopPayment(requestId);
+      console.log('[ProductionService] Shop payment released successfully');
+    } catch (error: any) {
+      console.error('[ProductionService] Failed to release shop payment:', error);
+      // Don't fail the production completion, but log the error
+      // Admin can manually trigger payout if needed
+    }
 
     // Emit event
     await eventBus.emit('customization.production.completed', {
@@ -290,6 +302,7 @@ export class ProductionService {
     };
   }
 }
+
 
 
 

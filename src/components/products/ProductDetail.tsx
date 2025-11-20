@@ -492,26 +492,39 @@ export function ProductDetail() {
                 </span>
               </div>
 
-              <div className="flex space-x-4">
-                <AddToCartButton
-                  product={product}
-                  quantity={quantity}
-                  selectedVariants={selectedVariants}
-                  selectedColorId={selectedColorId}
-                  selectedColorName={productColors.find(pc => pc.colorId === selectedColorId)?.color.colorName}
-                  colorPriceAdjustment={colorPriceAdjustment}
-                  businessOwnerId={product.businessOwnerId}
-                  className="flex-1"
-                  disabled={product.stockQuantity === 0}
-                />
-                <Button
-                  onClick={handleBuyNow}
-                  disabled={product.stockQuantity === 0}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  {product.stockQuantity === 0 ? 'Out of Stock' : 'Buy Now'}
-                </Button>
+              <div className="space-y-3">
+                {/* Customize Button - Only show if product is customizable */}
+                {product.isCustomizable && (
+                  <Button
+                    onClick={() => router.push(`/products/${product.id}/customize`)}
+                    disabled={product.stockQuantity === 0}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    🎨 Customize This Product
+                  </Button>
+                )}
+                
+                <div className="flex space-x-4">
+                  <AddToCartButton
+                    product={product}
+                    quantity={quantity}
+                    selectedVariants={selectedVariants}
+                    selectedColorId={selectedColorId}
+                    selectedColorName={productColors.find(pc => pc.colorId === selectedColorId)?.color.colorName}
+                    colorPriceAdjustment={colorPriceAdjustment}
+                    businessOwnerId={product.businessOwnerId}
+                    className="flex-1"
+                    disabled={product.stockQuantity === 0}
+                  />
+                  <Button
+                    onClick={handleBuyNow}
+                    disabled={product.stockQuantity === 0}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    {product.stockQuantity === 0 ? 'Out of Stock' : 'Buy Now'}
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -569,7 +582,7 @@ export function ProductDetail() {
           </div>
 
           {/* Tags */}
-          {product.tags.length > 0 && (
+          {product.tags && product.tags.length > 0 && (
             <div className="bg-white rounded-lg shadow-md p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Tags</h3>
               <div className="flex flex-wrap gap-2">

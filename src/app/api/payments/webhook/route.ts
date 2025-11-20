@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { xenditService } from '../../../../services/XenditService';
 import { OrderRepository } from '../../../../repositories/OrderRepository';
 import { ActivityRepository } from '../../../../repositories/ActivityRepository';
+import { CustomizationPaymentService } from '../../../../services/CustomizationPaymentService';
 import { Timestamp } from 'firebase-admin/firestore';
 
 export async function POST(request: NextRequest) {
@@ -9,9 +10,11 @@ export async function POST(request: NextRequest) {
     const body = await request.text();
     const signature = request.headers.get('x-callback-token') || '';
 
+    console.log('[Xendit Webhook] Received');
+
     // Verify webhook signature
     if (!xenditService.verifyWebhookSignature(body, signature)) {
-      console.error('Invalid webhook signature');
+      console.error('[Xendit Webhook] Invalid signature');
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
@@ -19,28 +22,50 @@ export async function POST(request: NextRequest) {
     }
 
     const webhookData = JSON.parse(body);
-    console.log('Received Xendit webhook:', webhookData);
+    console.log('[Xendit Webhook] Verified -', {
+      id: webhookData.id,
+      external_id: webhookData.external_id,
+      status: webhookData.status || webhookData.event,
+      amount: webhookData.amount
+    });
 
-    // Handle different webhook events
-    switch (webhookData.event) {
-      case 'invoice.paid':
-        await handleInvoicePaid(webhookData.data);
-        break;
-      
-      case 'invoice.expired':
-        await handleInvoiceExpired(webhookData.data);
-        break;
-      
-      case 'payment_request.succeeded':
-        await handlePaymentRequestSucceeded(webhookData.data);
-        break;
-      
-      case 'payment_request.failed':
-        await handlePaymentRequestFailed(webhookData.data);
-        break;
-      
-      default:
-        console.log('Unhandled webhook event:', webhookData.event);
+    // Xendit sends different formats for different webhook types:
+    // 1. Invoice webhooks: direct invoice data with "status" field
+    // 2. Payment Request webhooks: wrapped with "event" and "data" fields
+    
+    if (webhookData.event) {
+      // New format with event wrapper (Payment Requests)
+      switch (webhookData.event) {
+        case 'invoice.paid':
+          await handleInvoicePaid(webhookData.data);
+          break;
+        
+        case 'invoice.expired':
+          await handleInvoiceExpired(webhookData.data);
+          break;
+        
+        case 'payment_request.succeeded':
+          await handlePaymentRequestSucceeded(webhookData.data);
+          break;
+        
+        case 'payment_request.failed':
+          await handlePaymentRequestFailed(webhookData.data);
+          break;
+        
+        default:
+          console.log('[Xendit Webhook] Unhandled event:', webhookData.event);
+      }
+    } else if (webhookData.status) {
+      // Invoice webhook format (direct invoice data)
+      if (webhookData.status === 'PAID') {
+        await handleInvoicePaid(webhookData);
+      } else if (webhookData.status === 'EXPIRED') {
+        await handleInvoiceExpired(webhookData);
+      } else {
+        console.log('[Xendit Webhook] Unhandled invoice status:', webhookData.status);
+      }
+    } else {
+      console.log('[Xendit Webhook] Unknown format');
     }
 
     return NextResponse.json({ received: true });
@@ -56,11 +81,36 @@ export async function POST(request: NextRequest) {
 
 async function handleInvoicePaid(invoiceData: any) {
   try {
+    const externalId = invoiceData.external_id;
+    console.log('[Invoice Paid]', {
+      invoice_id: invoiceData.id,
+      external_id: externalId,
+      amount: invoiceData.amount
+    });
+
+    // Check if this is a customization payment
+    // Format: "customization-{requestId}-{timestamp}"
+    if (externalId.startsWith('customization-')) {
+      console.log('[Invoice Paid] Processing customization payment');
+      
+      const customizationPaymentService = new CustomizationPaymentService();
+      await customizationPaymentService.handlePaymentWebhook(
+        invoiceData.id,
+        'PAID',
+        invoiceData.amount
+      );
+      
+      console.log('[Invoice Paid] Customization payment processed successfully');
+      return;
+    }
+
+    // Handle regular order payment
+
+    // Otherwise, handle as regular order payment
     const orderRepository = new OrderRepository();
     const activityRepository = new ActivityRepository();
 
     // Find order by external_id
-    const externalId = invoiceData.external_id;
     const orderId = externalId.split('_')[1]; // Extract order ID from external_id
 
     if (!orderId) {
@@ -97,19 +147,34 @@ async function handleInvoicePaid(invoiceData: any) {
       updatedAt: Timestamp.now(),
     });
 
-    console.log('Invoice paid successfully for order:', orderId);
+    console.log('[Invoice Paid] Order payment processed:', orderId);
   } catch (error) {
-    console.error('Error handling invoice paid:', error);
+    console.error('[Invoice Paid] Error:', error);
   }
 }
 
 async function handleInvoiceExpired(invoiceData: any) {
   try {
+    const externalId = invoiceData.external_id;
+    console.log('[Invoice Expired]', { external_id: externalId });
+
+    // Check if this is a customization payment
+    if (externalId.startsWith('customization-')) {
+      const customizationPaymentService = new CustomizationPaymentService();
+      await customizationPaymentService.handlePaymentWebhook(
+        invoiceData.id,
+        'EXPIRED',
+        invoiceData.amount
+      );
+      console.log('[Invoice Expired] Customization payment processed');
+      return;
+    }
+
+    // Otherwise, handle as regular order payment
     const orderRepository = new OrderRepository();
     const activityRepository = new ActivityRepository();
 
     // Find order by external_id
-    const externalId = invoiceData.external_id;
     const orderId = externalId.split('_')[1];
 
     if (!orderId) {
@@ -145,9 +210,9 @@ async function handleInvoiceExpired(invoiceData: any) {
       updatedAt: Timestamp.now(),
     });
 
-    console.log('Invoice expired for order:', orderId);
+    console.log('[Invoice Expired] Order processed:', orderId);
   } catch (error) {
-    console.error('Error handling invoice expired:', error);
+    console.error('[Invoice Expired] Error:', error);
   }
 }
 
@@ -194,9 +259,9 @@ async function handlePaymentRequestSucceeded(paymentData: any) {
       updatedAt: Timestamp.now(),
     });
 
-    console.log('Payment request succeeded for order:', orderId);
+    console.log('[Payment Request] Order payment succeeded:', orderId);
   } catch (error) {
-    console.error('Error handling payment request succeeded:', error);
+    console.error('[Payment Request] Error:', error);
   }
 }
 
@@ -243,8 +308,8 @@ async function handlePaymentRequestFailed(paymentData: any) {
       updatedAt: Timestamp.now(),
     });
 
-    console.log('Payment request failed for order:', orderId);
+    console.log('[Payment Request] Order payment failed:', orderId);
   } catch (error) {
-    console.error('Error handling payment request failed:', error);
+    console.error('[Payment Request] Error:', error);
   }
 }

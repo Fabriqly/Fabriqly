@@ -7,12 +7,13 @@ const xenditClient = new Xendit({
 });
 
 // Initialize Xendit services
-const { Invoice, PaymentRequest, PaymentMethod } = xenditClient;
+const { Invoice, PaymentRequest, PaymentMethod, Disbursement } = xenditClient;
 
 console.log('Xendit services initialized:', {
   Invoice: !!Invoice,
   PaymentRequest: !!PaymentRequest,
-  PaymentMethod: !!PaymentMethod
+  PaymentMethod: !!PaymentMethod,
+  Disbursement: !!Disbursement
 });
 
 export interface XenditPaymentMethod {
@@ -178,6 +179,34 @@ export interface InvoiceResult {
   metadata?: Record<string, any>;
 }
 
+export interface CreateDisbursementData {
+  externalId: string;
+  amount: number;
+  bankCode: string;
+  accountHolderName: string;
+  accountNumber: string;
+  description: string;
+  emailTo?: string[];
+  emailCc?: string[];
+  emailBcc?: string[];
+}
+
+export interface DisbursementResult {
+  id: string;
+  user_id: string;
+  external_id: string;
+  amount: number;
+  bank_code: string;
+  account_holder_name: string;
+  disbursement_description: string;
+  status: string;
+  email_to?: string[];
+  email_cc?: string[];
+  email_bcc?: string[];
+  created: string;
+  updated: string;
+}
+
 export class XenditService {
   /**
    * Create a payment request for immediate payment processing
@@ -211,20 +240,44 @@ export class XenditService {
         external_id: data.external_id,
         amount: data.amount,
         description: data.description,
-        currency: data.currency || 'IDR'
+        currency: data.currency || 'PHP',
+        customer_email: data.customer?.email
       });
       
       console.log('Invoice service available:', !!Invoice);
       
+      // Build the invoice data
+      const invoiceData: any = {
+        externalId: data.external_id,
+        amount: data.amount,
+        description: data.description,
+        currency: data.currency || 'PHP',
+        successRedirectUrl: data.success_redirect_url,
+        failureRedirectUrl: data.failure_redirect_url,
+      };
+
+      // Add customer if provided
+      if (data.customer) {
+        invoiceData.customer = {
+          givenNames: data.customer.given_names || 'Customer',
+          email: data.customer.email,
+        };
+      }
+
+      // Add items if provided
+      if (data.items && data.items.length > 0) {
+        invoiceData.items = data.items.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          category: item.category,
+        }));
+      }
+
+      console.log('Sending to Xendit:', JSON.stringify(invoiceData, null, 2));
+      
       const invoice = await Invoice.createInvoice({
-        data: {
-          externalId: data.external_id,
-          amount: data.amount,
-          description: data.description,
-          currency: data.currency || 'PHP', // Default to PHP - enable IDR in Xendit dashboard if needed
-          successRedirectUrl: data.success_redirect_url,
-          failureRedirectUrl: data.failure_redirect_url,
-        }
+        data: invoiceData
       });
       
       console.log('Invoice created successfully:', invoice.id);
@@ -367,13 +420,17 @@ export class XenditService {
    */
   verifyWebhookSignature(payload: string, signature: string): boolean {
     try {
-      const crypto = require('crypto');
-      const expectedSignature = crypto
-        .createHmac('sha256', process.env.XENDIT_WEBHOOK_TOKEN!)
-        .update(payload)
-        .digest('hex');
+      // For Xendit Invoice webhooks, the x-callback-token header contains
+      // the webhook verification token directly (not an HMAC signature)
+      const expectedToken = process.env.XENDIT_WEBHOOK_TOKEN;
       
-      return signature === expectedSignature;
+      if (!expectedToken) {
+        console.error('XENDIT_WEBHOOK_TOKEN not configured');
+        return false;
+      }
+      
+      // Direct token comparison
+      return signature === expectedToken;
     } catch (error) {
       console.error('Webhook signature verification failed:', error);
       return false;
@@ -421,6 +478,100 @@ export class XenditService {
         supported_currencies: ['IDR'],
       },
     ];
+  }
+
+  /**
+   * Create a disbursement (payout) to designer or shop owner
+   */
+  async createDisbursement(data: CreateDisbursementData): Promise<DisbursementResult> {
+    try {
+      console.log('Creating disbursement with data:', {
+        external_id: data.externalId,
+        amount: data.amount,
+        bank_code: data.bankCode,
+        account_holder_name: data.accountHolderName
+      });
+
+      console.log('Disbursement service available:', !!Disbursement);
+
+      const disbursement = await Disbursement.createDisbursement({
+        data: {
+          externalId: data.externalId,
+          amount: data.amount,
+          bankCode: data.bankCode,
+          accountHolderName: data.accountHolderName,
+          accountNumber: data.accountNumber,
+          description: data.description,
+          emailTo: data.emailTo,
+          emailCc: data.emailCc,
+          emailBcc: data.emailBcc,
+        }
+      });
+
+      console.log('Disbursement created successfully:', disbursement.id);
+
+      return {
+        id: disbursement.id || '',
+        user_id: disbursement.userId || '',
+        external_id: disbursement.externalId || '',
+        amount: disbursement.amount || 0,
+        bank_code: disbursement.bankCode || '',
+        account_holder_name: disbursement.accountHolderName || '',
+        disbursement_description: disbursement.description || '',
+        status: disbursement.status || '',
+        email_to: disbursement.emailTo,
+        email_cc: disbursement.emailCc,
+        email_bcc: disbursement.emailBcc,
+        created: disbursement.created?.toISOString() || '',
+        updated: disbursement.updated?.toISOString() || '',
+      };
+    } catch (error: any) {
+      console.error('Xendit disbursement creation failed:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        status: error.status
+      });
+      throw AppError.badRequest(
+        'Disbursement creation failed',
+        error.message || 'Unknown error occurred'
+      );
+    }
+  }
+
+  /**
+   * Get disbursement details by ID
+   */
+  async getDisbursement(disbursementId: string): Promise<DisbursementResult> {
+    try {
+      console.log('Getting disbursement:', disbursementId);
+
+      const disbursement = await Disbursement.getDisbursementById({
+        disbursementId: disbursementId
+      });
+
+      return {
+        id: disbursement.id || '',
+        user_id: disbursement.userId || '',
+        external_id: disbursement.externalId || '',
+        amount: disbursement.amount || 0,
+        bank_code: disbursement.bankCode || '',
+        account_holder_name: disbursement.accountHolderName || '',
+        disbursement_description: disbursement.description || '',
+        status: disbursement.status || '',
+        email_to: disbursement.emailTo,
+        email_cc: disbursement.emailCc,
+        email_bcc: disbursement.emailBcc,
+        created: disbursement.created?.toISOString() || '',
+        updated: disbursement.updated?.toISOString() || '',
+      };
+    } catch (error: any) {
+      console.error('Xendit disbursement retrieval failed:', error);
+      throw AppError.badRequest(
+        'Disbursement retrieval failed',
+        error.message || 'Unknown error occurred'
+      );
+    }
   }
 }
 

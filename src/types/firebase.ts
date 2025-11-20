@@ -176,6 +176,7 @@ export interface MessageAttachment {
   url: string;
   type: string;
   size: number;
+  isFinalDesign?: boolean;  // Designer marks this as the final design
 }
 
 export interface Conversation extends BaseDocument {
