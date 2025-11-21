@@ -132,6 +132,16 @@ export class OrderService implements IOrderService {
         throw AppError.badRequest(`Invalid status transition from ${existingOrder.status} to ${data.status}`);
       }
 
+      // Validate payment status before allowing shipment or delivery
+      // Orders must be paid before they can be shipped or delivered
+      if (data.status && (data.status === 'shipped' || data.status === 'delivered')) {
+        if (existingOrder.paymentStatus !== 'paid') {
+          throw AppError.badRequest(
+            `Order must be paid before it can be marked as ${data.status}. Current payment status: ${existingOrder.paymentStatus}`
+          );
+        }
+      }
+
       // Add status history if status is changing
       const updateData: any = { ...data, updatedAt: Timestamp.now() };
       if (data.status && data.status !== existingOrder.status) {

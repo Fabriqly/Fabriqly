@@ -7,13 +7,17 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 import { Product } from '@/types/products';
-import { User, Settings, Palette } from 'lucide-react';
+import { User, Settings, Palette, DollarSign, TrendingUp, Clock } from 'lucide-react';
+import { FinanceSummary } from '@/services/FinanceService';
+import Link from 'next/link';
 
 function DashboardContent() {
   const { user, isCustomer, isDesigner, isBusinessOwner, isAdmin, isLoading } = useAuth();
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
+  const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
+  const [financeLoading, setFinanceLoading] = useState(false);
 
   // Redirect customers to explore page
   useEffect(() => {
@@ -28,6 +32,30 @@ function DashboardContent() {
       fetchProducts();
     }
   }, [isBusinessOwner, user?.id]);
+
+  // Fetch finance summary for designers and business owners
+  useEffect(() => {
+    if ((isDesigner || isBusinessOwner) && user?.id) {
+      fetchFinanceSummary();
+    }
+  }, [isDesigner, isBusinessOwner, user?.id]);
+
+  const fetchFinanceSummary = async () => {
+    try {
+      setFinanceLoading(true);
+      const response = await fetch('/api/finance?timeRange=30d');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setFinanceSummary(data.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching finance summary:', error);
+    } finally {
+      setFinanceLoading(false);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -103,6 +131,107 @@ function DashboardContent() {
           </div>
         </div>
 
+        {/* Finance Summary Cards for Designers and Business Owners */}
+        {(isDesigner || isBusinessOwner) && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Finance Overview</h3>
+              <Link href="/dashboard/finance">
+                <Button variant="outline" size="sm">View Full Finance</Button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {financeLoading ? (
+                <>
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="bg-white rounded-lg shadow p-6 animate-pulse">
+                      <div className="h-4 bg-gray-200 rounded w-24 mb-4"></div>
+                      <div className="h-8 bg-gray-200 rounded w-32"></div>
+                    </div>
+                  ))}
+                </>
+              ) : financeSummary ? (
+                <>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">
+                          {isDesigner ? 'Total Earnings' : 'Total Revenue'}
+                        </p>
+                        <p className="text-2xl font-bold text-gray-900 mt-2">
+                          {new Intl.NumberFormat('en-PH', {
+                            style: 'currency',
+                            currency: 'PHP',
+                            minimumFractionDigits: 2
+                          }).format(isDesigner ? financeSummary.totalEarnings : financeSummary.totalRevenue)}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-blue-100 rounded-full">
+                        <DollarSign className="h-6 w-6 text-blue-600" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">This Month</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-2">
+                          {new Intl.NumberFormat('en-PH', {
+                            style: 'currency',
+                            currency: 'PHP',
+                            minimumFractionDigits: 2
+                          }).format(isDesigner ? financeSummary.thisMonthEarnings : financeSummary.thisMonthRevenue)}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-green-100 rounded-full">
+                        <TrendingUp className="h-6 w-6 text-green-600" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Pending</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-2">
+                          {new Intl.NumberFormat('en-PH', {
+                            style: 'currency',
+                            currency: 'PHP',
+                            minimumFractionDigits: 2
+                          }).format(financeSummary.pendingAmount)}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-yellow-100 rounded-full">
+                        <Clock className="h-6 w-6 text-yellow-600" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Paid</p>
+                        <p className="text-2xl font-bold text-gray-900 mt-2">
+                          {new Intl.NumberFormat('en-PH', {
+                            style: 'currency',
+                            currency: 'PHP',
+                            minimumFractionDigits: 2
+                          }).format(financeSummary.paidAmount)}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-green-100 rounded-full">
+                        <DollarSign className="h-6 w-6 text-green-600" />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="col-span-4 bg-white rounded-lg shadow p-6 text-center">
+                  <p className="text-gray-500">No finance data available</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Role-based Content */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isCustomer && (
@@ -140,7 +269,9 @@ function DashboardContent() {
                 <p className="text-gray-600 text-sm mb-4">
                   View your earnings and commission details.
                 </p>
-                <Button variant="outline" size="sm">View Earnings</Button>
+                <Link href="/dashboard/finance">
+                  <Button variant="outline" size="sm">View Earnings</Button>
+                </Link>
               </div>
             </>
           )}

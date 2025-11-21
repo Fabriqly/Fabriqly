@@ -105,7 +105,7 @@ export class CustomizationRepository extends BaseRepository<CustomizationRequest
       pendingReview: allRequests.filter(r => r.status === 'pending_designer_review').length,
       inProgress: allRequests.filter(r => r.status === 'in_progress').length,
       awaitingApproval: allRequests.filter(r => r.status === 'awaiting_customer_approval').length,
-      approved: allRequests.filter(r => r.status === 'approved').length,
+      approved: allRequests.filter(r => r.status === 'approved' || r.status === 'ready_for_production').length,
       rejected: allRequests.filter(r => r.status === 'rejected').length,
       completed: allRequests.filter(r => r.status === 'completed').length,
       cancelled: allRequests.filter(r => r.status === 'cancelled').length,

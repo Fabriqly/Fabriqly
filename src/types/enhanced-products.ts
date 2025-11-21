@@ -302,6 +302,11 @@ export interface CreateDesignerProfileData {
   website?: string;
   socialMedia?: DesignerProfile['socialMedia'];
   specialties: string[];
+  payoutDetails?: {
+    bankCode: string;
+    accountNumber: string;
+    accountHolderName: string;
+  };
 }
 
 export interface UpdateDesignerProfileData {
@@ -312,6 +317,11 @@ export interface UpdateDesignerProfileData {
   specialties?: string[];
   isVerified?: boolean;
   isActive?: boolean;
+  payoutDetails?: {
+    bankCode: string;
+    accountNumber: string;
+    accountHolderName: string;
+  };
 }
 
 export interface CreateShopProfileData {

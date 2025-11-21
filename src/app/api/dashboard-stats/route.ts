@@ -81,6 +81,7 @@ async function generateDashboardResponse(summary: any, period: string) {
       totalCategories: summary.totalCategories,
       totalOrders: summary.totalOrders,
       totalRevenue: summary.totalRevenue,
+      totalCommission: summary.totalCommission || 0,
       activeProducts: summary.activeProducts,
       pendingOrders: summary.pendingOrders
     };

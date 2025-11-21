@@ -16,10 +16,14 @@ import {
   ArrowLeft,
   Package,
   Truck,
-  Shield
+  Shield,
+  Edit,
+  Check
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { AddressListModal } from '@/components/customization/AddressListModal';
+import { ShippingAddressModal } from '@/components/customization/ShippingAddressModal';
 
 interface Address {
   firstName: string;
@@ -78,6 +82,14 @@ export default function CheckoutPage() {
   const [orderNotes, setOrderNotes] = useState('');
   const [currentStep, setCurrentStep] = useState<'address' | 'payment'>('address');
   const [createdOrders, setCreatedOrders] = useState<any[]>([]);
+  
+  // Address selection modals
+  const [showAddressListModal, setShowAddressListModal] = useState(false);
+  const [showShippingAddressModal, setShowShippingAddressModal] = useState(false);
+  const [showBillingAddressModal, setShowBillingAddressModal] = useState(false);
+  const [isSelectingBilling, setIsSelectingBilling] = useState(false);
+  const [addressRefreshTrigger, setAddressRefreshTrigger] = useState(0);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
   // Check for bulk checkout items
   useEffect(() => {
@@ -120,6 +132,68 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
+  // Handle address selection from AddressListModal
+  const handleAddressSelect = (address: any) => {
+    const addressData = {
+      firstName: address.firstName,
+      lastName: address.lastName,
+      company: '',
+      address1: address.address1,
+      address2: address.address2 || '',
+      city: address.city,
+      state: address.state,
+      zipCode: address.zipCode,
+      country: address.country,
+      phone: address.phone,
+    };
+    
+    if (isSelectingBilling) {
+      setBillingAddress(addressData);
+    } else {
+      setShippingAddress(addressData);
+      setSelectedAddressId(address.id);
+      if (useSameAddress) {
+        setBillingAddress(addressData);
+      }
+    }
+    
+    setShowAddressListModal(false);
+    setIsSelectingBilling(false);
+  };
+
+  // Handle new address submission
+  const handleNewAddressSubmit = async (address: Address, saveToProfile: boolean) => {
+    if (isSelectingBilling) {
+      setBillingAddress(address);
+      setShowBillingAddressModal(false);
+    } else {
+      setShippingAddress(address);
+      setShowShippingAddressModal(false);
+      setSelectedAddressId(null);
+      if (useSameAddress) {
+        setBillingAddress(address);
+      }
+    }
+    
+    if (saveToProfile && user?.id) {
+      try {
+        const response = await fetch(`/api/users/${user.id}/addresses`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(address),
+        });
+        
+        if (response.ok) {
+          setAddressRefreshTrigger(prev => prev + 1);
+        }
+      } catch (error) {
+        console.error('Error saving address:', error);
+      }
+    }
+    
+    setIsSelectingBilling(false);
+  };
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -160,6 +234,12 @@ export default function CheckoutPage() {
   // Payment handling is now done by XenditPaymentForm component
 
   const validateForm = () => {
+    // Check if shipping address is selected
+    if (!shippingAddress.address1) {
+      setError('Please select a shipping address');
+      return false;
+    }
+    
     const requiredFields = [
       'firstName', 'lastName', 'address1', 'city', 'state', 'zipCode', 'phone'
     ];
@@ -173,6 +253,10 @@ export default function CheckoutPage() {
 
     // Check billing address if not using same address
     if (!useSameAddress) {
+      if (!billingAddress.address1) {
+        setError('Please select a billing address');
+        return false;
+      }
       for (const field of requiredFields) {
         if (!billingAddress[field as keyof Address]) {
           setError(`Please fill in billing ${field}`);
@@ -386,85 +470,65 @@ export default function CheckoutPage() {
               <div className="space-y-8">
             {/* Shipping Address */}
             <div className="bg-white p-6 rounded-lg shadow-sm">
-              <div className="flex items-center space-x-2 mb-4">
-                <MapPin className="w-5 h-5 text-blue-600" />
-                <h2 className="text-lg font-semibold">Shipping Address</h2>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-2">
+                  <MapPin className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-lg font-semibold">Shipping Address</h2>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddressListModal(true)}
+                >
+                  {shippingAddress.address1 ? (
+                    <>
+                      <Edit className="w-4 h-4 mr-2" />
+                      Change Address
+                    </>
+                  ) : (
+                    <>
+                      <MapPin className="w-4 h-4 mr-2" />
+                      Choose Address
+                    </>
+                  )}
+                </Button>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="First Name"
-                  value={shippingAddress.firstName}
-                  onChange={(e) => handleAddressChange('firstName', e.target.value, 'shipping')}
-                  placeholder="Enter your first name"
-                  required
-                />
-                <Input
-                  label="Last Name"
-                  value={shippingAddress.lastName}
-                  onChange={(e) => handleAddressChange('lastName', e.target.value, 'shipping')}
-                  placeholder="Enter your last name"
-                  required
-                />
-                <Input
-                  label="Company (Optional)"
-                  value={shippingAddress.company}
-                  onChange={(e) => handleAddressChange('company', e.target.value, 'shipping')}
-                  placeholder="Company name (optional)"
-                />
-                <Input
-                  label="Phone Number"
-                  value={shippingAddress.phone}
-                  onChange={(e) => handleAddressChange('phone', e.target.value, 'shipping')}
-                  placeholder="+62 812 3456 7890"
-                  required
-                />
-                <div className="md:col-span-2">
-                  <Input
-                    label="Street Address"
-                    value={shippingAddress.address1}
-                    onChange={(e) => handleAddressChange('address1', e.target.value, 'shipping')}
-                    placeholder="123 Main Street, Building Name"
-                    required
-                  />
+              {shippingAddress.address1 ? (
+                <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Check className="w-4 h-4 text-green-600" />
+                        <span className="font-semibold text-gray-900">
+                          {shippingAddress.firstName} {shippingAddress.lastName}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600 space-y-1 ml-6">
+                        <p>{shippingAddress.address1}</p>
+                        {shippingAddress.address2 && <p>{shippingAddress.address2}</p>}
+                        <p>
+                          {shippingAddress.city}, {shippingAddress.state} {shippingAddress.zipCode}
+                        </p>
+                        <p>{shippingAddress.country}</p>
+                        <p className="text-gray-500">📱 {shippingAddress.phone}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="md:col-span-2">
-                  <Input
-                    label="Apartment, Suite, etc. (Optional)"
-                    value={shippingAddress.address2}
-                    onChange={(e) => handleAddressChange('address2', e.target.value, 'shipping')}
-                    placeholder="Apt 4B, Suite 200, etc."
-                  />
+              ) : (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                  <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-600 mb-4">No shipping address selected</p>
+                  <Button
+                    onClick={() => setShowAddressListModal(true)}
+                    className="mx-auto"
+                  >
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Choose Shipping Address
+                  </Button>
                 </div>
-                <Input
-                  label="City"
-                  value={shippingAddress.city}
-                  onChange={(e) => handleAddressChange('city', e.target.value, 'shipping')}
-                  placeholder="Jakarta"
-                  required
-                />
-                <Input
-                  label="State/Province"
-                  value={shippingAddress.state}
-                  onChange={(e) => handleAddressChange('state', e.target.value, 'shipping')}
-                  placeholder="DKI Jakarta"
-                  required
-                />
-                <Input
-                  label="ZIP/Postal Code"
-                  value={shippingAddress.zipCode}
-                  onChange={(e) => handleAddressChange('zipCode', e.target.value, 'shipping')}
-                  placeholder="12345"
-                  required
-                />
-                <Input
-                  label="Country"
-                  value={shippingAddress.country}
-                  onChange={(e) => handleAddressChange('country', e.target.value, 'shipping')}
-                  placeholder="Indonesia"
-                  required
-                />
-              </div>
+              )}
             </div>
 
             {/* Billing Address */}
@@ -478,87 +542,65 @@ export default function CheckoutPage() {
                   <input
                     type="checkbox"
                     checked={useSameAddress}
-                    onChange={(e) => setUseSameAddress(e.target.checked)}
+                    onChange={(e) => {
+                      setUseSameAddress(e.target.checked);
+                      if (e.target.checked) {
+                        setBillingAddress(shippingAddress);
+                      }
+                    }}
                     className="rounded"
                   />
                   <span className="text-sm">Same as shipping address</span>
                 </label>
               </div>
               
-              {!useSameAddress && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="First Name"
-                    value={billingAddress.firstName}
-                    onChange={(e) => handleAddressChange('firstName', e.target.value, 'billing')}
-                    placeholder="Enter your first name"
-                    required
-                  />
-                  <Input
-                    label="Last Name"
-                    value={billingAddress.lastName}
-                    onChange={(e) => handleAddressChange('lastName', e.target.value, 'billing')}
-                    placeholder="Enter your last name"
-                    required
-                  />
-                  <Input
-                    label="Company (Optional)"
-                    value={billingAddress.company}
-                    onChange={(e) => handleAddressChange('company', e.target.value, 'billing')}
-                    placeholder="Company name (optional)"
-                  />
-                  <Input
-                    label="Phone Number"
-                    value={billingAddress.phone}
-                    onChange={(e) => handleAddressChange('phone', e.target.value, 'billing')}
-                    placeholder="+62 812 3456 7890"
-                    required
-                  />
-                  <div className="md:col-span-2">
-                    <Input
-                      label="Street Address"
-                      value={billingAddress.address1}
-                      onChange={(e) => handleAddressChange('address1', e.target.value, 'billing')}
-                      placeholder="123 Main Street, Building Name"
-                      required
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Input
-                      label="Apartment, Suite, etc. (Optional)"
-                      value={billingAddress.address2}
-                      onChange={(e) => handleAddressChange('address2', e.target.value, 'billing')}
-                      placeholder="Apt 4B, Suite 200, etc."
-                    />
-                  </div>
-                  <Input
-                    label="City"
-                    value={billingAddress.city}
-                    onChange={(e) => handleAddressChange('city', e.target.value, 'billing')}
-                    placeholder="Jakarta"
-                    required
-                  />
-                  <Input
-                    label="State/Province"
-                    value={billingAddress.state}
-                    onChange={(e) => handleAddressChange('state', e.target.value, 'billing')}
-                    placeholder="DKI Jakarta"
-                    required
-                  />
-                  <Input
-                    label="ZIP/Postal Code"
-                    value={billingAddress.zipCode}
-                    onChange={(e) => handleAddressChange('zipCode', e.target.value, 'billing')}
-                    placeholder="12345"
-                    required
-                  />
-                  <Input
-                    label="Country"
-                    value={billingAddress.country}
-                    onChange={(e) => handleAddressChange('country', e.target.value, 'billing')}
-                    placeholder="Indonesia"
-                    required
-                  />
+              {useSameAddress ? (
+                <div className="border-2 border-gray-200 bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-600">
+                    Billing address will be the same as shipping address
+                  </p>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                  {billingAddress.address1 ? (
+                    <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Check className="w-4 h-4 text-green-600" />
+                            <span className="font-semibold text-gray-900">
+                              {billingAddress.firstName} {billingAddress.lastName}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-600 space-y-1 ml-6">
+                            <p>{billingAddress.address1}</p>
+                            {billingAddress.address2 && <p>{billingAddress.address2}</p>}
+                            <p>
+                              {billingAddress.city}, {billingAddress.state} {billingAddress.zipCode}
+                            </p>
+                            <p>{billingAddress.country}</p>
+                            <p className="text-gray-500">📱 {billingAddress.phone}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Please provide a different billing address
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setIsSelectingBilling(true);
+                          setShowAddressListModal(true);
+                        }}
+                      >
+                        <MapPin className="w-4 h-4 mr-2" />
+                        Choose Billing Address
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -593,6 +635,7 @@ export default function CheckoutPage() {
               <div className="space-y-8">
                 <XenditPaymentForm
                   orderId={createdOrders[0].order.id}
+                  orderIds={createdOrders.map(o => o.order.id)}
                   amount={createdOrders.reduce((sum, order) => sum + order.order.totalAmount, 0)}
                   customerInfo={{
                     firstName: shippingAddress.firstName,
@@ -693,6 +736,48 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
+
+      {/* Address Selection Modals */}
+      {showAddressListModal && user?.id && (
+        <AddressListModal
+          userId={user.id}
+          onSelect={handleAddressSelect}
+          onAddNew={() => {
+            setShowAddressListModal(false);
+            if (isSelectingBilling) {
+              setShowBillingAddressModal(true);
+            } else {
+              setShowShippingAddressModal(true);
+            }
+          }}
+          onClose={() => {
+            setShowAddressListModal(false);
+            setIsSelectingBilling(false);
+          }}
+          refreshTrigger={addressRefreshTrigger}
+        />
+      )}
+
+      {showShippingAddressModal && (
+        <ShippingAddressModal
+          onSubmit={handleNewAddressSubmit}
+          onClose={() => setShowShippingAddressModal(false)}
+          userName={user?.name}
+          userId={user?.id}
+        />
+      )}
+
+      {showBillingAddressModal && (
+        <ShippingAddressModal
+          onSubmit={handleNewAddressSubmit}
+          onClose={() => {
+            setShowBillingAddressModal(false);
+            setIsSelectingBilling(false);
+          }}
+          userName={user?.name}
+          userId={user?.id}
+        />
+      )}
     </div>
   );
 }

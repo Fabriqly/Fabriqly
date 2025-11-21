@@ -48,7 +48,8 @@ export function DashboardHeader({ user, onMenuClick, showMobileMenu = false }: D
             {/* Dashboard Text */}
             <div className="ml-6 hidden sm:block">
               <h1 className="text-xl font-bold text-white">
-                {user?.role === 'designer' ? 'Designer Dashboard' : 'Business Dashboard'}
+                {user?.role === 'designer' ? 'Designer Dashboard' : 
+                 user?.role === 'admin' ? 'Admin Dashboard' : 'Business Dashboard'}
               </h1>
             </div>
           </div>

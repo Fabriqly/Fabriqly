@@ -179,8 +179,8 @@ export function CustomizationRequestList({
             <p className="text-2xl font-bold text-blue-700">{stats.inProgress}</p>
           </div>
           <div className="bg-green-50 p-4 rounded-lg shadow">
-            <p className="text-sm text-gray-600">Completed</p>
-            <p className="text-2xl font-bold text-green-700">{stats.completed}</p>
+            <p className="text-sm text-gray-600">Approved</p>
+            <p className="text-2xl font-bold text-green-700">{stats.approved}</p>
           </div>
         </div>
       )}
