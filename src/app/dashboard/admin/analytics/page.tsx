@@ -284,34 +284,35 @@ export default function AdminAnalyticsPage() {
           {/* User Growth Chart */}
           <div className="bg-white shadow rounded-lg p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Daily User Registrations</h3>
-            <div className="h-64 flex items-end space-x-2">
-              {analytics.userGrowth.map((data, index) => {
-                const maxUsers = Math.max(...analytics.userGrowth.map(d => d.users), 1);
-                const barHeight = (data.users / maxUsers) * 200;
-                return (
-                  <div key={index} className="flex-1 flex flex-col items-center">
-                    <div
-                      className="bg-blue-500 rounded-t w-full relative group"
-                      style={{ height: `${barHeight}px` }}
-                      title={`${data.users} new users registered`}
-                    >
-                      {data.users > 0 && (
-                        <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                          {data.users}
+            <div className="h-64 overflow-x-auto">
+              <div className="flex items-end space-x-2 min-h-full pb-8">
+                {analytics.userGrowth.map((data, index) => {
+                  const maxUsers = Math.max(...analytics.userGrowth.map(d => d.users), 1);
+                  const barHeight = maxUsers > 0 ? (data.users / maxUsers) * 200 : 0;
+                  return (
+                    <div key={index} className="flex flex-col items-center min-w-[50px] flex-shrink-0">
+                      <div className="w-full flex flex-col items-end justify-end" style={{ height: '200px' }}>
+                        <div
+                          className="bg-blue-500 rounded-t w-full relative group"
+                          style={{ height: `${Math.max(barHeight, 2)}px` }}
+                          title={`${data.users} new users registered`}
+                        >
+                          {data.users > 0 && (
+                            <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                              {data.users}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
+                      <div className="mt-2 text-center w-full">
+                        <span className="text-xs text-gray-500 block whitespace-nowrap">
+                          {new Date(data.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-xs text-gray-500 mt-2">
-                      {new Date(data.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
-                    {data.users > 0 && (
-                      <span className="text-xs text-blue-600 font-medium">
-                        {data.users}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
             {showUserGrowthInfo && (
               <div className="mt-4 relative bg-blue-50 border border-blue-200 rounded-lg p-3">

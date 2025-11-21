@@ -111,11 +111,12 @@ export class DashboardSummaryService {
     console.log('📊 Calculating full summary from collections...');
     
     // Get current counts with optimized queries
-    const [users, products, orders, categories] = await Promise.all([
+    const [users, products, orders, categories, customizations] = await Promise.all([
       FirebaseAdminService.queryDocuments(Collections.USERS, [], { field: 'createdAt', direction: 'desc' }, 2000), // Increased limit for accurate count
       FirebaseAdminService.queryDocuments(Collections.PRODUCTS, [], { field: 'createdAt', direction: 'desc' }, 2000),
       FirebaseAdminService.queryDocuments(Collections.ORDERS, [], { field: 'createdAt', direction: 'desc' }, 2000),
-      FirebaseAdminService.queryDocuments(Collections.PRODUCT_CATEGORIES, [], { field: 'createdAt', direction: 'desc' }, 200)
+      FirebaseAdminService.queryDocuments(Collections.PRODUCT_CATEGORIES, [], { field: 'createdAt', direction: 'desc' }, 200),
+      FirebaseAdminService.queryDocuments(Collections.CUSTOMIZATION_REQUESTS, [], { field: 'createdAt', direction: 'desc' }, 2000)
     ]);
 
     // Calculate metrics
@@ -134,22 +135,36 @@ export class DashboardSummaryService {
       totalCategories: categories.length,
       
       // Revenue = subtotal only (excludes tax and shipping as those are pass-through costs)
-      // Revenue calculations (subtotal only, excludes tax and shipping)
-      totalRevenue: orders.reduce((sum, o) => sum + (o.subtotal || 0), 0),
+      // Also include design fees from customizations
+      const orderRevenue = orders.reduce((sum, o) => sum + (o.subtotal || 0), 0);
+      const customizationRevenue = customizations.reduce((sum, c) => {
+        const designFee = c.pricingAgreement?.designFee || 0;
+        return sum + designFee;
+      }, 0);
+      totalRevenue: orderRevenue + customizationRevenue,
       todayRevenue: orders.filter(o => {
         const orderDate = new Date(o.createdAt);
         return orderDate >= today;
-      }).reduce((sum, o) => sum + (o.subtotal || 0), 0),
+      }).reduce((sum, o) => sum + (o.subtotal || 0), 0) + customizations.filter(c => {
+        const customDate = new Date(c.createdAt);
+        return customDate >= today;
+      }).reduce((sum, c) => sum + (c.pricingAgreement?.designFee || 0), 0),
       thisMonthRevenue: orders.filter(o => {
         const orderDate = new Date(o.createdAt);
         return orderDate >= thisMonth;
-      }).reduce((sum, o) => sum + (o.subtotal || 0), 0),
+      }).reduce((sum, o) => sum + (o.subtotal || 0), 0) + customizations.filter(c => {
+        const customDate = new Date(c.createdAt);
+        return customDate >= thisMonth;
+      }).reduce((sum, c) => sum + (c.pricingAgreement?.designFee || 0), 0),
       
-      // Platform commission (5% of subtotal)
+      // Platform commission (5% of subtotal from orders + 5% of design fees from customizations)
       // If subtotal is missing, calculate from totalAmount (fallback for old orders)
       totalCommission: orders.reduce((sum, o) => {
         const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.08 : 0); // Approximate subtotal from total (assuming 8% tax)
         return sum + (subtotal * 0.05);
+      }, 0) + customizations.reduce((sum, c) => {
+        const designFee = c.pricingAgreement?.designFee || 0;
+        return sum + (designFee * 0.05);
       }, 0),
       todayCommission: orders.filter(o => {
         const orderDate = new Date(o.createdAt);
@@ -157,6 +172,12 @@ export class DashboardSummaryService {
       }).reduce((sum, o) => {
         const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.08 : 0);
         return sum + (subtotal * 0.05);
+      }, 0) + customizations.filter(c => {
+        const customDate = new Date(c.createdAt);
+        return customDate >= today;
+      }).reduce((sum, c) => {
+        const designFee = c.pricingAgreement?.designFee || 0;
+        return sum + (designFee * 0.05);
       }, 0),
       thisMonthCommission: orders.filter(o => {
         const orderDate = new Date(o.createdAt);
@@ -164,6 +185,12 @@ export class DashboardSummaryService {
       }).reduce((sum, o) => {
         const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.08 : 0);
         return sum + (subtotal * 0.05);
+      }, 0) + customizations.filter(c => {
+        const customDate = new Date(c.createdAt);
+        return customDate >= thisMonth;
+      }).reduce((sum, c) => {
+        const designFee = c.pricingAgreement?.designFee || 0;
+        return sum + (designFee * 0.05);
       }, 0),
       
       newUsersToday: users.filter(u => {

@@ -69,13 +69,14 @@ async function generateAnalyticsResponse(summary: any, timeRange: string, days: 
       FirebaseAdminService.queryDocuments(Collections.PRODUCT_CATEGORIES, [], { field: 'createdAt', direction: 'desc' }, 50)
     ]);
     
-    // Get recent orders for top products analysis (limited scope)
+    // Get recent orders and customizations for analysis
     const recentOrders = await FirebaseAdminService.queryDocuments(Collections.ORDERS, [], { field: 'createdAt', direction: 'desc' }, 100);
+    const recentCustomizations = await FirebaseAdminService.queryDocuments(Collections.CUSTOMIZATION_REQUESTS, [], { field: 'createdAt', direction: 'desc' }, 100);
 
     // Use summary data for base metrics and recent data for trends
     const userGrowth = await calculateUserGrowth(recentUsers, days);
     const productStats = await calculateProductStats(recentProducts, categories);
-    const revenueData = await calculateRevenueData(recentOrders, days);
+    const revenueData = await calculateRevenueData(recentOrders, recentCustomizations, days);
     const topProducts = await calculateTopProducts(recentProducts, recentOrders);
 
     const response = {
@@ -186,8 +187,8 @@ async function calculateProductStats(products: any[], categories: any[]) {
   }));
 }
 
-// Calculate real revenue data over time
-async function calculateRevenueData(orders: any[], days: number) {
+// Calculate real revenue data over time (including orders and customizations)
+async function calculateRevenueData(orders: any[], customizations: any[], days: number) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const revenueByMonth = new Map();
   const commissionByMonth = new Map();
@@ -206,6 +207,23 @@ async function calculateRevenueData(orders: any[], days: number) {
       
       // Platform commission (percentage of subtotal)
       const commission = subtotal * PLATFORM_COMMISSION_RATE;
+      commissionByMonth.set(monthKey, (commissionByMonth.get(monthKey) || 0) + commission);
+    }
+  });
+
+  // Group customizations by month (design fees)
+  // Platform Commission = percentage of design fee
+  customizations.forEach(customization => {
+    if (customization.createdAt && customization.pricingAgreement?.designFee) {
+      const date = new Date(customization.createdAt);
+      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+      const designFee = customization.pricingAgreement.designFee || 0;
+      
+      // Add design fee to revenue
+      revenueByMonth.set(monthKey, (revenueByMonth.get(monthKey) || 0) + designFee);
+      
+      // Platform commission from design fee (percentage of design fee)
+      const commission = designFee * PLATFORM_COMMISSION_RATE;
       commissionByMonth.set(monthKey, (commissionByMonth.get(monthKey) || 0) + commission);
     }
   });
