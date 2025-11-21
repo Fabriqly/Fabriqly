@@ -85,7 +85,7 @@ export interface IOrderService {
   getOrders(options: OrderSearchOptions, userId: string): Promise<OrderSearchResult>;
 
   // Order management
-  updateOrderStatus(orderId: string, status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled', userId: string): Promise<Order>;
+  updateOrderStatus(orderId: string, status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled', userId: string): Promise<Order>;
   updatePaymentStatus(orderId: string, paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded', userId: string): Promise<Order>;
   addTrackingNumber(orderId: string, trackingNumber: string, carrier?: string, userId?: string): Promise<Order>;
   cancelOrder(orderId: string, userId: string): Promise<Order>;
@@ -114,6 +114,11 @@ export interface IOrderService {
   // Analytics
   getOrdersByProduct(productId: string): Promise<Order[]>;
   getOrdersByDateRange(dateFrom: Date, dateTo: Date): Promise<Order[]>;
+
+  // New order management functions
+  markOrderToShip(orderId: string, userId: string): Promise<Order>;
+  getOrdersToShip(businessOwnerId?: string, userId?: string): Promise<Order[]>;
+  getOrdersByStatus(status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled', businessOwnerId?: string, userId?: string): Promise<Order[]>;
   getOrdersByAmountRange(minAmount: number, maxAmount: number): Promise<Order[]>;
 }
 

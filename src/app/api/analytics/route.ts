@@ -6,6 +6,9 @@ import { Collections } from '@/services/firebase';
 import { CacheService } from '@/services/CacheService';
 import { DashboardSummaryService } from '@/services/DashboardSummaryService';
 
+// Platform commission rate (5% of order subtotal)
+const PLATFORM_COMMISSION_RATE = 0.05; // 5%
+
 // GET /api/analytics - Get real analytics data
 export async function GET(request: NextRequest) {
   try {
@@ -66,13 +69,14 @@ async function generateAnalyticsResponse(summary: any, timeRange: string, days: 
       FirebaseAdminService.queryDocuments(Collections.PRODUCT_CATEGORIES, [], { field: 'createdAt', direction: 'desc' }, 50)
     ]);
     
-    // Get recent orders for top products analysis (limited scope)
+    // Get recent orders and customizations for analysis
     const recentOrders = await FirebaseAdminService.queryDocuments(Collections.ORDERS, [], { field: 'createdAt', direction: 'desc' }, 100);
+    const recentCustomizations = await FirebaseAdminService.queryDocuments(Collections.CUSTOMIZATION_REQUESTS, [], { field: 'createdAt', direction: 'desc' }, 100);
 
     // Use summary data for base metrics and recent data for trends
     const userGrowth = await calculateUserGrowth(recentUsers, days);
     const productStats = await calculateProductStats(recentProducts, categories);
-    const revenueData = await calculateRevenueData(recentOrders, days);
+    const revenueData = await calculateRevenueData(recentOrders, recentCustomizations, days);
     const topProducts = await calculateTopProducts(recentProducts, recentOrders);
 
     const response = {
@@ -85,6 +89,9 @@ async function generateAnalyticsResponse(summary: any, timeRange: string, days: 
         totalProducts: summary.totalProducts,
         totalOrders: summary.totalOrders,
         totalRevenue: summary.totalRevenue,
+        totalCommission: summary.totalCommission || 0,
+        todayCommission: summary.todayCommission || 0,
+        thisMonthCommission: summary.thisMonthCommission || 0,
         lastUpdated: summary.lastUpdated
       },
       dataSource: 'summary-enhanced' // Indicate we used summary + targeted queries
@@ -180,17 +187,44 @@ async function calculateProductStats(products: any[], categories: any[]) {
   }));
 }
 
-// Calculate real revenue data over time
-async function calculateRevenueData(orders: any[], days: number) {
+// Calculate real revenue data over time (including orders and customizations)
+async function calculateRevenueData(orders: any[], customizations: any[], days: number) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const revenueByMonth = new Map();
+  const commissionByMonth = new Map();
   
   // Group orders by month
+  // Revenue = subtotal only (excludes tax and shipping as those are pass-through costs)
+  // Platform Commission = percentage of subtotal
   orders.forEach(order => {
-    if (order.createdAt && order.totalAmount) {
+    if (order.createdAt && order.subtotal) {
       const date = new Date(order.createdAt);
       const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
-      revenueByMonth.set(monthKey, (revenueByMonth.get(monthKey) || 0) + order.totalAmount);
+      const subtotal = order.subtotal || 0;
+      
+      // Gross revenue (product prices only, excluding tax and shipping)
+      revenueByMonth.set(monthKey, (revenueByMonth.get(monthKey) || 0) + subtotal);
+      
+      // Platform commission (percentage of subtotal)
+      const commission = subtotal * PLATFORM_COMMISSION_RATE;
+      commissionByMonth.set(monthKey, (commissionByMonth.get(monthKey) || 0) + commission);
+    }
+  });
+
+  // Group customizations by month (design fees)
+  // Platform Commission = percentage of design fee
+  customizations.forEach(customization => {
+    if (customization.createdAt && customization.pricingAgreement?.designFee) {
+      const date = new Date(customization.createdAt);
+      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+      const designFee = customization.pricingAgreement.designFee || 0;
+      
+      // Add design fee to revenue
+      revenueByMonth.set(monthKey, (revenueByMonth.get(monthKey) || 0) + designFee);
+      
+      // Platform commission from design fee (percentage of design fee)
+      const commission = designFee * PLATFORM_COMMISSION_RATE;
+      commissionByMonth.set(monthKey, (commissionByMonth.get(monthKey) || 0) + commission);
     }
   });
 
@@ -202,10 +236,12 @@ async function calculateRevenueData(orders: any[], days: number) {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
     const revenue = revenueByMonth.get(monthKey) || 0;
+    const commission = commissionByMonth.get(monthKey) || 0;
     
     data.push({
       month: months[date.getMonth()],
-      revenue: Math.floor(revenue)
+      revenue: Math.floor(revenue),
+      commission: Math.floor(commission)
     });
   }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -16,7 +17,6 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import Image from 'next/image';
-import Link from 'next/link';
 
 export function CartSidebar() {
   const { state, removeItem, updateQuantity, closeCart, getTotalAmount } = useCart();
@@ -413,13 +413,15 @@ export function CartSidebar() {
             )}
 
             {/* Continue Shopping */}
-            <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={closeCart}
-            >
-              Continue Shopping
-            </Button>
+            <Link href="/explore">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={closeCart}
+              >
+                Continue Shopping
+              </Button>
+            </Link>
           </div>
         )}
       </div>

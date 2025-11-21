@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown, Settings } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown, Settings, Package } from 'lucide-react';
 import { CartButton } from '@/components/cart/CartButton';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -18,6 +19,7 @@ interface CustomerHeaderProps {
 }
 
 export function CustomerHeader({ user }: CustomerHeaderProps) {
+  const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -120,6 +122,22 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                       <p className="text-xs text-gray-500">{user.email}</p>
                     </div>
                     <Link
+                      href="/orders"
+                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <Package className="w-4 h-4 mr-3" />
+                      My Orders
+                    </Link>
+                    <Link
+                      href="/my-customizations"
+                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <MessageCircle className="w-4 h-4 mr-3" />
+                      My Customizations
+                    </Link>
+                    <Link
                       href="/profile"
                       className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                       onClick={() => setIsDropdownOpen(false)}
@@ -156,37 +174,61 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
           <nav className="flex space-x-8 py-3">
             <Link
               href="/explore"
-              className="text-white/90 hover:text-white px-3 py-2 text-sm font-medium border-b-2 border-white/80"
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                pathname === '/explore' 
+                  ? 'text-white border-b-2 border-white/80' 
+                  : 'text-white/70 hover:text-white'
+              }`}
             >
               Explore
             </Link>
             <Link
               href="/shops"
-              className="text-white/70 hover:text-white px-3 py-2 text-sm font-medium transition-colors"
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                pathname === '/shops' 
+                  ? 'text-white border-b-2 border-white/80' 
+                  : 'text-white/70 hover:text-white'
+              }`}
             >
               Shops
             </Link>
             <Link
               href="/clothing"
-              className="text-white/70 hover:text-white px-3 py-2 text-sm font-medium transition-colors"
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                pathname === '/clothing' 
+                  ? 'text-white border-b-2 border-white/80' 
+                  : 'text-white/70 hover:text-white'
+              }`}
             >
               Clothing
             </Link>
             <Link
-              href="/merchandise"
-              className="text-white/70 hover:text-white px-3 py-2 text-sm font-medium transition-colors"
+              href="/explore/merchandise"
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                pathname === '/explore/merchandise' 
+                  ? 'text-white border-b-2 border-white/80' 
+                  : 'text-white/70 hover:text-white'
+              }`}
             >
               Merchandise
             </Link>
             <Link
               href="/graphics-services"
-              className="text-white/70 hover:text-white px-3 py-2 text-sm font-medium transition-colors"
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                pathname === '/graphics-services' 
+                  ? 'text-white border-b-2 border-white/80' 
+                  : 'text-white/70 hover:text-white'
+              }`}
             >
               Graphics Services
             </Link>
             <Link
               href="/other-services"
-              className="text-white/70 hover:text-white px-3 py-2 text-sm font-medium transition-colors"
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                pathname === '/other-services' 
+                  ? 'text-white border-b-2 border-white/80' 
+                  : 'text-white/70 hover:text-white'
+              }`}
             >
               Other Services
             </Link>
