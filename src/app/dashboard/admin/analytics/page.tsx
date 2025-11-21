@@ -20,6 +20,7 @@ interface AnalyticsData {
     totalProducts: number;
     totalOrders: number;
     totalRevenue: number;
+    totalCommission?: number;
     activeProducts: number;
     pendingOrders: number;
   };
@@ -34,6 +35,7 @@ interface AnalyticsData {
   revenueData: Array<{
     month: string;
     revenue: number;
+    commission?: number;
   }>;
   topProducts: Array<{
     id: string;
@@ -86,6 +88,7 @@ export default function AdminAnalyticsPage() {
         totalProducts: statsData.current.totalProducts,
         totalOrders: statsData.current.totalOrders,
         totalRevenue: statsData.current.totalRevenue,
+        totalCommission: statsData.current.totalCommission || 0,
         activeProducts: statsData.current.activeProducts,
         pendingOrders: statsData.current.pendingOrders
       };
@@ -101,7 +104,10 @@ export default function AdminAnalyticsPage() {
       
       // Combine the data instead of duplicating queries
       setAnalytics({
-        overview,
+        overview: {
+          ...overview,
+          totalCommission: analyticsData.summaryMetrics?.totalCommission || overview.totalCommission
+        },
         userGrowth: analyticsData.userGrowth,
         productStats: analyticsData.productStats,
         revenueData: analyticsData.revenueData,
@@ -191,11 +197,19 @@ export default function AdminAnalyticsPage() {
     },
     {
       name: 'Total Revenue',
-      value: `$${analytics.overview.totalRevenue.toLocaleString()}`,
+      value: `₱${analytics.overview.totalRevenue.toLocaleString()}`,
       icon: DollarSign,
       color: 'bg-emerald-500',
       change: formatChange(percentageChanges.totalRevenue),
       changeType: percentageChanges.totalRevenue.type
+    },
+    {
+      name: 'Platform Commission',
+      value: `₱${(analytics.overview.totalCommission || 0).toLocaleString()}`,
+      icon: DollarSign,
+      color: 'bg-purple-500',
+      change: '5% of revenue',
+      changeType: 'neutral' as const
     }
   ];
 
@@ -232,7 +246,7 @@ export default function AdminAnalyticsPage() {
         </div>
 
         {/* Overview Stats */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
           {overviewCards.map((stat) => {
             const Icon = stat.icon;
             return (
@@ -340,18 +354,56 @@ export default function AdminAnalyticsPage() {
 
         {/* Revenue Chart */}
         <div className="bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Monthly Revenue</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Monthly Revenue & Commission</h3>
+          <div className="mb-4 flex items-center space-x-4 text-sm">
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-emerald-500 rounded"></div>
+              <span className="text-gray-600">Revenue</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-purple-500 rounded"></div>
+              <span className="text-gray-600">Platform Commission (5%)</span>
+            </div>
+          </div>
           <div className="h-64 flex items-end space-x-2">
-            {analytics.revenueData.map((data, index) => (
-              <div key={index} className="flex-1 flex flex-col items-center">
-                <div
-                  className="bg-emerald-500 rounded-t w-full"
-                  style={{ height: `${(data.revenue / Math.max(...analytics.revenueData.map(d => d.revenue))) * 200}px` }}
-                ></div>
-                <span className="text-xs text-gray-500 mt-2">{data.month}</span>
-                <span className="text-xs text-gray-700 mt-1">${data.revenue.toLocaleString()}</span>
-              </div>
-            ))}
+            {analytics.revenueData.map((data, index) => {
+              const maxRevenue = Math.max(...analytics.revenueData.map(d => d.revenue || 0), 1);
+              const revenueHeight = ((data.revenue || 0) / maxRevenue) * 200;
+              const commissionHeight = ((data.commission || 0) / maxRevenue) * 200;
+              return (
+                <div key={index} className="flex-1 flex flex-col items-center space-y-1">
+                  <div className="w-full flex items-end justify-center space-x-1" style={{ height: '200px' }}>
+                    <div
+                      className="bg-emerald-500 rounded-t w-full relative group"
+                      style={{ height: `${revenueHeight}px` }}
+                      title={`Revenue: ₱${(data.revenue || 0).toLocaleString()}`}
+                    >
+                      {data.revenue > 0 && (
+                        <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                          ₱{data.revenue.toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                    <div
+                      className="bg-purple-500 rounded-t w-full relative group"
+                      style={{ height: `${commissionHeight}px` }}
+                      title={`Commission: ₱${(data.commission || 0).toLocaleString()}`}
+                    >
+                      {data.commission > 0 && (
+                        <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                          ₱{data.commission.toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-500 mt-2">{data.month}</span>
+                  <div className="text-center">
+                    <span className="text-xs text-gray-700 font-medium block">₱{(data.revenue || 0).toLocaleString()}</span>
+                    <span className="text-xs text-purple-600 font-medium block">₱{(data.commission || 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

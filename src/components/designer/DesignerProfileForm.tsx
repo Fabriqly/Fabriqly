@@ -43,7 +43,12 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
       twitter: '',
       linkedin: ''
     },
-    specialties: []
+    specialties: [],
+    payoutDetails: {
+      bankCode: '',
+      accountNumber: '',
+      accountHolderName: ''
+    }
   });
 
   const [specialtyInput, setSpecialtyInput] = useState('');
@@ -61,7 +66,12 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
           twitter: '',
           linkedin: ''
         },
-        specialties: profile.specialties || []
+        specialties: profile.specialties || [],
+        payoutDetails: (profile as any).payoutDetails || {
+          bankCode: '',
+          accountNumber: '',
+          accountHolderName: ''
+        }
       });
     }
   }, [profile]);
@@ -70,6 +80,16 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
     setFormData(prev => ({
       ...prev,
       [field]: value
+    }));
+  };
+
+  const handlePayoutDetailsChange = (field: 'bankCode' | 'accountNumber' | 'accountHolderName', value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      payoutDetails: {
+        ...(prev.payoutDetails || { bankCode: '', accountNumber: '', accountHolderName: '' }),
+        [field]: value
+      }
     }));
   };
 
@@ -307,6 +327,55 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Payout Details */}
+          <div className="space-y-6">
+            <div className="flex items-center space-x-2 mb-4">
+              <Save className="w-5 h-5 text-orange-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Payout Details</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Add your bank account information to receive payments. For testing purposes, you can use dummy values.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Bank Code
+                </label>
+                <Input
+                  value={formData.payoutDetails?.bankCode || ''}
+                  onChange={(e) => handlePayoutDetailsChange('bankCode', e.target.value)}
+                  placeholder="e.g., BDO, BPI, GCASH"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Common codes: BDO, BPI, GCASH, PAYMAYA (for testing, any value works)
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Account Number
+                </label>
+                <Input
+                  value={formData.payoutDetails?.accountNumber || ''}
+                  onChange={(e) => handlePayoutDetailsChange('accountNumber', e.target.value)}
+                  placeholder="Enter account number (dummy values OK for testing)"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Account Holder Name
+                </label>
+                <Input
+                  value={formData.payoutDetails?.accountHolderName || ''}
+                  onChange={(e) => handlePayoutDetailsChange('accountHolderName', e.target.value)}
+                  placeholder="Name as it appears on the account"
+                />
+              </div>
             </div>
           </div>
 

@@ -26,7 +26,8 @@ export class CustomizationOrderService {
   async createOrderFromCustomization(
     requestId: string,
     customerId: string,
-    shippingAddress: any
+    shippingAddress: any,
+    paymentMethod: string = 'xendit'
   ): Promise<{ orderId: string; customizationRequest: CustomizationRequest }> {
     const request = await this.customizationRepo.findById(requestId);
     
@@ -145,7 +146,7 @@ export class CustomizationOrderService {
       ],
       shippingAddress: shippingAddress,
       billingAddress: shippingAddress,
-      paymentMethod: 'xendit',
+      paymentMethod: paymentMethod,
       shippingCost: 0,
       notes: `Custom design order from customization request #${request.id.substring(0, 8)}`
     };

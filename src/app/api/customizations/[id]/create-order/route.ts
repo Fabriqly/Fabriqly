@@ -28,11 +28,18 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { shippingAddress } = body;
+    const { shippingAddress, paymentMethod } = body;
 
     if (!shippingAddress) {
       return NextResponse.json(
         { error: 'Shipping address is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!paymentMethod) {
+      return NextResponse.json(
+        { error: 'Payment method is required' },
         { status: 400 }
       );
     }
@@ -70,7 +77,8 @@ export async function POST(
     const result = await customizationOrderService.createOrderFromCustomization(
       id,
       session.user.id,
-      shippingAddress
+      shippingAddress,
+      paymentMethod
     );
 
     return NextResponse.json({

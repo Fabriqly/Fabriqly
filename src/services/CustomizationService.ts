@@ -224,10 +224,27 @@ export class CustomizationService {
       throw new Error('Request is not awaiting approval');
     }
 
-    const updatedRequest = await this.customizationRepo.updateStatus(
-      requestId,
-      'approved'
-    );
+    // Update status to ready_for_production (not just 'approved')
+    const { Timestamp } = await import('firebase-admin/firestore');
+    const updatedRequest = await this.customizationRepo.update(requestId, {
+      status: 'ready_for_production' as any,
+      approvedAt: Timestamp.now() as any,
+      updatedAt: Timestamp.now() as any,
+    });
+
+    // Release designer payment from escrow
+    const { escrowService } = await import('./EscrowService');
+    try {
+      await escrowService.releaseDesignerPayment(requestId);
+    } catch (error: any) {
+      console.error('[CustomizationService] Failed to release designer payment:', error);
+      // Revert status if escrow release fails
+      await this.customizationRepo.update(requestId, {
+        status: 'awaiting_customer_approval' as any,
+        updatedAt: Timestamp.now() as any,
+      });
+      throw new Error(`Failed to process designer payment: ${error.message}`);
+    }
 
     // Emit event
     await eventBus.emit('customization.design.approved', {

@@ -19,6 +19,7 @@ interface PaymentMethod {
 
 interface XenditPaymentFormProps {
   orderId: string;
+  orderIds?: string[]; // For multiple orders
   amount: number;
   customerInfo: {
     firstName: string;
@@ -32,11 +33,14 @@ interface XenditPaymentFormProps {
 
 export default function XenditPaymentForm({
   orderId,
+  orderIds,
   amount,
   customerInfo,
   onPaymentSuccess,
   onPaymentError,
 }: XenditPaymentFormProps) {
+  // Use orderIds if provided, otherwise use single orderId
+  const allOrderIds = orderIds || [orderId];
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -203,7 +207,9 @@ export default function XenditPaymentForm({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          orderId,
+          orderId: allOrderIds[0], // Primary order ID for backward compatibility
+          orderIds: allOrderIds, // All order IDs
+          totalAmount: amount, // Combined total amount
           paymentMethod: 'invoice',
         }),
       });
@@ -419,9 +425,10 @@ export default function XenditPaymentForm({
                   Processing...
                 </>
               ) : (
-                `Pay ${new Intl.NumberFormat('id-ID', {
+                `Pay ${new Intl.NumberFormat('en-PH', {
                   style: 'currency',
-                  currency: 'IDR',
+                  currency: 'PHP',
+                  minimumFractionDigits: 2
                 }).format(amount)}`
               )}
             </Button>

@@ -37,7 +37,14 @@ export class EscrowService {
         throw AppError.badRequest('No payment details found for this request');
       }
 
-      if (request.paymentDetails.escrowStatus !== 'held') {
+      // Allow release if status is 'held' OR if it's already been attempted but failed
+      // (in case we need to retry)
+      if (request.paymentDetails.escrowStatus !== 'held' && request.paymentDetails.escrowStatus !== 'designer_paid') {
+        // If already paid, just return success
+        if (request.paymentDetails.escrowStatus === 'designer_paid' && request.paymentDetails.designerPayoutAmount) {
+          console.log(`[EscrowService] Designer payment already released for ${requestId}`);
+          return;
+        }
         throw AppError.badRequest(
           `Cannot release designer payment. Current escrow status: ${request.paymentDetails.escrowStatus}`
         );
@@ -257,12 +264,34 @@ export class EscrowService {
         return false;
       }
 
-      return (
-        request.paymentDetails.escrowStatus === 'held' &&
-        request.status === 'approved' &&
-        !!request.pricingAgreement &&
-        !!request.designerId
-      );
+      // Check if design is approved (either 'approved' or 'ready_for_production' status)
+      const isApproved = request.status === 'approved' || request.status === 'ready_for_production';
+
+      if (!(request.paymentDetails.escrowStatus === 'held' && isApproved && !!request.pricingAgreement && !!request.designerId)) {
+        return false;
+      }
+
+      // Also check if designer has payout details configured
+      try {
+        const designerProfile = await FirebaseAdminService.getDocument(
+          Collections.DESIGNER_PROFILES,
+          request.designerId
+        );
+
+        if (!designerProfile) {
+          return false;
+        }
+
+        const payoutInfo = (designerProfile as any).payoutDetails;
+        if (!payoutInfo || !payoutInfo.bankCode || !payoutInfo.accountNumber || !payoutInfo.accountHolderName) {
+          return false;
+        }
+
+        return true;
+      } catch (error) {
+        console.error('[EscrowService] Error checking designer payout details:', error);
+        return false;
+      }
     } catch (error) {
       console.error('Error checking designer payment eligibility:', error);
       return false;

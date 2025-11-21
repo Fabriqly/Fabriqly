@@ -16,11 +16,23 @@ export class DashboardSummaryService {
       // Try cache first
       const cached = await CacheService.get(this.CACHE_KEY);
       if (cached && typeof cached === 'object' && 'totalUsers' in cached) {
-        return cached as DashboardSummary;
+        const summary = cached as DashboardSummary;
+        // If commission is missing or 0 but revenue exists, recalculate
+        if ((!summary.totalCommission || summary.totalCommission === 0) && summary.totalRevenue > 0) {
+          console.log('⚠️ Commission missing or zero but revenue exists, refreshing summary...');
+          return await this.refreshSummary();
+        }
+        return summary;
       }
 
       // Fetch from database
       const summary = await this.fetchFromDatabase();
+      
+      // If commission is missing or 0 but revenue exists, recalculate
+      if (summary && (!summary.totalCommission || summary.totalCommission === 0) && summary.totalRevenue > 0) {
+        console.log('⚠️ Commission missing or zero but revenue exists, refreshing summary...');
+        return await this.refreshSummary();
+      }
       
       // Cache the result
       if (summary) {
@@ -121,15 +133,38 @@ export class DashboardSummaryService {
       cancelledOrders: orders.filter(o => o.status === 'cancelled').length,
       totalCategories: categories.length,
       
-      totalRevenue: orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+      // Revenue = subtotal only (excludes tax and shipping as those are pass-through costs)
+      // Revenue calculations (subtotal only, excludes tax and shipping)
+      totalRevenue: orders.reduce((sum, o) => sum + (o.subtotal || 0), 0),
       todayRevenue: orders.filter(o => {
         const orderDate = new Date(o.createdAt);
         return orderDate >= today;
-      }).reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+      }).reduce((sum, o) => sum + (o.subtotal || 0), 0),
       thisMonthRevenue: orders.filter(o => {
         const orderDate = new Date(o.createdAt);
         return orderDate >= thisMonth;
-      }).reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+      }).reduce((sum, o) => sum + (o.subtotal || 0), 0),
+      
+      // Platform commission (5% of subtotal)
+      // If subtotal is missing, calculate from totalAmount (fallback for old orders)
+      totalCommission: orders.reduce((sum, o) => {
+        const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.08 : 0); // Approximate subtotal from total (assuming 8% tax)
+        return sum + (subtotal * 0.05);
+      }, 0),
+      todayCommission: orders.filter(o => {
+        const orderDate = new Date(o.createdAt);
+        return orderDate >= today;
+      }).reduce((sum, o) => {
+        const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.08 : 0);
+        return sum + (subtotal * 0.05);
+      }, 0),
+      thisMonthCommission: orders.filter(o => {
+        const orderDate = new Date(o.createdAt);
+        return orderDate >= thisMonth;
+      }).reduce((sum, o) => {
+        const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.08 : 0);
+        return sum + (subtotal * 0.05);
+      }, 0),
       
       newUsersToday: users.filter(u => {
         const userDate = new Date(u.createdAt);
@@ -197,11 +232,18 @@ export class DashboardSummaryService {
         if (operation.entityData?.status === 'pending') {
           updated.pendingOrders += 1;
         }
-        if (operation.entityData?.totalAmount) {
-          const amount = operation.entityData.totalAmount;
-          updated.totalRevenue += amount;
-          updated.todayRevenue += amount;
-          updated.thisMonthRevenue += amount;
+        // Use subtotal for revenue (excludes tax and shipping)
+        if (operation.entityData?.subtotal) {
+          const subtotal = operation.entityData.subtotal;
+          updated.totalRevenue += subtotal;
+          updated.todayRevenue += subtotal;
+          updated.thisMonthRevenue += subtotal;
+          
+          // Calculate platform commission (5% of subtotal)
+          const commission = subtotal * 0.05;
+          updated.totalCommission = (updated.totalCommission || 0) + commission;
+          updated.todayCommission = (updated.todayCommission || 0) + commission;
+          updated.thisMonthCommission = (updated.thisMonthCommission || 0) + commission;
         }
         break;
       case 'order_updated':

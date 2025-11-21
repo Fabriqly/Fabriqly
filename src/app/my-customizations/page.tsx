@@ -8,6 +8,7 @@ import { TransactionChat } from '@/components/messaging/TransactionChat';
 import { ShopSelectionModal } from '@/components/customization/ShopSelectionModal';
 import { ShippingAddressModal } from '@/components/customization/ShippingAddressModal';
 import { AddressListModal } from '@/components/customization/AddressListModal';
+import { PaymentMethodModal } from '@/components/customization/PaymentMethodModal';
 import { ProductionTracker } from '@/components/customization/ProductionTracker';
 import { ReviewForm } from '@/components/reviews/ReviewForm';
 import { CustomizationRequestList } from '@/components/customization/CustomizationRequestList';
@@ -27,7 +28,11 @@ export default function MyCustomizationsPage() {
   const [showShopModal, setShowShopModal] = useState(false);
   const [showAddressListModal, setShowAddressListModal] = useState(false);
   const [showShippingModal, setShowShippingModal] = useState(false);
+  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
   const [orderRequestId, setOrderRequestId] = useState<string | null>(null);
+  const [pendingShippingAddress, setPendingShippingAddress] = useState<any>(null);
+  const [pendingSaveToProfile, setPendingSaveToProfile] = useState(false);
+  const [orderAmount, setOrderAmount] = useState(0);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showWorkModal, setShowWorkModal] = useState(false);
@@ -298,13 +303,11 @@ export default function MyCustomizationsPage() {
   };
 
   const handleShippingSubmit = async (shippingAddress: any, saveToProfile: boolean) => {
-    if (!orderRequestId || !session?.user?.id || creatingOrder === orderRequestId) return;
+    if (!orderRequestId || !session?.user?.id) return;
 
-    try {
-      setCreatingOrder(orderRequestId);
-      
-      // Save address to profile if requested
-      if (saveToProfile) {
+    // Save address to profile if requested
+    if (saveToProfile) {
+      try {
         const saveResponse = await fetch(`/api/users/${session.user.id}/addresses`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -318,28 +321,62 @@ export default function MyCustomizationsPage() {
           // Refresh address list by updating refreshKey
           setRefreshKey(prev => prev + 1);
         }
+      } catch (error) {
+        console.error('Error saving address:', error);
       }
+    }
 
-      // Create order with address
+    // Store shipping address and show payment method selection
+    setPendingShippingAddress(shippingAddress);
+    setPendingSaveToProfile(saveToProfile);
+    setShowShippingModal(false);
+    setShowPaymentMethodModal(true);
+
+    // Get order amount from customization request
+    const request = requests.find(r => r.id === orderRequestId);
+    if (request?.pricingAgreement) {
+      const productCost = request.pricingAgreement.productCost || 0;
+      const printingCost = request.pricingAgreement.printingCost || 0;
+      const subtotal = productCost + printingCost;
+      const tax = subtotal * 0.08; // 8% tax
+      setOrderAmount(subtotal + tax);
+    }
+  };
+
+  const handlePaymentMethodSubmit = async (paymentMethod: string) => {
+    if (!orderRequestId || !session?.user?.id || !pendingShippingAddress || creatingOrder === orderRequestId) return;
+
+    try {
+      setCreatingOrder(orderRequestId);
+      setShowPaymentMethodModal(false);
+
+      // Create order with address and payment method
       const response = await fetch(`/api/customizations/${orderRequestId}/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shippingAddress })
+        body: JSON.stringify({ 
+          shippingAddress: pendingShippingAddress,
+          paymentMethod 
+        })
       });
 
       const data = await response.json();
 
       if (data.success) {
-        setShowShippingModal(false);
         setOrderRequestId(null);
-        alert(`Order created successfully! Order ID: ${data.data.orderId.substring(0, 8)}...\n\nProduction can now begin.`);
-        await fetchRequests();
+        setPendingShippingAddress(null);
+        setPendingSaveToProfile(false);
+        
+        // Redirect to order payment page
+        router.push(`/orders/${data.data.orderId}`);
       } else {
         alert(data.error || 'Failed to create order');
+        setShowPaymentMethodModal(true); // Show payment modal again on error
       }
     } catch (error) {
       console.error('Error creating order:', error);
       alert('Failed to create order');
+      setShowPaymentMethodModal(true); // Show payment modal again on error
     } finally {
       setCreatingOrder(null);
     }
@@ -866,6 +903,21 @@ export default function MyCustomizationsPage() {
           }}
           userName={session?.user?.name}
           userId={session?.user?.id}
+        />
+      )}
+
+      {/* Payment Method Selection Modal */}
+      {showPaymentMethodModal && orderRequestId && (
+        <PaymentMethodModal
+          onSubmit={handlePaymentMethodSubmit}
+          onClose={() => {
+            setShowPaymentMethodModal(false);
+            setPendingShippingAddress(null);
+            setPendingSaveToProfile(false);
+            setShowShippingModal(true);
+          }}
+          amount={orderAmount}
+          loading={creatingOrder === orderRequestId}
         />
       )}
 

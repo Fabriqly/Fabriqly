@@ -31,7 +31,7 @@ export async function GET(
     const cacheService = new CacheService();
     const orderService = new OrderService(orderRepository, activityRepository, productRepository, cacheService);
 
-    // Get order
+    // Get order (bypass cache to ensure fresh data)
     const order = await orderService.getOrder(id, session.user.id);
 
     if (!order) {
@@ -40,6 +40,9 @@ export async function GET(
         { status: 404 }
       );
     }
+
+    // Clear cache to ensure fresh data on next request
+    await CacheService.invalidate(`order:${id}`);
 
     // Serialize Firestore Timestamps to ISO strings for JSON compatibility
     const serializedOrder = {

@@ -6,6 +6,9 @@ import { Collections } from '@/services/firebase';
 import { CacheService } from '@/services/CacheService';
 import { DashboardSummaryService } from '@/services/DashboardSummaryService';
 
+// Platform commission rate (5% of order subtotal)
+const PLATFORM_COMMISSION_RATE = 0.05; // 5%
+
 // GET /api/analytics - Get real analytics data
 export async function GET(request: NextRequest) {
   try {
@@ -85,6 +88,9 @@ async function generateAnalyticsResponse(summary: any, timeRange: string, days: 
         totalProducts: summary.totalProducts,
         totalOrders: summary.totalOrders,
         totalRevenue: summary.totalRevenue,
+        totalCommission: summary.totalCommission || 0,
+        todayCommission: summary.todayCommission || 0,
+        thisMonthCommission: summary.thisMonthCommission || 0,
         lastUpdated: summary.lastUpdated
       },
       dataSource: 'summary-enhanced' // Indicate we used summary + targeted queries
@@ -184,13 +190,23 @@ async function calculateProductStats(products: any[], categories: any[]) {
 async function calculateRevenueData(orders: any[], days: number) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const revenueByMonth = new Map();
+  const commissionByMonth = new Map();
   
   // Group orders by month
+  // Revenue = subtotal only (excludes tax and shipping as those are pass-through costs)
+  // Platform Commission = percentage of subtotal
   orders.forEach(order => {
-    if (order.createdAt && order.totalAmount) {
+    if (order.createdAt && order.subtotal) {
       const date = new Date(order.createdAt);
       const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
-      revenueByMonth.set(monthKey, (revenueByMonth.get(monthKey) || 0) + order.totalAmount);
+      const subtotal = order.subtotal || 0;
+      
+      // Gross revenue (product prices only, excluding tax and shipping)
+      revenueByMonth.set(monthKey, (revenueByMonth.get(monthKey) || 0) + subtotal);
+      
+      // Platform commission (percentage of subtotal)
+      const commission = subtotal * PLATFORM_COMMISSION_RATE;
+      commissionByMonth.set(monthKey, (commissionByMonth.get(monthKey) || 0) + commission);
     }
   });
 
@@ -202,10 +218,12 @@ async function calculateRevenueData(orders: any[], days: number) {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
     const revenue = revenueByMonth.get(monthKey) || 0;
+    const commission = commissionByMonth.get(monthKey) || 0;
     
     data.push({
       month: months[date.getMonth()],
-      revenue: Math.floor(revenue)
+      revenue: Math.floor(revenue),
+      commission: Math.floor(commission)
     });
   }
 

@@ -105,49 +105,85 @@ async function handleInvoicePaid(invoiceData: any) {
     }
 
     // Handle regular order payment
-
-    // Otherwise, handle as regular order payment
     const orderRepository = new OrderRepository();
     const activityRepository = new ActivityRepository();
 
-    // Find order by external_id
-    const orderId = externalId.split('_')[1]; // Extract order ID from external_id
-
-    if (!orderId) {
-      console.error('Could not extract order ID from external_id:', externalId);
+    // Check if this is a multiple orders payment (format: orders_{id1}_{id2}_..._{timestamp})
+    // or single order payment (format: order_{id}_{timestamp})
+    let orderIds: string[] = [];
+    
+    if (externalId.startsWith('orders_')) {
+      // Multiple orders: orders_{id1}_{id2}_..._{timestamp}
+      const parts = externalId.split('_');
+      // Remove 'orders' prefix and last part (timestamp)
+      orderIds = parts.slice(1, -1);
+    } else if (externalId.startsWith('order_')) {
+      // Single order: order_{id}_{timestamp}
+      const parts = externalId.split('_');
+      orderIds = [parts[1]]; // Extract order ID
+    } else {
+      console.error('Could not parse order ID(s) from external_id:', externalId);
       return;
     }
 
-    const order = await orderRepository.getById(orderId);
-    if (!order) {
-      console.error('Order not found:', orderId);
+    if (orderIds.length === 0) {
+      console.error('No order IDs found in external_id:', externalId);
       return;
     }
 
-    // Update order payment status
-    await orderRepository.updatePaymentStatus(orderId, 'paid');
-    await orderRepository.updateOrderStatus(orderId, 'processing');
+    // Get all orders
+    const orders = await Promise.all(
+      orderIds.map(id => orderRepository.findById(id))
+    );
 
-    // Log activity
-    await activityRepository.create({
-      type: 'payment_completed',
-      title: 'Payment Completed',
-      description: `Payment received for Order #${orderId}`,
-      priority: 'high',
-      status: 'active',
-      targetId: orderId,
-      actorId: order.customerId,
-      metadata: {
-        orderId: orderId,
-        invoiceId: invoiceData.id,
-        amount: invoiceData.amount,
-        paymentMethod: 'xendit_invoice',
-      },
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-    });
+    // Filter out null orders
+    const validOrders = orders.filter(order => order !== null) as any[];
 
-    console.log('[Invoice Paid] Order payment processed:', orderId);
+    if (validOrders.length === 0) {
+      console.error('No valid orders found for IDs:', orderIds);
+      return;
+    }
+
+    // Update all orders payment status
+    const { CacheService } = await import('@/services/CacheService');
+    
+    await Promise.all(
+      validOrders.map(async (order) => {
+        console.log(`[Invoice Paid] Updating order ${order.id} payment status to paid`);
+        
+        await orderRepository.updatePaymentStatus(order.id, 'paid');
+        await orderRepository.updateOrderStatus(order.id, 'processing');
+        
+        // Clear cache for this order
+        await CacheService.invalidate(`order:${order.id}`);
+        await CacheService.invalidate(`orders:customer:${order.customerId}`);
+        await CacheService.invalidate(`orders:business:${order.businessOwnerId}`);
+
+        // Log activity for each order
+        await activityRepository.create({
+          type: 'payment_completed',
+          title: 'Payment Completed',
+          description: `Payment received for Order #${order.id}`,
+          priority: 'high',
+          status: 'active',
+          targetId: order.id,
+          actorId: order.customerId,
+          metadata: {
+            orderId: order.id,
+            invoiceId: invoiceData.id,
+            amount: invoiceData.amount,
+            paymentMethod: 'xendit_invoice',
+            isMultipleOrders: validOrders.length > 1,
+          },
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+        
+        console.log(`[Invoice Paid] Order ${order.id} updated successfully`);
+      })
+    );
+
+    console.log('[Invoice Paid] All order payment(s) processed:', orderIds);
   } catch (error) {
     console.error('[Invoice Paid] Error:', error);
   }
@@ -182,7 +218,7 @@ async function handleInvoiceExpired(invoiceData: any) {
       return;
     }
 
-    const order = await orderRepository.getById(orderId);
+    const order = await orderRepository.findById(orderId);
     if (!order) {
       console.error('Order not found:', orderId);
       return;
@@ -230,7 +266,7 @@ async function handlePaymentRequestSucceeded(paymentData: any) {
       return;
     }
 
-    const order = await orderRepository.getById(orderId);
+    const order = await orderRepository.findById(orderId);
     if (!order) {
       console.error('Order not found:', orderId);
       return;
@@ -279,7 +315,7 @@ async function handlePaymentRequestFailed(paymentData: any) {
       return;
     }
 
-    const order = await orderRepository.getById(orderId);
+    const order = await orderRepository.findById(orderId);
     if (!order) {
       console.error('Order not found:', orderId);
       return;

@@ -54,6 +54,26 @@ export async function PUT(
       cacheService
     );
 
+    // Get current order to validate payment status
+    const currentOrder = await orderRepo.findById(id);
+    if (!currentOrder) {
+      return NextResponse.json(
+        { error: 'Order not found' },
+        { status: 404 }
+      );
+    }
+
+    // Validate payment before allowing status change to shipped/delivered
+    if ((status === 'shipped' || status === 'delivered') && currentOrder.paymentStatus !== 'paid') {
+      return NextResponse.json(
+        { 
+          error: 'Order must be paid before it can be marked as shipped or delivered',
+          paymentStatus: currentOrder.paymentStatus
+        },
+        { status: 400 }
+      );
+    }
+
     // Update order status
     const order = await orderService.updateOrderStatus(
       id,
