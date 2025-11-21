@@ -14,7 +14,7 @@ interface RouteParams {
 // GET /api/designer-profiles/[id] - Get designer profile
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const profileId = params.id;
+    const { id: profileId } = await params;
 
     if (!profileId) {
       return NextResponse.json(
@@ -80,7 +80,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const profileId = params.id;
+    const { id: profileId } = await params;
     const body: UpdateDesignerProfileData = await request.json();
 
     if (!profileId) {
@@ -149,7 +149,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const profileId = params.id;
+    const { id: profileId } = await params;
 
     if (!profileId) {
       return NextResponse.json(

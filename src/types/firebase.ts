@@ -1,4 +1,4 @@
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 
 // Base interface for all documents
 export interface BaseDocument {
@@ -15,6 +15,7 @@ export interface User extends BaseDocument {
   role: 'customer' | 'designer' | 'business_owner' | 'admin';
   isVerified: boolean;  
   profile: UserProfile;
+  shippingAddresses?: SavedAddress[];
 }
 
 export interface UserProfile {
@@ -36,6 +37,13 @@ export interface Address {
   zipCode: string;
   country: string;
   phone: string;
+}
+
+export interface SavedAddress extends Address {
+  id: string;
+  isDefault?: boolean;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface UserPreferences {
@@ -79,7 +87,7 @@ export interface Order extends BaseDocument {
   tax: number;
   shippingCost: number;
   totalAmount: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled';
   shippingAddress: Address;
   billingAddress?: Address;
   paymentMethod: string;
@@ -88,6 +96,13 @@ export interface Order extends BaseDocument {
   carrier?: string;
   estimatedDelivery?: Date;
   notes?: string;
+  statusHistory?: OrderStatusHistory[];
+}
+
+export interface OrderStatusHistory {
+  status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled';
+  timestamp: Timestamp;
+  updatedBy?: string;
 }
 
 export interface OrderItem {
@@ -149,11 +164,15 @@ export interface ShopStats {
 export interface Review extends BaseDocument {
   productId?: string;
   shopId?: string;
+  designerId?: string;
+  customizationRequestId?: string;
   customerId: string;
+  customerName?: string;
   rating: number;
   comment: string;
   images?: string[];
   isVerified: boolean;
+  reviewType: 'product' | 'shop' | 'designer' | 'customization';
 }
 
 // Message types
@@ -172,6 +191,7 @@ export interface MessageAttachment {
   url: string;
   type: string;
   size: number;
+  isFinalDesign?: boolean;  // Designer marks this as the final design
 }
 
 export interface Conversation extends BaseDocument {

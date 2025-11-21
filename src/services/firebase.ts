@@ -142,6 +142,7 @@ export const Collections = {
   
   // Shop System
   SHOP_PROFILES: 'shopProfiles',
+  SHOPS: 'shops',
   
   // Color & Size Management
   COLORS: 'colors',
@@ -160,6 +161,7 @@ export const Collections = {
   ORDERS: 'orders',
   REVIEWS: 'reviews',
   MESSAGES: 'messages',
+  CONVERSATIONS: 'conversations',
   BUSINESS_OWNERS: 'businessOwners',
   CUSTOMERS: 'customers',
   DESIGNERS: 'designers',
@@ -176,6 +178,17 @@ export const Collections = {
   USER_LIKES: 'userLikes',
 
   // Designer Verification Requests
-  DESIGNER_VERIFICATION_REQUESTS: 'designerVerificationRequests'
+  DESIGNER_VERIFICATION_REQUESTS: 'designerVerificationRequests',
+  DESIGNER_APPEALS: 'designerAppeals',
+  
+  // Shop Appeals
+  SHOP_APPEALS: 'shopAppeals',
+  
+  // Customization System
+  CUSTOMIZATION_REQUESTS: 'customizationRequests',
+  
+  // Application System
+  DESIGNER_APPLICATIONS: 'designerApplications',
+  SHOP_APPLICATIONS: 'shopApplications'
 
 } as const;

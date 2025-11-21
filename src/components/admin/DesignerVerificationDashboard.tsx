@@ -7,6 +7,7 @@ interface VerificationStats {
   totalPending: number;
   totalVerified: number;
   totalRejected: number;
+  totalSuspended: number;
   totalActive: number;
 }
 
@@ -59,6 +60,7 @@ export default function DesignerVerificationDashboard() {
         totalPending: profiles.filter(p => !p.isVerified && p.isActive && p.verificationRequest?.status === 'pending').length,
         totalVerified: profiles.filter(p => p.isVerified && p.isActive).length,
         totalRejected: profiles.filter(p => p.verificationRequest?.status === 'rejected' || (!p.isVerified && !p.isActive)).length,
+        totalSuspended: profiles.filter(p => p.isVerified && !p.isActive).length,
         totalActive: profiles.filter(p => p.isActive).length
       };
       
@@ -73,21 +75,23 @@ export default function DesignerVerificationDashboard() {
   const StatCard = ({ title, value, color, icon }: {
     title: string;
     value: number;
-    color: 'blue' | 'green' | 'yellow' | 'red';
+    color: 'blue' | 'green' | 'yellow' | 'red' | 'orange';
     icon: string;
   }) => {
     const colorClasses = {
       blue: 'bg-blue-50 border-blue-200',
       green: 'bg-green-50 border-green-200',
       yellow: 'bg-yellow-50 border-yellow-200',
-      red: 'bg-red-50 border-red-200'
+      red: 'bg-red-50 border-red-200',
+      orange: 'bg-orange-50 border-orange-200'
     };
 
     const iconColors = {
       blue: 'text-blue-600',
       green: 'text-green-600',
       yellow: 'text-yellow-600',
-      red: 'text-red-600'
+      red: 'text-red-600',
+      orange: 'text-orange-600'
     };
 
     return (
@@ -163,7 +167,7 @@ export default function DesignerVerificationDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <StatCard
           title="Pending Requests"
           value={stats?.totalPending || 0}
@@ -177,10 +181,16 @@ export default function DesignerVerificationDashboard() {
           icon="✅"
         />
         <StatCard
-          title="Rejected/Suspended"
+          title="Rejected"
           value={stats?.totalRejected || 0}
           color="red"
           icon="❌"
+        />
+        <StatCard
+          title="Suspended"
+          value={stats?.totalSuspended || 0}
+          color="orange"
+          icon="⚠️"
         />
         <StatCard
           title="Total Active"

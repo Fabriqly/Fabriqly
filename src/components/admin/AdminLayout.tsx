@@ -17,7 +17,9 @@ import {
   Palette,
   Activity,
   Shield,
-  Store
+  Store,
+  MessageSquare,
+  FileText
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -60,6 +62,18 @@ const adminNavigation = [
     href: '/dashboard/admin/shops',
     icon: Store,
     description: 'Manage shop profiles'
+  },
+  {
+    name: 'Shop Appeals',
+    href: '/dashboard/admin/shop-appeals',
+    icon: MessageSquare,
+    description: 'Review shop suspension appeals'
+  },
+  {
+    name: 'Applications',
+    href: '/dashboard/admin/applications',
+    icon: FileText,
+    description: 'Review designer and shop applications'
   },
   {
     name: 'Designer Verification',

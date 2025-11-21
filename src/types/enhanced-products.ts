@@ -302,6 +302,11 @@ export interface CreateDesignerProfileData {
   website?: string;
   socialMedia?: DesignerProfile['socialMedia'];
   specialties: string[];
+  payoutDetails?: {
+    bankCode: string;
+    accountNumber: string;
+    accountHolderName: string;
+  };
 }
 
 export interface UpdateDesignerProfileData {
@@ -312,6 +317,11 @@ export interface UpdateDesignerProfileData {
   specialties?: string[];
   isVerified?: boolean;
   isActive?: boolean;
+  payoutDetails?: {
+    bankCode: string;
+    accountNumber: string;
+    accountHolderName: string;
+  };
 }
 
 export interface CreateShopProfileData {
@@ -420,6 +430,40 @@ export interface DesignerVerificationRequest {
   reviewedBy?: string;
   reviewedAt?: Date;
   reviewReason?: string;
+  reviewNotes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Designer Appeal
+export interface DesignerAppeal {
+  id: string;
+  designerId: string;
+  userId: string;
+  businessName: string;
+  appealReason: string;
+  additionalInfo?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: Date;
+  reviewedBy?: string;
+  reviewedAt?: Date;
+  reviewNotes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Shop Appeal
+export interface ShopAppeal {
+  id: string;
+  shopId: string;
+  userId: string;
+  shopName: string;
+  appealReason: string;
+  additionalInfo?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: Date;
+  reviewedBy?: string;
+  reviewedAt?: Date;
   reviewNotes?: string;
   createdAt: Date;
   updatedAt: Date;

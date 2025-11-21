@@ -1,7 +1,7 @@
 import 'next-auth';
 
 // Define the user roles as a union type for better type safety
-export type UserRole = 'customer' | 'designer' | 'business_owner' | 'admin';
+export type UserRole = 'customer' | 'designer' | 'business_owner' | 'admin' | 'pending_designer' | 'pending_shop';
 
 declare module 'next-auth' {
   interface Session {

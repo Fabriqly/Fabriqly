@@ -70,6 +70,7 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => {
     if (orderId) {
@@ -77,14 +78,61 @@ export default function OrderDetailPage() {
     }
   }, [orderId]);
 
+  // Auto-refresh order status if payment is pending
+  useEffect(() => {
+    if (!order || order.paymentStatus !== 'pending') return;
+
+    // Poll every 3 seconds to check for payment status update
+    const interval = setInterval(() => {
+      loadOrder();
+    }, 3000);
+
+    // Also refresh when page becomes visible (user returns from payment page)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadOrder();
+      }
+    };
+
+    // Refresh on focus (when user switches back to tab)
+    const handleFocus = () => {
+      loadOrder();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [order?.paymentStatus, orderId]);
+
   const loadOrder = async () => {
     try {
-      setLoading(true);
-      const response = await fetch(`/api/orders/${orderId}`);
+      // Don't show loading spinner on refresh to avoid UI flicker
+      const isInitialLoad = !order;
+      if (isInitialLoad) {
+        setLoading(true);
+      }
+      
+      const response = await fetch(`/api/orders/${orderId}`, {
+        cache: 'no-store', // Ensure fresh data
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       const data = await response.json();
       
       if (response.ok) {
-        setOrder(data.order);
+        const updatedOrder = data.order;
+        setOrder(updatedOrder);
+        
+        // If payment status changed to paid, stop polling
+        if (order && order.paymentStatus === 'pending' && updatedOrder.paymentStatus === 'paid') {
+          console.log('Payment status updated to paid!');
+        }
       } else {
         setError(data.error || 'Failed to load order');
       }
@@ -166,6 +214,41 @@ export default function OrderDetailPage() {
         console.error('Error cancelling order:', error);
         setError('Failed to cancel order');
       }
+    }
+  };
+
+  const handlePayNow = async () => {
+    if (!order || processingPayment) return;
+
+    try {
+      setProcessingPayment(true);
+      setError(null);
+
+      // Create payment invoice
+      const response = await fetch('/api/payments/create-invoice', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          paymentMethod: order.paymentMethod || 'xendit'
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.invoice?.invoice_url) {
+        // Redirect to Xendit payment page
+        window.location.href = data.invoice.invoice_url;
+      } else {
+        setError(data.error || 'Failed to create payment link');
+      }
+    } catch (error) {
+      console.error('Error creating payment:', error);
+      setError('Failed to process payment');
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
@@ -340,7 +423,26 @@ export default function OrderDetailPage() {
                   </span>
                 </div>
               </div>
+
+              {/* Payment Pending Notice */}
+              {order.paymentStatus === 'pending' && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Payment Required:</strong> Please complete payment to proceed with your order.
+                  </p>
+                </div>
+              )}
             </div>
+
+            {/* Error Display */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                  <p className="text-sm text-red-800">{error}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -370,6 +472,47 @@ export default function OrderDetailPage() {
 
               {/* Order Actions */}
               <div className="space-y-3">
+                {/* Pay Now Button - Show when payment is pending */}
+                {order.paymentStatus === 'pending' && (
+                  <>
+                    <Button 
+                      className="w-full bg-green-600 hover:bg-green-700 text-white" 
+                      onClick={handlePayNow}
+                      disabled={processingPayment}
+                    >
+                      {processingPayment ? (
+                        <>
+                          <Clock className="w-4 h-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Pay Now
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={loadOrder}
+                      disabled={loading}
+                    >
+                      <Clock className="w-4 h-4 mr-2" />
+                      {loading ? 'Refreshing...' : 'Refresh Status'}
+                    </Button>
+                  </>
+                )}
+
+                {order.paymentStatus === 'paid' && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <span className="text-sm font-medium text-green-800">Payment Completed</span>
+                    </div>
+                  </div>
+                )}
+
                 {order.trackingNumber && (
                   <Link href={`/orders/${order.id}/tracking`} className="block">
                     <Button className="w-full" variant="outline">
@@ -379,17 +522,18 @@ export default function OrderDetailPage() {
                   </Link>
                 )}
                 
-                {order.status === 'pending' && (
+                {order.status === 'pending' && order.paymentStatus === 'pending' && (
                   <Button 
                     className="w-full" 
                     variant="outline"
                     onClick={handleCancelOrder}
+                    disabled={processingPayment}
                   >
                     Cancel Order
                   </Button>
                 )}
                 
-                <Link href="/products" className="block">
+                <Link href="/explore" className="block">
                   <Button className="w-full" variant="outline">
                     Continue Shopping
                   </Button>
