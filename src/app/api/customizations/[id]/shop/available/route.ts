@@ -48,7 +48,7 @@ export async function GET(
       );
     }
 
-    // Get product details to find category
+    // Get product details to find category and owner shop
     const product = await FirebaseAdminService.getDocument(
       Collections.PRODUCTS,
       customizationRequest.productId
@@ -65,6 +65,7 @@ export async function GET(
     const productCategory = product.categoryId || product.category;
     const productName = product.name || product.productName || '';
     const productTags = product.tags || [];
+    const productShopId = product.shopId;
     
     // Get all active, approved shop profiles
     const shopsSnapshot = await adminDb
@@ -111,26 +112,12 @@ export async function GET(
       return false;
     });
 
-    // Separate designer's shop (if they have one) from other shops
+    // Separate product owner's shop, designer's shop, and other shops
+    let productOwnerShop = null;
     let designerShop = null;
     const otherShops: any[] = [];
 
-    if (customizationRequest.designerId) {
-      for (const shop of matchingShops) {
-        if (shop.userId === customizationRequest.designerId) {
-          designerShop = {
-            id: shop.id,
-            businessName: shop.shopName || shop.businessName,
-            description: shop.description,
-            location: shop.location?.city && shop.location?.province
-              ? `${shop.location.city}, ${shop.location.province}`
-              : shop.location?.city || shop.location?.province || '',
-            averageRating: shop.ratings?.averageRating || 0,
-            totalReviews: shop.ratings?.totalReviews || 0,
-            specialties: shop.specialties || []
-          };
-        } else {
-          otherShops.push({
+    const formatShop = (shop: any) => ({
             id: shop.id,
             businessName: shop.shopName || shop.businessName,
             description: shop.description,
@@ -141,21 +128,31 @@ export async function GET(
             totalReviews: shop.ratings?.totalReviews || 0,
             specialties: shop.specialties || []
           });
-        }
+
+    // First, get product owner's shop (should ALWAYS be shown if exists)
+    if (productShopId) {
+      const productShop = allShops.find(shop => shop.id === productShopId);
+      if (productShop) {
+        productOwnerShop = formatShop(productShop);
       }
-    } else {
-      // No designer assigned, show all matching shops
-      otherShops.push(...matchingShops.map(shop => ({
-        id: shop.id,
-        businessName: shop.shopName || shop.businessName,
-        description: shop.description,
-        location: shop.location?.city && shop.location?.province
-          ? `${shop.location.city}, ${shop.location.province}`
-          : shop.location?.city || shop.location?.province || '',
-        averageRating: shop.ratings?.averageRating || 0,
-        totalReviews: shop.ratings?.totalReviews || 0,
-        specialties: shop.specialties || []
-      })));
+    }
+
+    // Then, get designer's shop (should ALWAYS be shown if exists)
+    if (customizationRequest.designerId) {
+      const designerOwnedShop = allShops.find(shop => shop.userId === customizationRequest.designerId);
+      if (designerOwnedShop) {
+        designerShop = formatShop(designerOwnedShop);
+      }
+    }
+
+    // Finally, add other matching shops (excluding product owner and designer shops)
+    for (const shop of matchingShops) {
+      const isProductOwnerShop = productShopId && shop.id === productShopId;
+      const isDesignerShop = customizationRequest.designerId && shop.userId === customizationRequest.designerId;
+      
+      if (!isProductOwnerShop && !isDesignerShop) {
+        otherShops.push(formatShop(shop));
+      }
     }
 
     // Sort other shops by rating
@@ -164,6 +161,7 @@ export async function GET(
     return NextResponse.json({
       success: true,
       data: {
+        productOwnerShop,
         designerShop,
         otherShops,
         productInfo: {

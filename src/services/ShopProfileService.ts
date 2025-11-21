@@ -494,8 +494,14 @@ export class ShopProfileService implements IShopProfileService {
     return PerformanceMonitor.measure('ShopProfileService.updateShopStats', async () => {
       const shop = await this.shopProfileRepository.updateShopStats(shopId, stats);
       
+      // Invalidate all relevant cache keys
       CacheService.invalidate(`shop_profile_${shopId}`);
       CacheService.invalidate(`shop_stats_${shopId}`);
+      
+      // Also invalidate cache by userId (used in getShopProfileByUserId)
+      if (shop.userId) {
+        CacheService.invalidate(CacheService.userKey(`shop_profile_${shop.userId}`));
+      }
       
       return shop;
     });

@@ -30,6 +30,7 @@ export function ShopSelectionModal({
   onClose
 }: ShopSelectionModalProps) {
   const [loading, setLoading] = useState(true);
+  const [productOwnerShop, setProductOwnerShop] = useState<Shop | null>(null);
   const [designerShop, setDesignerShop] = useState<Shop | null>(null);
   const [otherShops, setOtherShops] = useState<Shop[]>([]);
   const [productInfo, setProductInfo] = useState<ProductInfo | null>(null);
@@ -48,13 +49,16 @@ export function ShopSelectionModal({
       const data = await response.json();
 
       if (data.success) {
+        setProductOwnerShop(data.data.productOwnerShop);
         setDesignerShop(data.data.designerShop);
         setOtherShops(data.data.otherShops || []);
         setProductInfo(data.data.productInfo);
         setMatchedShopsCount(data.data.matchedShopsCount || 0);
         
-        // Auto-select designer's shop if available
-        if (data.data.designerShop) {
+        // Auto-select product owner's shop if available, otherwise designer's shop
+        if (data.data.productOwnerShop) {
+          setSelectedShopId(data.data.productOwnerShop.id);
+        } else if (data.data.designerShop) {
           setSelectedShopId(data.data.designerShop.id);
         }
       }
@@ -97,7 +101,7 @@ export function ShopSelectionModal({
     }
   };
 
-  const ShopCard = ({ shop, isDesignerShop }: { shop: Shop; isDesignerShop?: boolean }) => (
+  const ShopCard = ({ shop, isProductOwnerShop, isDesignerShop }: { shop: Shop; isProductOwnerShop?: boolean; isDesignerShop?: boolean }) => (
     <div
       className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
         selectedShopId === shop.id
@@ -110,6 +114,11 @@ export function ShopSelectionModal({
         <div className="flex-1">
           <h4 className="font-semibold text-gray-900">
             {shop.businessName}
+            {isProductOwnerShop && (
+              <span className="ml-2 text-xs bg-gradient-to-r from-purple-100 to-blue-100 text-purple-800 px-2 py-1 rounded font-semibold">
+                🏆 Product Owner
+              </span>
+            )}
             {isDesignerShop && (
               <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
                 Designer's Shop
@@ -205,10 +214,19 @@ export function ShopSelectionModal({
                 </div>
               )}
               
+              {productOwnerShop && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">
+                    🏆 Highly Recommended (Product Owner&apos;s Shop)
+                  </h3>
+                  <ShopCard shop={productOwnerShop} isProductOwnerShop />
+                </div>
+              )}
+
               {designerShop && (
                 <div>
                   <h3 className="text-sm font-medium text-gray-700 mb-3">
-                    Recommended (Designer's Shop)
+                    {productOwnerShop ? "Also Recommended (Designer's Shop)" : "Recommended (Designer's Shop)"}
                   </h3>
                   <ShopCard shop={designerShop} isDesignerShop />
                 </div>
@@ -227,7 +245,7 @@ export function ShopSelectionModal({
                 </div>
               )}
 
-              {!designerShop && otherShops.length === 0 && (
+              {!productOwnerShop && !designerShop && otherShops.length === 0 && (
                 <div className="text-center py-12">
                   <div className="text-gray-500 mb-2">
                     😔 No printing shops found

@@ -3,7 +3,7 @@ import { OrderService } from './OrderService';
 import { CustomizationRequest } from '@/types/customization';
 import { OrderRepository } from '@/repositories/OrderRepository';
 import { ProductRepository } from '@/repositories/ProductRepository';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import { AppError } from '@/errors/AppError';
 import { eventBus } from '@/events/EventBus';
 
@@ -38,7 +38,7 @@ export class CustomizationOrderService {
       throw AppError.forbidden('Unauthorized');
     }
 
-    if (request.status !== 'approved') {
+    if (request.status !== 'approved' && request.status !== 'ready_for_production') {
       throw AppError.badRequest('Design must be approved before creating order');
     }
 
@@ -50,22 +50,42 @@ export class CustomizationOrderService {
       throw AppError.badRequest('Pricing agreement is required');
     }
 
+    // Check if order already exists (prevent duplicates)
+    if (request.orderId) {
+      throw AppError.badRequest('Order already exists for this customization request');
+    }
+
     // Check payment requirements based on payment type
+    // For escrow orders, if designer has been paid, allow order creation
+    // This supports flexible payment options like COD or partial payments
     if (request.paymentDetails) {
-      const paymentType = request.paymentDetails.paymentType;
-      const paidAmount = request.paymentDetails.paidAmount;
-      const totalAmount = request.paymentDetails.totalAmount;
-
-      if (paymentType === 'upfront' && request.paymentDetails.paymentStatus !== 'fully_paid') {
-        throw AppError.badRequest('Full payment required for upfront payment type');
+      const escrowStatus = request.paymentDetails.escrowStatus;
+      const paidAmount = request.paymentDetails.paidAmount || 0;
+      const designFee = request.pricingAgreement?.designFee || 0;
+      
+      // If designer has been paid (escrow released), allow order creation
+      if (escrowStatus === 'designer_paid' || escrowStatus === 'fully_released') {
+        console.log('[CustomizationOrderService] Escrow active - allowing order creation');
       }
+      // If design fee has been paid (even if escrow status not updated), allow order
+      else if (paidAmount >= designFee && designFee > 0) {
+        console.log('[CustomizationOrderService] Design fee paid - allowing order creation');
+      } else {
+        // Apply stricter payment validation if design fee not paid
+        const paymentType = request.paymentDetails.paymentType;
+        const totalAmount = request.paymentDetails.totalAmount;
 
-      if (paymentType === 'half_payment' && paidAmount < totalAmount * 0.5) {
-        throw AppError.badRequest('At least 50% payment required for half-payment type');
-      }
+        if (paymentType === 'upfront') {
+          throw AppError.badRequest('Design fee must be paid before creating order');
+        }
 
-      if (paymentType === 'milestone' && request.paymentDetails.paymentStatus === 'pending') {
-        throw AppError.badRequest('First milestone payment required');
+        if (paymentType === 'half_payment' && paidAmount < totalAmount * 0.5) {
+          throw AppError.badRequest('At least 50% payment required for half-payment type');
+        }
+
+        if (paymentType === 'milestone' && request.paymentDetails.paymentStatus === 'pending') {
+          throw AppError.badRequest('First milestone payment required');
+        }
       }
     }
 
@@ -78,20 +98,48 @@ export class CustomizationOrderService {
       throw AppError.notFound('Shop not found');
     }
 
+    // Get business owner ID (shop profiles use userId field)
+    const businessOwnerId = shop.ownerId || shop.userId;
+    
+    if (!businessOwnerId) {
+      throw AppError.badRequest('Shop owner ID not found in shop profile');
+    }
+
+    // Calculate product cost (base price + color adjustment)
+    // If shop owner has set pricing, use that; otherwise calculate from product
+    let productCost = request.pricingAgreement.productCost || 0;
+    let printingCost = request.pricingAgreement.printingCost || 0;
+
+    // If product cost is 0, calculate it from product base price + color
+    if (productCost === 0) {
+      const { ProductRepository } = await import('@/repositories/ProductRepository');
+      const productRepo = new ProductRepository();
+      const product = await productRepo.findById(request.productId);
+      
+      if (product) {
+        const basePrice = product.price || 0;
+        const colorAdjustment = request.colorPriceAdjustment || 0;
+        productCost = basePrice + colorAdjustment;
+      }
+    }
+
+    // Order item price = product cost + printing cost (design fee is already paid separately)
+    const orderItemPrice = productCost + printingCost;
+
     // Create order
     const orderData = {
       customerId: request.customerId,
-      businessOwnerId: shop.ownerId,
+      businessOwnerId: businessOwnerId,
       items: [
         {
           productId: request.productId,
           quantity: 1,
-          price: request.pricingAgreement.totalCost,
+          price: orderItemPrice, // Product cost + printing cost (NOT including design fee)
           customizations: {
             customizationRequestId: request.id,
             designerFinalFileUrl: request.designerFinalFile?.url || '',
             designerName: request.designerName || 'Designer',
-            printingShopName: request.printingShopName || shop.businessName
+            printingShopName: request.printingShopName || shop.shopName || shop.businessName || 'Print Shop'
           }
         }
       ],

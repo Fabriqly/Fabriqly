@@ -82,6 +82,7 @@ export async function POST(
     });
   } catch (error: any) {
     console.error('Error creating order from customization:', error);
+    console.error('Error details:', error.details);
     
     const status = error.message.includes('not found') ? 404 :
                    error.message.includes('Unauthorized') || error.message.includes('forbidden') ? 403 :

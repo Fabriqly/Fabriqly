@@ -10,7 +10,7 @@ import { CacheService } from '@/services/CacheService';
 // PUT /api/orders/[id]/to-ship - Mark order as ready to ship
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -22,7 +22,7 @@ export async function PUT(
       );
     }
 
-    const orderId = params.id;
+    const { id: orderId } = await params;
 
     // Initialize services
     const orderRepository = new OrderRepository();

@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Upload, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { Product, ProductWithDetails } from '@/types/products';
+import { ColorSelector } from '@/components/products/ColorSelector';
+import { ProductColorWithDetails } from '@/components/products/ProductColorManager';
 
 interface CustomizationRequestFormProps {
   product: Product | ProductWithDetails;
@@ -14,6 +16,8 @@ export interface CustomizationFormData {
   productId: string;
   productName: string;
   productImage?: string;
+  selectedColorId?: string;
+  colorPriceAdjustment?: number;
   customizationNotes: string;
   customerDesignFile?: any;
   customerPreviewImage?: any;
@@ -26,6 +30,30 @@ export function CustomizationRequestForm({ product, onSubmit, onCancel }: Custom
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [productColors, setProductColors] = useState<ProductColorWithDetails[]>([]);
+  const [selectedColorId, setSelectedColorId] = useState<string>('');
+  const [colorPriceAdjustment, setColorPriceAdjustment] = useState<number>(0);
+
+  useEffect(() => {
+    loadProductColors();
+  }, [product.id]);
+
+  const loadProductColors = async () => {
+    try {
+      const response = await fetch(`/api/products/${product.id}/colors`);
+      if (response.ok) {
+        const data = await response.json();
+        setProductColors(data.productColors || []);
+      }
+    } catch (error) {
+      console.error('Error loading product colors:', error);
+    }
+  };
+
+  const handleColorSelect = (colorId: string, priceAdjustment: number) => {
+    setSelectedColorId(colorId);
+    setColorPriceAdjustment(priceAdjustment);
+  };
 
   const handleDesignFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -113,6 +141,8 @@ export function CustomizationRequestForm({ product, onSubmit, onCancel }: Custom
         productId: product.id,
         productName: product.name,
         productImage: product.images?.[0]?.imageUrl || undefined,
+        selectedColorId: selectedColorId || undefined,
+        colorPriceAdjustment: colorPriceAdjustment || 0,
         customizationNotes: notes,
         customerDesignFile: designFileData,
         customerPreviewImage: previewFileData
@@ -155,6 +185,28 @@ export function CustomizationRequestForm({ product, onSubmit, onCancel }: Custom
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Color Selection */}
+        {productColors.length > 0 && (
+          <div>
+            <ColorSelector
+              productColors={productColors}
+              selectedColorId={selectedColorId}
+              onColorSelect={handleColorSelect}
+              basePrice={product.price}
+            />
+            {selectedColorId && (
+              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  Selected color adds <strong>${colorPriceAdjustment >= 0 ? '+' : ''}{colorPriceAdjustment.toFixed(2)}</strong> to base price
+                </p>
+                <p className="text-sm font-semibold text-blue-900 mt-1">
+                  Product Cost: ${(product.price + colorPriceAdjustment).toFixed(2)}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Customization Notes */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">

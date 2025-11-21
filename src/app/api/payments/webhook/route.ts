@@ -35,24 +35,24 @@ export async function POST(request: NextRequest) {
     
     if (webhookData.event) {
       // New format with event wrapper (Payment Requests)
-      switch (webhookData.event) {
-        case 'invoice.paid':
-          await handleInvoicePaid(webhookData.data);
-          break;
-        
-        case 'invoice.expired':
-          await handleInvoiceExpired(webhookData.data);
-          break;
-        
-        case 'payment_request.succeeded':
-          await handlePaymentRequestSucceeded(webhookData.data);
-          break;
-        
-        case 'payment_request.failed':
-          await handlePaymentRequestFailed(webhookData.data);
-          break;
-        
-        default:
+    switch (webhookData.event) {
+      case 'invoice.paid':
+        await handleInvoicePaid(webhookData.data);
+        break;
+      
+      case 'invoice.expired':
+        await handleInvoiceExpired(webhookData.data);
+        break;
+      
+      case 'payment_request.succeeded':
+        await handlePaymentRequestSucceeded(webhookData.data);
+        break;
+      
+      case 'payment_request.failed':
+        await handlePaymentRequestFailed(webhookData.data);
+        break;
+      
+      default:
           console.log('[Xendit Webhook] Unhandled event:', webhookData.event);
       }
     } else if (webhookData.status) {

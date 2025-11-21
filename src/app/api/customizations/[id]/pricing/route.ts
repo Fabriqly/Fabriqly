@@ -86,7 +86,7 @@ export async function POST(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -98,7 +98,7 @@ export async function PATCH(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     const updatedRequest = await paymentService.agreeToPricing(id, session.user.id);
 
@@ -119,6 +119,83 @@ export async function PATCH(
         error: error.message || 'Failed to agree to pricing' 
       },
       { status }
+    );
+  }
+}
+
+/**
+ * DELETE /api/customizations/[id]/pricing - Reject pricing and request new proposal
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+    const body = await request.json().catch(() => ({}));
+    const { rejectionReason } = body;
+
+    const { CustomizationRepository } = await import('@/repositories/CustomizationRepository');
+    const { Timestamp } = await import('firebase-admin/firestore');
+    
+    const customizationRepo = new CustomizationRepository();
+    const requestData = await customizationRepo.findById(id);
+
+    if (!requestData) {
+      return NextResponse.json(
+        { success: false, error: 'Customization request not found' },
+        { status: 404 }
+      );
+    }
+
+    // Verify user is the customer
+    if (requestData.customerId !== session.user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Only the customer can reject pricing' },
+        { status: 403 }
+      );
+    }
+
+    // Verify pricing agreement exists
+    if (!requestData.pricingAgreement) {
+      return NextResponse.json(
+        { success: false, error: 'No pricing agreement to reject' },
+        { status: 400 }
+      );
+    }
+
+    // Update status to awaiting_pricing and clear pricing agreement
+    await customizationRepo.update(id, {
+      status: 'awaiting_pricing',
+      pricingAgreement: null,
+      designerNotes: rejectionReason ? 
+        `${requestData.designerNotes || ''}\n\n[Pricing Rejected] ${rejectionReason}`.trim() : 
+        requestData.designerNotes,
+      updatedAt: Timestamp.now() as any
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Pricing rejected. Designer can now submit a new pricing proposal.'
+    });
+  } catch (error: any) {
+    console.error('Error rejecting pricing:', error);
+    
+    return NextResponse.json(
+      { 
+        success: false,
+        error: error.message || 'Failed to reject pricing' 
+      },
+      { status: 500 }
     );
   }
 }

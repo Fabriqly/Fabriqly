@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { CustomizationRequest, CustomizationRequestWithDetails } from '@/types/customization';
 import { TransactionChat } from '@/components/messaging/TransactionChat';
 import { ShopSelectionModal } from '@/components/customization/ShopSelectionModal';
+import { ShippingAddressModal } from '@/components/customization/ShippingAddressModal';
+import { AddressListModal } from '@/components/customization/AddressListModal';
 import { ProductionTracker } from '@/components/customization/ProductionTracker';
 import { ReviewForm } from '@/components/reviews/ReviewForm';
 import { CustomizationRequestList } from '@/components/customization/CustomizationRequestList';
@@ -23,12 +25,16 @@ export default function MyCustomizationsPage() {
   const [selectedRequestDetails, setSelectedRequestDetails] = useState<CustomizationRequestWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [showShopModal, setShowShopModal] = useState(false);
+  const [showAddressListModal, setShowAddressListModal] = useState(false);
+  const [showShippingModal, setShowShippingModal] = useState(false);
+  const [orderRequestId, setOrderRequestId] = useState<string | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showWorkModal, setShowWorkModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [reviewType, setReviewType] = useState<'designer' | 'shop' | 'customization'>('designer');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [creatingOrder, setCreatingOrder] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -252,38 +258,27 @@ export default function MyCustomizationsPage() {
     }
   };
 
-  const handleCreateOrder = async (requestId: string) => {
-    // Prompt for shipping address (in production, you'd have a proper form)
-    const useExistingAddress = confirm('Use your profile address for shipping?');
-    
-    let shippingAddress;
-    if (useExistingAddress) {
-      // In production, fetch from user profile
-      shippingAddress = {
-        firstName: session?.user?.name?.split(' ')[0] || 'Customer',
-        lastName: session?.user?.name?.split(' ').slice(1).join(' ') || 'Name',
-        address1: '123 Main St', // Should come from profile
-        city: 'Manila',
-        state: 'Metro Manila',
-        zipCode: '1000',
-        country: 'Philippines',
-        phone: '09123456789'
-      };
-    } else {
-      alert('Please provide shipping address');
-      return;
-    }
+  const handleCreateOrder = (requestId: string) => {
+    setOrderRequestId(requestId);
+    setShowAddressListModal(true);
+  };
+
+  const handleAddressSelected = async (address: any) => {
+    if (!orderRequestId || creatingOrder === orderRequestId) return;
 
     try {
-      const response = await fetch(`/api/customizations/${requestId}/create-order`, {
+      setCreatingOrder(orderRequestId);
+      const response = await fetch(`/api/customizations/${orderRequestId}/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shippingAddress })
+        body: JSON.stringify({ shippingAddress: address })
       });
 
       const data = await response.json();
 
       if (data.success) {
+        setShowAddressListModal(false);
+        setOrderRequestId(null);
         alert(`Order created successfully! Order ID: ${data.data.orderId.substring(0, 8)}...\n\nProduction can now begin.`);
         await fetchRequests();
       } else {
@@ -292,6 +287,61 @@ export default function MyCustomizationsPage() {
     } catch (error) {
       console.error('Error creating order:', error);
       alert('Failed to create order');
+    } finally {
+      setCreatingOrder(null);
+    }
+  };
+
+  const handleAddNewAddress = () => {
+    setShowAddressListModal(false);
+    setShowShippingModal(true);
+  };
+
+  const handleShippingSubmit = async (shippingAddress: any, saveToProfile: boolean) => {
+    if (!orderRequestId || !session?.user?.id || creatingOrder === orderRequestId) return;
+
+    try {
+      setCreatingOrder(orderRequestId);
+      
+      // Save address to profile if requested
+      if (saveToProfile) {
+        const saveResponse = await fetch(`/api/users/${session.user.id}/addresses`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            address: shippingAddress,
+            setAsDefault: true
+          })
+        });
+        
+        if (saveResponse.ok) {
+          // Refresh address list by updating refreshKey
+          setRefreshKey(prev => prev + 1);
+        }
+      }
+
+      // Create order with address
+      const response = await fetch(`/api/customizations/${orderRequestId}/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shippingAddress })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setShowShippingModal(false);
+        setOrderRequestId(null);
+        alert(`Order created successfully! Order ID: ${data.data.orderId.substring(0, 8)}...\n\nProduction can now begin.`);
+        await fetchRequests();
+      } else {
+        alert(data.error || 'Failed to create order');
+      }
+    } catch (error) {
+      console.error('Error creating order:', error);
+      alert('Failed to create order');
+    } finally {
+      setCreatingOrder(null);
     }
   };
 
@@ -358,6 +408,33 @@ export default function MyCustomizationsPage() {
     } catch (error) {
       console.error('Error agreeing to pricing:', error);
       alert('Failed to agree to pricing');
+    }
+  };
+
+  const handleRejectPricing = async (requestId: string) => {
+    const reason = prompt('Please provide a reason for rejecting this pricing (optional):');
+    if (reason === null) return; // User cancelled
+
+    if (!confirm('Are you sure you want to reject this pricing? The designer will be able to submit a new pricing proposal.')) return;
+
+    try {
+      const response = await fetch(`/api/customizations/${requestId}/pricing`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejectionReason: reason || undefined })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert('Pricing rejected. The designer can now submit a new pricing proposal.');
+        await fetchRequests();
+      } else {
+        alert(data.error || 'Failed to reject pricing');
+      }
+    } catch (error) {
+      console.error('Error rejecting pricing:', error);
+      alert('Failed to reject pricing');
     }
   };
 
@@ -538,12 +615,20 @@ export default function MyCustomizationsPage() {
                               </p>
                             </div>
                             {!request.pricingAgreement.agreedByCustomer && (
-                              <button
-                                onClick={() => handleAgreePrice(request.id)}
-                                className="w-full mt-3 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                              >
-                                ✓ Agree to Design Fee
-                              </button>
+                              <div className="flex gap-2 mt-3">
+                                <button
+                                  onClick={() => handleAgreePrice(request.id)}
+                                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                                >
+                                  ✓ Agree to Design Fee
+                                </button>
+                                <button
+                                  onClick={() => handleRejectPricing(request.id)}
+                                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                                >
+                                  ✗ Reject & Request New Price
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -613,20 +698,39 @@ export default function MyCustomizationsPage() {
                         {request.status === 'approved' && request.printingShopId && !request.orderId && (
                           <button
                             onClick={() => handleCreateOrder(request.id)}
-                            className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                            disabled={creatingOrder === request.id}
+                            className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
-                            Create Order & Proceed to Production
+                            {creatingOrder === request.id ? (
+                              <>
+                                <Loader className="w-4 h-4 animate-spin" />
+                                Creating Order...
+                              </>
+                            ) : (
+                              'Create Order & Proceed to Production'
+                            )}
                           </button>
                         )}
 
                         {request.orderId && (
-                          <div className="bg-green-50 border border-green-200 rounded p-3">
+                          <div className="bg-green-50 border border-green-200 rounded p-3 space-y-2">
                             <p className="text-sm text-green-800">
                               ✓ Order Created: {request.orderId.substring(0, 8)}...
                             </p>
-                            <p className="text-xs text-green-600 mt-1">
-                              Waiting for production to begin
-                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => router.push(`/orders/${request.orderId}`)}
+                                className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                              >
+                                View Order
+                              </button>
+                              <button
+                                onClick={() => router.push(`/orders/${request.orderId}/tracking`)}
+                                className="flex-1 px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
+                              >
+                                Track Package
+                              </button>
+                            </div>
                           </div>
                         )}
 
@@ -734,6 +838,34 @@ export default function MyCustomizationsPage() {
           customizationRequestId={selectedRequest.id}
           onSelect={handleSelectShop}
           onClose={() => setShowShopModal(false)}
+        />
+      )}
+
+      {/* Address List Modal */}
+      {showAddressListModal && session?.user?.id && (
+        <AddressListModal
+          key={`address-modal-${refreshKey}`}
+          userId={session.user.id}
+          onSelect={handleAddressSelected}
+          onAddNew={handleAddNewAddress}
+          onClose={() => {
+            setShowAddressListModal(false);
+            setOrderRequestId(null);
+          }}
+          refreshTrigger={refreshKey}
+        />
+      )}
+
+      {/* Shipping Address Modal */}
+      {showShippingModal && (
+        <ShippingAddressModal
+          onSubmit={handleShippingSubmit}
+          onClose={() => {
+            setShowShippingModal(false);
+            setShowAddressListModal(true);
+          }}
+          userName={session?.user?.name}
+          userId={session?.user?.id}
         />
       )}
 

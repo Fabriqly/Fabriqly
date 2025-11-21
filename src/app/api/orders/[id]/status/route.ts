@@ -10,21 +10,21 @@ import { CacheService } from '@/services/CacheService';
 // PUT /api/orders/[id]/status - Update order status
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session) {
+    if (!session?.user?.id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const { id: orderId } = await params;
+    const { id } = await params;
     const body = await request.json();
-    const { status, trackingNumber, notes } = body;
+    const { status } = body;
 
     if (!status) {
       return NextResponse.json(
@@ -33,36 +33,46 @@ export async function PUT(
       );
     }
 
+    const validStatuses = ['pending', 'processing', 'to_ship', 'shipped', 'delivered', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json(
+        { error: 'Invalid status value' },
+        { status: 400 }
+      );
+    }
+
     // Initialize services
-    const orderRepository = new OrderRepository();
-    const activityRepository = new ActivityRepository();
-    const productRepository = new ProductRepository();
+    const orderRepo = new OrderRepository();
+    const activityRepo = new ActivityRepository();
+    const productRepo = new ProductRepository();
     const cacheService = new CacheService();
-    const orderService = new OrderService(orderRepository, activityRepository, productRepository, cacheService);
+    
+    const orderService = new OrderService(
+      orderRepo,
+      activityRepo,
+      productRepo,
+      cacheService
+    );
 
-    // Prepare update data
-    const updateData: any = { status };
+    // Update order status
+    const order = await orderService.updateOrderStatus(
+      id,
+      status as any,
+      session.user.id
+    );
 
-    // Add tracking number if provided and status is shipped
-    if (trackingNumber && status === 'shipped') {
-      updateData.trackingNumber = trackingNumber;
-    }
-
-    // Add notes if provided
-    if (notes) {
-      updateData.notes = notes;
-    }
-
-    const updatedOrder = await orderService.updateOrder(orderId, updateData, session.user.id);
-
-    return NextResponse.json({ 
-      order: updatedOrder,
+    return NextResponse.json({
+      success: true,
+      data: order,
       message: `Order status updated to ${status}`
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating order status:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        success: false,
+        error: error.message || 'Failed to update order status' 
+      },
       { status: 500 }
     );
   }
