@@ -183,14 +183,34 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
               Explore
             </Link>
             <Link
-              href="/shops"
+              href="/explore/shops"
               className={`px-3 py-2 text-sm font-medium transition-colors ${
-                pathname === '/shops' 
+                pathname?.startsWith('/explore/shops') || pathname === '/shops'
                   ? 'text-white border-b-2 border-white/80' 
                   : 'text-white/70 hover:text-white'
               }`}
             >
               Shops
+            </Link>
+            <Link
+              href="/explore/designs"
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                pathname?.startsWith('/explore/designs')
+                  ? 'text-white border-b-2 border-white/80' 
+                  : 'text-white/70 hover:text-white'
+              }`}
+            >
+              Designs
+            </Link>
+            <Link
+              href="/explore/designers"
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                pathname?.startsWith('/explore/designers')
+                  ? 'text-white border-b-2 border-white/80' 
+                  : 'text-white/70 hover:text-white'
+              }`}
+            >
+              Designers
             </Link>
             <Link
               href="/clothing"

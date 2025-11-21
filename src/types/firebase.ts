@@ -161,10 +161,21 @@ export interface ShopStats {
 }
 
 // Review types
+export interface ReviewReply {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorRole: 'shop_owner' | 'designer' | 'admin';
+  comment: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 export interface Review extends BaseDocument {
   productId?: string;
   shopId?: string;
   designerId?: string;
+  designId?: string;
   customizationRequestId?: string;
   customerId: string;
   customerName?: string;
@@ -172,7 +183,8 @@ export interface Review extends BaseDocument {
   comment: string;
   images?: string[];
   isVerified: boolean;
-  reviewType: 'product' | 'shop' | 'designer' | 'customization';
+  reviewType: 'product' | 'shop' | 'designer' | 'design' | 'customization';
+  reply?: ReviewReply;
 }
 
 // Message types

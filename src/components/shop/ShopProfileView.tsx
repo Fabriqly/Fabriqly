@@ -2,7 +2,8 @@
 
 import { ShopProfile } from '@/types/shop-profile';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { ShopReviewSection } from '@/components/reviews/ShopReviewSection';
 
 interface ShopProfileViewProps {
   shop: ShopProfile;
@@ -12,6 +13,33 @@ interface ShopProfileViewProps {
 
 export default function ShopProfileView({ shop, showEditButton = false, onEdit }: ShopProfileViewProps) {
   const [imageError, setImageError] = useState(false);
+  const [actualRatings, setActualRatings] = useState({
+    averageRating: shop.ratings?.averageRating || 0,
+    totalReviews: shop.ratings?.totalReviews || 0
+  });
+
+  useEffect(() => {
+    // Fetch actual review data
+    const fetchRatings = async () => {
+      try {
+        const response = await fetch(`/api/reviews/average?type=shop&targetId=${shop.id}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setActualRatings({
+            averageRating: data.data.average || 0,
+            totalReviews: data.data.total || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching ratings:', error);
+      }
+    };
+
+    if (shop.id) {
+      fetchRatings();
+    }
+  }, [shop.id]);
 
   const getBusinessTypeLabel = (type: string) => {
     switch (type) {
@@ -112,11 +140,11 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
                 <div className="text-sm text-gray-600">Orders</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{shop.ratings.averageRating.toFixed(1)}</div>
+                <div className="text-2xl font-bold">{actualRatings.averageRating.toFixed(1)}</div>
                 <div className="text-sm text-gray-600">Rating</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{shop.ratings.totalReviews}</div>
+                <div className="text-2xl font-bold">{actualRatings.totalReviews}</div>
                 <div className="text-sm text-gray-600">Reviews</div>
               </div>
             </div>
@@ -319,6 +347,11 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
           </div>
         </div>
       )}
+
+      {/* Reviews Section */}
+      <div className="mt-6">
+        <ShopReviewSection shop={shop} />
+      </div>
     </div>
   );
 }

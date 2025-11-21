@@ -165,8 +165,8 @@ function ShopCard({ shop }: { shop: ShopProfile }) {
           {/* Stats */}
           <div className="flex justify-between items-center text-sm text-gray-600 border-t pt-3">
             <div className="flex gap-4">
-              <span>{shop.shopStats.totalProducts} Products</span>
-              <span>⭐ {shop.ratings.averageRating.toFixed(1)}</span>
+              <span>{shop.shopStats?.totalProducts || 0} Products</span>
+              <span>⭐ {(shop.ratings?.averageRating || 0).toFixed(1)}</span>
             </div>
             {shop.location && shop.location.city && (
               <span className="text-xs">{shop.location.city}</span>
