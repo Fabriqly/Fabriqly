@@ -135,8 +135,9 @@ export async function PATCH(
             twitter: application.socialMedia.twitter,
             linkedin: application.socialMedia.linkedin
           } : undefined,
-          isVerified: false,
-          designerStats: {
+          isVerified: true, // Automatically verify when application is approved
+          isActive: true,
+          portfolioStats: {
             totalDesigns: 0,
             totalDownloads: 0,
             totalViews: 0,

@@ -19,6 +19,7 @@ import {
   ChevronRight,
   X
 } from 'lucide-react';
+import { DesignReviewSection } from '@/components/reviews/DesignReviewSection';
 
 interface DesignDetailProps {
   design: DesignWithDetails;
@@ -400,6 +401,11 @@ export function DesignDetail({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Reviews Section */}
+      <div className="mt-8">
+        <DesignReviewSection design={design} />
       </div>
     </div>
   );

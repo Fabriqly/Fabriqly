@@ -1,8 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { DesignerProfile } from '@/types/enhanced-products';
 import { Button } from '@/components/ui/Button';
+import { DesignerReviewSection } from '@/components/reviews/DesignerReviewSection';
+import { DesignTimeline } from './DesignTimeline';
 import { 
   Globe, 
   Instagram, 
@@ -19,6 +21,34 @@ interface DesignerProfileDisplayProps {
 }
 
 export function DesignerProfileDisplay({ profile, showActions = false, onEdit }: DesignerProfileDisplayProps) {
+  const [actualRatings, setActualRatings] = useState({
+    averageRating: profile.portfolioStats?.averageRating || 0,
+    totalReviews: 0
+  });
+
+  useEffect(() => {
+    // Fetch actual review data
+    const fetchRatings = async () => {
+      try {
+        const response = await fetch(`/api/reviews/average?type=designer&targetId=${profile.id}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setActualRatings({
+            averageRating: data.data.average || 0,
+            totalReviews: data.data.total || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching ratings:', error);
+      }
+    };
+
+    if (profile.id) {
+      fetchRatings();
+    }
+  }, [profile.id]);
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex items-start justify-between mb-6">
@@ -72,9 +102,9 @@ export function DesignerProfileDisplay({ profile, showActions = false, onEdit }:
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-yellow-600">
-            {profile.portfolioStats?.averageRating?.toFixed(1) || '0.0'}
+            {actualRatings.averageRating.toFixed(1)}
           </div>
-          <div className="text-sm text-gray-500">Rating</div>
+          <div className="text-sm text-gray-500">Rating ({actualRatings.totalReviews} reviews)</div>
         </div>
       </div>
 
@@ -155,6 +185,16 @@ export function DesignerProfileDisplay({ profile, showActions = false, onEdit }:
             )}
           </div>
         )}
+      </div>
+
+      {/* Design Timeline Section */}
+      <div className="mt-6">
+        <DesignTimeline designerId={profile.id} />
+      </div>
+
+      {/* Reviews Section */}
+      <div className="mt-6">
+        <DesignerReviewSection designer={profile} />
       </div>
     </div>
   );
