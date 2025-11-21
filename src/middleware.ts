@@ -14,6 +14,12 @@ export default withAuth(
           return true;
         }
         
+        // Allow webhook endpoints (called by external services like Xendit)
+        if (req.nextUrl.pathname.startsWith('/api/payments/webhook') || 
+            req.nextUrl.pathname.startsWith('/api/webhooks/')) {
+          return true;
+        }
+        
         // Allow public API routes (GET requests only for browsing)
         if (req.nextUrl.pathname.startsWith('/api/products') && req.method === 'GET') {
           return true;
@@ -32,7 +38,6 @@ export default withAuth(
             req.nextUrl.pathname.startsWith('/register') ||
             req.nextUrl.pathname.startsWith('/forgot-password') ||
             req.nextUrl.pathname.startsWith('/reset-password') ||
-            req.nextUrl.pathname.startsWith('/role-selection') ||
             req.nextUrl.pathname.startsWith('/business/login') ||
             req.nextUrl.pathname.startsWith('/explore') ||
             req.nextUrl.pathname === '/') {

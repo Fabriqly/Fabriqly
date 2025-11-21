@@ -12,7 +12,7 @@ export interface User {
   email: string;
   name?: string;
   image?: string;
-  role: 'customer' | 'designer' | 'business_owner' | 'admin';
+  role: 'customer' | 'designer' | 'business_owner' | 'admin' | 'pending_designer' | 'pending_shop';
 }
 
 export function useAuth(requireAuth = false, requiredRole?: string) {
@@ -92,6 +92,92 @@ export function useAuth(requireAuth = false, requiredRole?: string) {
     }
   }, [session, authError]);
 
+  // Check for role changes periodically (for pending applications that get approved)
+  useEffect(() => {
+    // Only check for users with pending applications or customers who might have applications
+    const shouldCheck = user?.id && (
+      user.role === 'pending_designer' || 
+      user.role === 'pending_shop' ||
+      // For customers, only check if they're on specific pages that indicate they might have an application
+      (user.role === 'customer' && (
+        typeof window !== 'undefined' && (
+          window.location.pathname.includes('/my-applications') ||
+          window.location.pathname.includes('/dashboard') ||
+          window.location.pathname.includes('/explore')
+        )
+      ))
+    );
+
+    if (!shouldCheck) {
+      return;
+    }
+
+    let isChecking = false; // Prevent concurrent checks
+
+    const checkRoleChange = async () => {
+      if (isChecking) return;
+      isChecking = true;
+
+      try {
+        const response = await fetch(`/api/users/${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          const dbRole = data.data?.role; // ResponseBuilder returns { success, data }
+          
+          // If role in database differs from session, refresh the session
+          if (dbRole && dbRole !== user.role) {
+            console.log(`🎉 Role changed from ${user.role} to ${dbRole}, refreshing session...`);
+            
+            // Clear any localStorage flags
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('pendingRoleCheck');
+            }
+            
+            await update(); // Use update directly instead of refreshUserData
+            
+            // Reload the page to show success messages
+            setTimeout(() => {
+              if (typeof window !== 'undefined') {
+                window.location.reload();
+              }
+            }, 500);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking role change:', error);
+      } finally {
+        isChecking = false;
+      }
+    };
+
+    // For pending users, check more frequently; for customers, less frequently
+    const checkInterval = (user.role === 'pending_designer' || user.role === 'pending_shop') 
+      ? 30000  // 30 seconds for pending users
+      : 60000; // 60 seconds for customers
+
+    // Check immediately on mount for customers (in case they just got approved)
+    if (user.role === 'customer') {
+      checkRoleChange();
+    }
+
+    // Set up interval checking
+    const interval = setInterval(checkRoleChange, checkInterval);
+
+    // Also check when page becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkRoleChange();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user?.id, user?.role, update]); // Only re-run if user ID or role changes
+
   // Expose refresh function for components that need it
   return {
     user,
@@ -102,7 +188,9 @@ export function useAuth(requireAuth = false, requiredRole?: string) {
     isCustomer: user?.role === 'customer',
     isDesigner: user?.role === 'designer',
     isBusinessOwner: user?.role === 'business_owner',
-    isAdmin: user?.role === 'admin'
+    isAdmin: user?.role === 'admin',
+    isPendingDesigner: user?.role === 'pending_designer',
+    isPendingShop: user?.role === 'pending_shop'
   };
 }
 
@@ -132,7 +220,7 @@ export function useRole() {
       customer: 1
     };
     
-    const permissions = {
+    const permissions: Record<string, string[]> = {
       admin: ['*'], // Admin has all permissions
       business_owner: [
         'shop:create', 'shop:read', 'shop:update', 'shop:delete',
@@ -148,6 +236,12 @@ export function useRole() {
         'product:read', 'order:create', 'order:read',
         'review:create', 'wishlist:create', 'wishlist:read',
         'profile:read', 'profile:update'
+      ],
+      pending_designer: [
+        'product:read', 'order:read', 'profile:read', 'profile:update'
+      ],
+      pending_shop: [
+        'product:read', 'order:read', 'profile:read', 'profile:update'
       ]
     };
 

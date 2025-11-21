@@ -23,6 +23,8 @@ interface ProductCardProps {
   onPublish?: (product: Product) => void;
   showActions?: boolean;
   variant?: 'management' | 'catalog' | 'customer';
+  // When true, actions are rendered in a compact layout (ideal for grid cards)
+  compactActions?: boolean;
 }
 
 export function ProductCard({ 
@@ -31,7 +33,8 @@ export function ProductCard({
   onDelete, 
   onPublish,
   showActions = true,
-  variant = 'management'
+  variant = 'management',
+  compactActions = false
 }: ProductCardProps) {
   const statusColor = {
     draft: 'bg-orange-100 text-orange-800',
@@ -270,8 +273,8 @@ export function ProductCard({
             </div>
           </div>
           
-          {/* Actions */}
-          {showActions && (
+          {/* Actions (header) */}
+          {showActions && !compactActions && (
             <div className="flex items-center space-x-2">
               {product.status === 'draft' && onPublish && (
                 <Button
@@ -283,7 +286,7 @@ export function ProductCard({
                   <span>Publish</span>
                 </Button>
               )}
-              
+
               {onEdit && (
                 <Button
                   size="sm"
@@ -295,7 +298,7 @@ export function ProductCard({
                   <span>Edit</span>
                 </Button>
               )}
-              
+
               {onDelete && (
                 <Button
                   size="sm"
@@ -310,6 +313,46 @@ export function ProductCard({
             </div>
           )}
         </div>
+
+        {/* Actions (compact bar for grid view) */}
+        {showActions && compactActions && (
+          <div className="mb-4 -mt-2 flex flex-wrap items-center justify-end gap-2">
+            {product.status === 'draft' && onPublish && (
+              <Button
+                size="sm"
+                onClick={() => onPublish(product)}
+                className="flex items-center space-x-1 bg-green-600 hover:bg-green-700"
+              >
+                <Send className="w-3 h-3" />
+                <span>Publish</span>
+              </Button>
+            )}
+
+            {onEdit && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onEdit(product)}
+                className="flex items-center space-x-1"
+              >
+                <Edit className="w-3 h-3" />
+                <span>Edit</span>
+              </Button>
+            )}
+
+            {onDelete && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onDelete(product)}
+                className="flex items-center space-x-1 text-red-600 hover:text-red-700 hover:border-red-300"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Delete</span>
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">

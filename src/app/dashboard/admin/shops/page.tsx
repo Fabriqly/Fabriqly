@@ -8,6 +8,7 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 function AdminShopsContent() {
   const [pendingShops, setPendingShops] = useState<ShopProfile[]>([]);
   const [approvedShops, setApprovedShops] = useState<ShopProfile[]>([]);
+  const [rejectedShops, setRejectedShops] = useState<ShopProfile[]>([]);
   const [suspendedShops, setSuspendedShops] = useState<ShopProfile[]>([]);
   const [stats, setStats] = useState({
     totalPending: 0,
@@ -18,7 +19,7 @@ function AdminShopsContent() {
   });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'suspended'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected' | 'suspended'>('pending');
 
   useEffect(() => {
     fetchData();
@@ -26,23 +27,26 @@ function AdminShopsContent() {
 
   const fetchData = async () => {
     try {
-      const [statsRes, pendingRes, approvedRes, suspendedRes] = await Promise.all([
+      const [statsRes, pendingRes, approvedRes, rejectedRes, suspendedRes] = await Promise.all([
         fetch('/api/admin/shop-profiles/stats'),
         fetch('/api/admin/shop-profiles/pending'),
         fetch('/api/admin/shop-profiles/approved'),
+        fetch('/api/admin/shop-profiles/rejected'),
         fetch('/api/admin/shop-profiles/suspended'),
       ]);
 
-      const [statsData, pendingData, approvedData, suspendedData] = await Promise.all([
+      const [statsData, pendingData, approvedData, rejectedData, suspendedData] = await Promise.all([
         statsRes.json(),
         pendingRes.json(),
         approvedRes.json(),
+        rejectedRes.json(),
         suspendedRes.json(),
       ]);
 
       if (statsData.success) setStats(statsData.data);
       if (pendingData.success) setPendingShops(pendingData.data);
       if (approvedData.success) setApprovedShops(approvedData.data);
+      if (rejectedData.success) setRejectedShops(rejectedData.data);
       if (suspendedData.success) setSuspendedShops(suspendedData.data);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -200,6 +204,16 @@ function AdminShopsContent() {
               Approved ({approvedShops.length})
             </button>
             <button
+              onClick={() => setActiveTab('rejected')}
+              className={`px-6 py-3 font-medium text-sm ${
+                activeTab === 'rejected'
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Rejected ({rejectedShops.length})
+            </button>
+            <button
               onClick={() => setActiveTab('suspended')}
               className={`px-6 py-3 font-medium text-sm ${
                 activeTab === 'suspended'
@@ -270,6 +284,43 @@ function AdminShopsContent() {
                         >
                           {actionLoading === shop.id ? 'Processing...' : 'Suspend'}
                         </button>
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Rejected Tab */}
+          {activeTab === 'rejected' && (
+            <>
+              <h2 className="text-xl font-semibold mb-4">Rejected Shops</h2>
+              {rejectedShops.length === 0 ? (
+                <p className="text-gray-600 text-center py-8">No rejected shops</p>
+              ) : (
+                <div className="space-y-4">
+                  {rejectedShops.map((shop) => (
+                    <ShopCard
+                      key={shop.id}
+                      shop={shop}
+                      actions={
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleApprove(shop.id)}
+                            disabled={actionLoading === shop.id}
+                            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 text-sm"
+                          >
+                            {actionLoading === shop.id ? 'Processing...' : 'Approve'}
+                          </button>
+                          <button
+                            onClick={() => handleSuspend(shop.id)}
+                            disabled={actionLoading === shop.id}
+                            className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 text-sm"
+                          >
+                            {actionLoading === shop.id ? 'Processing...' : 'Suspend'}
+                          </button>
+                        </div>
                       }
                     />
                   ))}
@@ -379,6 +430,14 @@ function ShopCard({
           </div>
 
           <p className="text-sm text-gray-700 mb-3 line-clamp-2">{shop.description}</p>
+
+          {/* Rejection reason for rejected shops */}
+          {shop.approvalStatus === 'rejected' && shop.rejectionReason && (
+            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm font-medium text-red-800 mb-1">Rejection Reason:</p>
+              <p className="text-sm text-red-700">{shop.rejectionReason}</p>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2 mb-3">
             <span className="px-2 py-1 bg-gray-100 rounded text-xs">

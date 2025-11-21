@@ -1,4 +1,4 @@
-import { MultiStepRegisterForm } from '@/components/auth/MultiStepRegisterForm';
+import { RegisterForm } from '@/components/auth/RegisterForm';
 import { Metadata } from 'next';
 import Header from '@/components/layout/Header';
 
@@ -12,7 +12,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-white flex flex-col">
       <Header />
       <main className="flex-1 flex items-center justify-center py-12 sm:px-6 lg:px-8">
-        <MultiStepRegisterForm />
+        <RegisterForm />
       </main>
     </div>
   );

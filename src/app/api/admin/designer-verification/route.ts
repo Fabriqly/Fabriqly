@@ -32,10 +32,14 @@ export async function GET(request: NextRequest) {
       constraints.push({ field: 'isVerified', operator: '==' as const, value: false });
       constraints.push({ field: 'isActive', operator: '==' as const, value: true });
     } else if (status === 'approved') {
+      // Approved profiles should show regardless of active status
       constraints.push({ field: 'isVerified', operator: '==' as const, value: true });
-      constraints.push({ field: 'isActive', operator: '==' as const, value: true });
     } else if (status === 'rejected') {
       constraints.push({ field: 'isVerified', operator: '==' as const, value: false });
+      constraints.push({ field: 'isActive', operator: '==' as const, value: false });
+    } else if (status === 'suspended') {
+      // Suspended profiles: verified but inactive (suspended after approval)
+      constraints.push({ field: 'isVerified', operator: '==' as const, value: true });
       constraints.push({ field: 'isActive', operator: '==' as const, value: false });
     } else {
       // Get all profiles

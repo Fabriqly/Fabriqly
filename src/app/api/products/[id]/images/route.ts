@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const productId = params.id;
+    const { id: productId } = await params;
 
     if (!productId) {
       return NextResponse.json(
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 // GET /api/products/[id]/images - Get product images
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const productId = params.id;
+    const { id: productId } = await params;
 
     if (!productId) {
       return NextResponse.json(
