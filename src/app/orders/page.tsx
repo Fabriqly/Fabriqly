@@ -37,6 +37,7 @@ interface Order {
 
 interface OrderItem {
   productId: string;
+  productName?: string;
   quantity: number;
   price: number;
   customizations?: Record<string, string>;
@@ -92,6 +93,60 @@ export default function OrdersPage() {
     } catch (error) {
       console.error('Error marking order as ready to ship:', error);
       setError('Failed to mark order as ready to ship');
+    }
+  };
+
+  const markOrderDelivered = async (orderId: string) => {
+    if (!confirm('Confirm that you have received this order?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/orders/${orderId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'delivered' }),
+      });
+
+      if (response.ok) {
+        alert('Thank you! Order marked as delivered.');
+        await loadOrders();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to mark order as delivered');
+      }
+    } catch (error) {
+      console.error('Error marking order as delivered:', error);
+      setError('Failed to mark order as delivered');
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    if (!confirm('Are you sure you want to cancel this order? If payment was made, a refund will be processed.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/orders/${orderId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert(data.message || 'Order cancelled successfully. Refund will be processed if payment was made.');
+        await loadOrders();
+      } else {
+        alert(data.error || 'Failed to cancel order');
+      }
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      alert('Failed to cancel order');
     }
   };
 
@@ -277,24 +332,47 @@ export default function OrdersPage() {
 
                 {/* Order Items */}
                 <div className="border-t pt-4">
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     {order.items.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between text-sm">
-                        <div>
-                          <span className="font-medium">Product {item.productId.slice(-8)}</span>
-                          {item.customizations && Object.keys(item.customizations).length > 0 && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              {Object.entries(item.customizations).map(([key, value]) => (
-                                <span key={key} className="block">
-                                  {key}: {value}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <span>Qty: {item.quantity}</span>
-                          <p className="font-medium">{formatPrice(item.price * item.quantity)}</p>
+                      <div key={index} className="flex items-start gap-4">
+                        {/* Show designer final file as image if available */}
+                        {item.customizations?.designerFinalFileUrl && (
+                          <div className="flex-shrink-0">
+                            <img 
+                              src={item.customizations.designerFinalFileUrl as string}
+                              alt="Design Preview"
+                              className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                            />
+                          </div>
+                        )}
+                        
+                        <div className="flex-1 flex items-start justify-between">
+                          <div>
+                            <span className="font-medium">{item.productName || `Product ${item.productId.slice(-8)}`}</span>
+                            {item.customizations && Object.keys(item.customizations).length > 0 && (
+                              <div className="text-xs text-gray-600 mt-1 space-y-1">
+                                {item.customizations.customizationRequestId && (
+                                  <span className="block">
+                                    customizationRequestId: {item.customizations.customizationRequestId as string}
+                                  </span>
+                                )}
+                                {item.customizations.designerName && (
+                                  <span className="block">
+                                    designerName: {item.customizations.designerName as string}
+                                  </span>
+                                )}
+                                {item.customizations.printingShopName && (
+                                  <span className="block">
+                                    printingShopName: {item.customizations.printingShopName as string}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm">Qty: {item.quantity}</span>
+                            <p className="font-medium">{formatPrice(item.price * item.quantity)}</p>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -322,6 +400,20 @@ export default function OrdersPage() {
                   </div>
 
                   <div className="flex items-center space-x-2">
+                    {/* Customer actions */}
+                    {order.status === 'shipped' && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-green-600 border-green-300 hover:bg-green-50"
+                        onClick={() => markOrderDelivered(order.id)}
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Mark as Received
+                      </Button>
+                    )}
+
+                    {/* Business owner actions */}
                     {order.status === 'processing' && user?.role === 'business_owner' && (
                       <Button 
                         variant="outline" 
@@ -339,11 +431,9 @@ export default function OrdersPage() {
                         variant="outline" 
                         size="sm"
                         className="text-red-600 border-red-300 hover:bg-red-50"
-                        onClick={() => {
-                          // TODO: Implement cancel order functionality
-                          console.log('Cancel order:', order.id);
-                        }}
+                        onClick={() => handleCancelOrder(order.id)}
                       >
+                        <XCircle className="w-4 h-4 mr-2" />
                         Cancel Order
                       </Button>
                     )}

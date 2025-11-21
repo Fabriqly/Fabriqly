@@ -16,6 +16,7 @@ import { Timestamp } from 'firebase/firestore';
 export type CustomizationStatus = 
   | 'pending_designer_review'
   | 'in_progress'
+  | 'awaiting_pricing'
   | 'awaiting_customer_approval'
   | 'approved'
   | 'rejected'
@@ -142,6 +143,8 @@ export interface CustomizationRequest {
   productId: string;
   productName: string;
   productImage?: string;
+  selectedColorId?: string;
+  colorPriceAdjustment?: number;
   
   // Design Files
   customerDesignFile?: CustomizationFile; // Original customer upload
@@ -194,6 +197,8 @@ export interface CreateCustomizationRequest {
   productId: string;
   productName: string;
   productImage?: string;
+  selectedColorId?: string;
+  colorPriceAdjustment?: number;
   customizationNotes: string;
   customerDesignFile?: CustomizationFile;
   customerPreviewImage?: CustomizationFile;

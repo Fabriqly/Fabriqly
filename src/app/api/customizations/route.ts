@@ -109,6 +109,8 @@ export async function POST(request: NextRequest) {
       productId: body.productId,
       productName: body.productName,
       productImage: body.productImage,
+      selectedColorId: body.selectedColorId,
+      colorPriceAdjustment: body.colorPriceAdjustment || 0,
       customizationNotes: body.customizationNotes,
       customerDesignFile: body.customerDesignFile,
       customerPreviewImage: body.customerPreviewImage

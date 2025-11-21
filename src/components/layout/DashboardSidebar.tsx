@@ -53,13 +53,23 @@ const getNavigationItems = (userRole?: string | null) => {
     });
   }
 
-  // Add Customization link for designers and business owners
-  if (userRole === 'designer' || userRole === 'business_owner') {
+  // Add Customization link for designers
+  if (userRole === 'designer') {
     baseItems.push({
       name: 'Customization',
       href: '/my-customizations',
       icon: Settings,
       description: 'Manage customization requests'
+    });
+  }
+
+  // Add Shop Customizations link for business owners
+  if (userRole === 'business_owner') {
+    baseItems.push({
+      name: 'Customization',
+      href: '/dashboard/customizations',
+      icon: Settings,
+      description: 'Manage shop customization orders'
     });
   }
 

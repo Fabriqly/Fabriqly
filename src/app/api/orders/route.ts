@@ -6,6 +6,8 @@ import { OrderRepository } from '@/repositories/OrderRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { ProductRepository } from '@/repositories/ProductRepository';
 import { CacheService } from '@/services/CacheService';
+import { FirebaseAdminService } from '@/services/firebase-admin';
+import { Collections } from '@/services/firebase';
 
 // GET /api/orders - List orders
 export async function GET(request: NextRequest) {
@@ -46,7 +48,13 @@ export async function GET(request: NextRequest) {
 
     // Non-admin users can only see their own orders
     if (session.user.role !== 'admin') {
-      searchOptions.customerId = session.user.id;
+      // Business owners see orders for their shop
+      if (session.user.role === 'business_owner') {
+        searchOptions.businessOwnerId = session.user.id;
+      } else {
+        // Customers see their own orders
+        searchOptions.customerId = session.user.id;
+      }
     }
 
     // Try to get cached orders first
@@ -59,8 +67,43 @@ export async function GET(request: NextRequest) {
 
     const result = await orderService.getOrders(searchOptions, session.user.id);
 
+    // Fetch product names for all order items
+    const productIds = new Set<string>();
+    result.orders.forEach(order => {
+      order.items.forEach(item => {
+        if (item.productId) {
+          productIds.add(item.productId);
+        }
+      });
+    });
+
+    // Fetch all products in parallel
+    const productMap = new Map<string, string>();
+    await Promise.all(
+      Array.from(productIds).map(async (productId) => {
+        try {
+          const product = await FirebaseAdminService.getDocument(Collections.PRODUCTS, productId);
+          if (product) {
+            productMap.set(productId, product.name || `Product ${productId.slice(-8)}`);
+          }
+        } catch (error) {
+          console.error(`Error fetching product ${productId}:`, error);
+          productMap.set(productId, `Product ${productId.slice(-8)}`);
+        }
+      })
+    );
+
+    // Enrich orders with product names
+    const enrichedOrders = result.orders.map(order => ({
+      ...order,
+      items: order.items.map(item => ({
+        ...item,
+        productName: productMap.get(item.productId) || `Product ${item.productId.slice(-8)}`
+      }))
+    }));
+
     const response = { 
-      orders: result.orders,
+      orders: enrichedOrders,
       totalRevenue: result.totalRevenue,
       total: result.total,
       hasMore: result.hasMore

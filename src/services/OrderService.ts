@@ -4,7 +4,7 @@ import { ProductRepository } from '@/repositories/ProductRepository';
 import { Order } from '@/types/firebase';
 
 import { ActivityType } from '@/types/activity';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 
 import { 
   IOrderService, 
@@ -45,6 +45,7 @@ export class OrderService implements IOrderService {
       const totalAmount = subtotal + tax + shipping;
 
       // Create order
+      const now = Timestamp.now();
       const orderData = {
         customerId: data.customerId,
         businessOwnerId: data.businessOwnerId,
@@ -59,8 +60,15 @@ export class OrderService implements IOrderService {
         billingAddress: data.billingAddress || data.shippingAddress,
         paymentMethod: data.paymentMethod,
         notes: data.notes,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now()
+        statusHistory: [
+          {
+            status: 'pending' as const,
+            timestamp: now,
+            updatedBy: data.customerId
+          }
+        ],
+        createdAt: now,
+        updatedAt: now
       };
 
       const order = await this.orderRepository.create(orderData);
@@ -124,11 +132,20 @@ export class OrderService implements IOrderService {
         throw AppError.badRequest(`Invalid status transition from ${existingOrder.status} to ${data.status}`);
       }
 
+      // Add status history if status is changing
+      const updateData: any = { ...data, updatedAt: Timestamp.now() };
+      if (data.status && data.status !== existingOrder.status) {
+        const statusHistory = existingOrder.statusHistory || [];
+        statusHistory.push({
+          status: data.status,
+          timestamp: Timestamp.now(),
+          updatedBy: userId
+        });
+        updateData.statusHistory = statusHistory;
+      }
+
       // Update order
-      const updatedOrder = await this.orderRepository.update(orderId, {
-        ...data,
-        updatedAt: Timestamp.now()
-      });
+      const updatedOrder = await this.orderRepository.update(orderId, updateData);
 
       // Log activity
       await this.activityRepository.create({
@@ -155,6 +172,16 @@ export class OrderService implements IOrderService {
         customerId: existingOrder.customerId,
         businessOwnerId: existingOrder.businessOwnerId
       });
+
+      // Check if order status changed to shipped/delivered and trigger shop payment
+      if (data.status && (data.status === 'shipped' || data.status === 'delivered')) {
+        await this.handleOrderShippedOrDelivered(updatedOrder);
+      }
+
+      // Update shop stats when order is marked as delivered
+      if (data.status && data.status === 'delivered') {
+        await this.updateShopStatsForDeliveredOrder(updatedOrder);
+      }
 
       // Clear relevant caches
       await CacheService.invalidate(`order:${orderId}`);
@@ -313,10 +340,20 @@ export class OrderService implements IOrderService {
   }
 
   async addTrackingNumber(orderId: string, trackingNumber: string, carrier?: string, userId?: string): Promise<Order> {
+    // Get current order to check status
+    const existingOrder = await this.orderRepository.findById(orderId);
+    if (!existingOrder) {
+      throw AppError.notFound('Order not found');
+    }
+
     const updateData: UpdateOrderData = { 
-      trackingNumber, 
-      status: 'shipped' 
+      trackingNumber
     };
+    
+    // Only set status to 'shipped' if not already shipped
+    if (existingOrder.status !== 'shipped') {
+      updateData.status = 'shipped';
+    }
     
     if (carrier) {
       updateData.carrier = carrier;
@@ -445,7 +482,7 @@ export class OrderService implements IOrderService {
   async validateOrderUpdate(data: UpdateOrderData): Promise<OrderValidationResult> {
     const errors: string[] = [];
 
-    if (data.status && !['pending', 'processing', 'shipped', 'delivered', 'cancelled'].includes(data.status)) {
+    if (data.status && !['pending', 'processing', 'to_ship', 'shipped', 'delivered', 'cancelled'].includes(data.status)) {
       errors.push('Invalid status value');
     }
 
@@ -597,6 +634,91 @@ export class OrderService implements IOrderService {
     return this.orderRepository.findByAmountRange(minAmount, maxAmount);
   }
 
+  /**
+   * Handle order shipped or delivered - trigger shop payment release for customization orders
+   */
+  private async handleOrderShippedOrDelivered(order: Order): Promise<void> {
+    try {
+      // Check if this order has a customization request (design service order)
+      const customizationRequestId = order.items?.[0]?.customizations?.customizationRequestId;
+      
+      if (!customizationRequestId) {
+        // Not a customization order, skip
+        return;
+      }
+
+      console.log(`[OrderService] Order ${order.id} shipped/delivered. Checking if shop payment can be released...`);
+
+      // Import services dynamically to avoid circular dependencies
+      const { CustomizationRepository } = await import('@/repositories/CustomizationRepository');
+      const { escrowService } = await import('./EscrowService');
+      
+      const customizationRepo = new CustomizationRepository();
+      const request = await customizationRepo.findById(customizationRequestId);
+
+      if (!request) {
+        console.warn(`[OrderService] Customization request ${customizationRequestId} not found`);
+        return;
+      }
+
+      // Check if production is completed
+      if (request.productionDetails?.status !== 'completed') {
+        console.log(`[OrderService] Production not completed yet. Status: ${request.productionDetails?.status}`);
+        return;
+      }
+
+      // Check if designer has been paid
+      if (request.paymentDetails?.escrowStatus !== 'designer_paid') {
+        console.log(`[OrderService] Designer not paid yet. Escrow status: ${request.paymentDetails?.escrowStatus}`);
+        return;
+      }
+
+      // All conditions met, release shop payment
+      console.log(`[OrderService] All conditions met. Releasing shop payment...`);
+      await escrowService.releaseShopPayment(customizationRequestId);
+      console.log(`[OrderService] Shop payment released successfully for request ${customizationRequestId}`);
+    } catch (error: any) {
+      console.error('[OrderService] Failed to release shop payment:', error);
+      // Don't throw error - we don't want to fail the order update
+      // Admin can manually trigger payout if needed
+    }
+  }
+
+  private async updateShopStatsForDeliveredOrder(order: Order): Promise<void> {
+    try {
+      if (!order.businessOwnerId) {
+        return;
+      }
+
+      // Import services dynamically to avoid circular dependencies
+      const { ShopProfileService } = await import('./ShopProfileService');
+      const { ShopProfileRepository } = await import('@/repositories/ShopProfileRepository');
+      const { ActivityRepository } = await import('@/repositories/ActivityRepository');
+      
+      const shopProfileRepo = new ShopProfileRepository();
+      const activityRepo = new ActivityRepository();
+      const shopProfileService = new ShopProfileService(shopProfileRepo, activityRepo);
+
+      // Find shop profile by businessOwnerId
+      const shopProfile = await shopProfileService.getShopProfileByUserId(order.businessOwnerId);
+      
+      if (!shopProfile) {
+        return;
+      }
+
+      const currentTotalOrders = shopProfile.shopStats?.totalOrders || 0;
+      const newTotalOrders = currentTotalOrders + 1;
+
+      // Update shop stats: increment totalOrders
+      await shopProfileService.updateShopStats(shopProfile.id, {
+        totalOrders: newTotalOrders
+      });
+    } catch (error: any) {
+      console.error('[OrderService] Failed to update shop stats:', error);
+      // Don't throw error - we don't want to fail the order update
+    }
+  }
+
   // Private helper methods
   private canUserViewOrder(order: Order, userId: string): boolean {
     // Admin can view all orders
@@ -610,10 +732,10 @@ export class OrderService implements IOrderService {
   private canUserUpdateOrder(order: Order, userId: string): boolean {
     // Admin can update all orders
     // Business owner can update orders for their business
-    // Customer can only update their own pending orders
+    // Customer can update their own pending orders (for cancellation) or shipped orders (for delivery confirmation)
     if (userId === 'admin') return true;
     if (order.businessOwnerId === userId) return true;
-    if (order.customerId === userId && order.status === 'pending') return true;
+    if (order.customerId === userId && (order.status === 'pending' || order.status === 'shipped')) return true;
     
     return false;
   }

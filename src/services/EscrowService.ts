@@ -134,7 +134,25 @@ export class EscrowService {
         throw AppError.notFound('Customization request not found');
       }
 
-      // 2. Validate escrow status
+      // 2. Validate order status (must be shipped or delivered)
+      if (!request.orderId) {
+        throw AppError.badRequest('No order associated with this customization request');
+      }
+
+      const order = await FirebaseAdminService.getDocument(Collections.ORDERS, request.orderId);
+      if (!order) {
+        throw AppError.notFound('Order not found');
+      }
+
+      if (order.status !== 'shipped' && order.status !== 'delivered') {
+        throw AppError.badRequest(
+          `Order must be shipped or delivered before releasing shop payment. Current status: ${order.status}`
+        );
+      }
+
+      console.log(`[EscrowService] Order status validated: ${order.status}`);
+
+      // 3. Validate escrow status
       if (!request.paymentDetails) {
         throw AppError.badRequest('No payment details found for this request');
       }
@@ -149,7 +167,7 @@ export class EscrowService {
         );
       }
 
-      // 3. Validate pricing agreement
+      // 4. Validate pricing agreement
       if (!request.pricingAgreement) {
         throw AppError.badRequest('No pricing agreement found. Cannot process payout.');
       }
@@ -161,7 +179,7 @@ export class EscrowService {
         throw AppError.badRequest('Invalid shop payout amount');
       }
 
-      // 4. Get shop profile for payout details
+      // 5. Get shop profile for payout details
       if (!request.printingShopId) {
         throw AppError.badRequest('No printing shop assigned to this request');
       }
@@ -175,7 +193,7 @@ export class EscrowService {
         throw AppError.notFound('Shop profile not found');
       }
 
-      // 5. Get shop payout information
+      // 6. Get shop payout information
       // NOTE: Shop profiles need to have payout info fields added:
       // payoutDetails: { bankCode, accountNumber, accountHolderName }
       const payoutInfo = (shopProfile as any).payoutDetails;
@@ -186,7 +204,7 @@ export class EscrowService {
         );
       }
 
-      // 6. Create Xendit disbursement
+      // 7. Create Xendit disbursement
       console.log(`[EscrowService] Creating disbursement for shop: ${request.printingShopId}`);
       
       const disbursement = await this.xenditService.createDisbursement({
@@ -201,7 +219,7 @@ export class EscrowService {
 
       console.log(`[EscrowService] Disbursement created: ${disbursement.id}`);
 
-      // 7. Update escrow status
+      // 8. Update escrow status
       await this.customizationRepo.update(requestId, {
         paymentDetails: {
           ...request.paymentDetails,

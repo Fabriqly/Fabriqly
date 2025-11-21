@@ -297,6 +297,13 @@ export class CustomizationPaymentService {
     const paymentIndex = payments.findIndex(p => p.id === invoiceId);
     if (paymentIndex === -1) return;
 
+    // Check if payment already processed to prevent duplicate processing
+    const existingPayment = payments[paymentIndex];
+    if (existingPayment.status === 'success' && status === 'PAID') {
+      console.log('[CustomizationPayment] Payment already processed, skipping duplicate webhook');
+      return;
+    }
+
     const updatedPayments = [...payments];
     updatedPayments[paymentIndex] = {
       ...updatedPayments[paymentIndex],
@@ -311,7 +318,7 @@ export class CustomizationPaymentService {
       escrowStatus: request.paymentDetails.escrowStatus || 'held'
     };
 
-    // If payment successful, update amounts
+    // If payment successful, update amounts (only if not already processed)
     if (status === 'PAID' && paidAmount) {
       const amountNumber = typeof paidAmount === 'number' ? paidAmount : parseFloat(paidAmount as any);
       updatedPaymentDetails.paidAmount = (updatedPaymentDetails.paidAmount || 0) + amountNumber;

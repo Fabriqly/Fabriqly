@@ -4,8 +4,34 @@ import { authOptions } from '@/lib/auth';
 import { CustomizationService } from '@/services/CustomizationService';
 import { ResponseBuilder } from '@/utils/ResponseBuilder';
 import { ErrorHandler } from '@/errors/ErrorHandler';
+import { Timestamp } from 'firebase-admin/firestore';
 
 const customizationService = new CustomizationService();
+
+// Helper function to serialize Firestore Timestamps to ISO strings
+const serializeTimestamps = (data: any): any => {
+  if (data === null || data === undefined) {
+    return data;
+  }
+  
+  if (data instanceof Timestamp) {
+    return data.toDate().toISOString();
+  }
+  
+  if (Array.isArray(data)) {
+    return data.map(serializeTimestamps);
+  }
+  
+  if (typeof data === 'object') {
+    const serialized: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      serialized[key] = serializeTimestamps(value);
+    }
+    return serialized;
+  }
+  
+  return data;
+};
 
 interface RouteParams {
   params: Promise<{
@@ -44,16 +70,32 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const isDesignerViewingPending = 
       (session.user.role === 'designer' || session.user.role === 'business_owner') && 
       requestData.status === 'pending_designer_review';
+    
+    // Allow shop owner (business owner who owns the printing shop) to view
+    let isShopOwner = false;
+    if (requestData.printingShopId && session.user.role === 'business_owner') {
+      try {
+        const { FirebaseAdminService } = await import('@/services/firebase-admin');
+        const { Collections } = await import('@/services/firebase');
+        const shop = await FirebaseAdminService.getDocument(Collections.SHOP_PROFILES, requestData.printingShopId);
+        isShopOwner = shop?.userId === session.user.id;
+      } catch (error) {
+        console.error('Error checking shop owner:', error);
+      }
+    }
 
-    if (!isOwner && !isAssignedDesigner && !isAdmin && !isDesignerViewingPending) {
+    if (!isOwner && !isAssignedDesigner && !isAdmin && !isDesignerViewingPending && !isShopOwner) {
       return NextResponse.json(
         ResponseBuilder.error({ message: 'Forbidden', statusCode: 403 }),
         { status: 403 }
       );
     }
 
+    // Serialize Timestamps to ISO strings for client-side consumption
+    const serializedData = serializeTimestamps(requestData);
+
     return NextResponse.json(
-      ResponseBuilder.success(requestData),
+      ResponseBuilder.success(serializedData),
       { status: 200 }
     );
   } catch (error) {

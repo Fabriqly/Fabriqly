@@ -247,17 +247,8 @@ export class ProductionService {
       updatedAt: Timestamp.now() as any
     });
 
-    // Release shop payment from escrow
-    console.log('[ProductionService] Production completed, releasing shop payment...');
-    try {
-      const { escrowService } = await import('./EscrowService');
-      await escrowService.releaseShopPayment(requestId);
-      console.log('[ProductionService] Shop payment released successfully');
-    } catch (error: any) {
-      console.error('[ProductionService] Failed to release shop payment:', error);
-      // Don't fail the production completion, but log the error
-      // Admin can manually trigger payout if needed
-    }
+    // Note: Shop payment will be released when order is marked as shipped/delivered
+    console.log('[ProductionService] Production completed. Payment will be released when order is shipped.');
 
     // Emit event
     await eventBus.emit('customization.production.completed', {
