@@ -178,8 +178,9 @@ export class FinanceService {
           }
         }
       } else {
-        // Payment not yet made - count as pending if escrow is set up
-        if (payment.escrowStatus === 'held' || payment.designerPayoutAmount) {
+        // Payment not yet made - count as pending if there are pending payments or escrow is set up
+        const hasPendingPayments = payment.payments?.some(p => p.status === 'pending') || false;
+        if (hasPendingPayments || payment.escrowStatus === 'held' || payment.designerPayoutAmount || payment.paymentStatus === 'pending') {
           totalEarnings += designerPayoutAmount; // Still count as potential earnings
           pendingAmount += designerPayoutAmount;
         }
@@ -787,9 +788,23 @@ export class FinanceService {
           }
           amount = payment.shopPayoutAmount;
         } else {
-          // No payout yet, use requestedAt
-          date = this.toDate(customization.requestedAt);
-          amount = 0;
+          // No payout yet, but check if there are successful payments to use their date
+          if (payment.payments && payment.payments.length > 0) {
+            const successfulPayments = payment.payments.filter(p => p.status === 'success');
+            if (successfulPayments.length > 0) {
+              const lastPayment = successfulPayments[successfulPayments.length - 1];
+              date = lastPayment.paidAt ? this.toDate(lastPayment.paidAt) : this.toDate(customization.requestedAt);
+              // Use design fee as amount even if not paid out yet (for chart display)
+              const pricing = customization.pricingAgreement;
+              amount = pricing?.designFee || 0;
+            } else {
+              date = this.toDate(customization.requestedAt);
+              amount = 0;
+            }
+          } else {
+            date = this.toDate(customization.requestedAt);
+            amount = 0;
+          }
         }
       } else {
         // Order

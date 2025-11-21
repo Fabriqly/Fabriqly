@@ -352,7 +352,7 @@ function DashboardContent() {
                 )}
               </div>
               <div className="text-sm text-gray-600">
-                {isCustomer ? 'Spent' : isBusinessOwner ? 'Active Products' : 'Earnings'}
+                {isCustomer ? 'Spent' : isBusinessOwner ? 'Active Products' : 'Reviews'}
               </div>
             </div>
             <div className="text-center">
