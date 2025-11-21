@@ -16,7 +16,7 @@ interface RouteParams {
 // GET /api/categories/[id] - Get a single category
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const categoryId = params.id;
+    const { id: categoryId } = await params;
 
     if (!categoryId) {
       return NextResponse.json(
@@ -57,7 +57,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const categoryId = params.id;
+    const { id: categoryId } = await params;
     const body: UpdateCategoryData = await request.json();
 
     if (!categoryId) {
@@ -92,7 +92,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const categoryId = params.id;
+    const { id: categoryId } = await params;
 
     if (!categoryId) {
       return NextResponse.json(

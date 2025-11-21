@@ -23,7 +23,6 @@ export async function GET(
         { status: 200 }
       );
     }
-    
     return NextResponse.json({
       success: true,
       data: shop

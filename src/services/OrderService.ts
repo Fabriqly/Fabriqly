@@ -4,7 +4,7 @@ import { ProductRepository } from '@/repositories/ProductRepository';
 import { Order } from '@/types/firebase';
 
 import { ActivityType } from '@/types/activity';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 
 import { 
   IOrderService, 
@@ -45,6 +45,7 @@ export class OrderService implements IOrderService {
       const totalAmount = subtotal + tax + shipping;
 
       // Create order
+      const now = Timestamp.now();
       const orderData = {
         customerId: data.customerId,
         businessOwnerId: data.businessOwnerId,
@@ -59,8 +60,15 @@ export class OrderService implements IOrderService {
         billingAddress: data.billingAddress || data.shippingAddress,
         paymentMethod: data.paymentMethod,
         notes: data.notes,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now()
+        statusHistory: [
+          {
+            status: 'pending' as const,
+            timestamp: now,
+            updatedBy: data.customerId
+          }
+        ],
+        createdAt: now,
+        updatedAt: now
       };
 
       const order = await this.orderRepository.create(orderData);
@@ -124,11 +132,30 @@ export class OrderService implements IOrderService {
         throw AppError.badRequest(`Invalid status transition from ${existingOrder.status} to ${data.status}`);
       }
 
+      // Validate payment status before allowing shipment or delivery
+      // Orders must be paid before they can be shipped or delivered
+      if (data.status && (data.status === 'shipped' || data.status === 'delivered')) {
+        if (existingOrder.paymentStatus !== 'paid') {
+          throw AppError.badRequest(
+            `Order must be paid before it can be marked as ${data.status}. Current payment status: ${existingOrder.paymentStatus}`
+          );
+        }
+      }
+
+      // Add status history if status is changing
+      const updateData: any = { ...data, updatedAt: Timestamp.now() };
+      if (data.status && data.status !== existingOrder.status) {
+        const statusHistory = existingOrder.statusHistory || [];
+        statusHistory.push({
+          status: data.status,
+          timestamp: Timestamp.now(),
+          updatedBy: userId
+        });
+        updateData.statusHistory = statusHistory;
+      }
+
       // Update order
-      const updatedOrder = await this.orderRepository.update(orderId, {
-        ...data,
-        updatedAt: Timestamp.now()
-      });
+      const updatedOrder = await this.orderRepository.update(orderId, updateData);
 
       // Log activity
       await this.activityRepository.create({
@@ -155,6 +182,16 @@ export class OrderService implements IOrderService {
         customerId: existingOrder.customerId,
         businessOwnerId: existingOrder.businessOwnerId
       });
+
+      // Check if order status changed to shipped/delivered and trigger shop payment
+      if (data.status && (data.status === 'shipped' || data.status === 'delivered')) {
+        await this.handleOrderShippedOrDelivered(updatedOrder);
+      }
+
+      // Update shop stats when order is marked as delivered
+      if (data.status && data.status === 'delivered') {
+        await this.updateShopStatsForDeliveredOrder(updatedOrder);
+      }
 
       // Clear relevant caches
       await CacheService.invalidate(`order:${orderId}`);
@@ -262,22 +299,41 @@ export class OrderService implements IOrderService {
         maxAmount: options.maxAmount
       };
 
-      // Get orders from repository
-      const orders = await this.orderRepository.findWithFilters(
-        filters,
-        options.sortBy,
-        options.sortOrder,
-        options.limit
-      );
+      // Get orders from repository (without sorting to avoid composite index issues)
+      const orders = await this.orderRepository.findWithFilters(filters);
 
       // Filter orders based on user permissions
       const filteredOrders = orders.filter(order => this.canUserViewOrder(order, userId));
+
+      // Sort in memory to avoid composite index requirements
+      const sortedOrders = filteredOrders.sort((a, b) => {
+        const sortField = options.sortBy || 'createdAt';
+        const sortOrder = options.sortOrder || 'desc';
+        
+        let aValue = a[sortField as keyof Order];
+        let bValue = b[sortField as keyof Order];
+        
+        // Handle timestamp fields
+        if (sortField === 'createdAt' || sortField === 'updatedAt') {
+          aValue = aValue instanceof Date ? aValue : new Date(aValue as any);
+          bValue = bValue instanceof Date ? bValue : new Date(bValue as any);
+        }
+        
+        if (sortOrder === 'asc') {
+          return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        } else {
+          return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+        }
+      });
+
+      // Apply limit after sorting
+      const limitedOrders = options.limit ? sortedOrders.slice(0, options.limit) : sortedOrders;
 
       // Calculate totals
       const totalRevenue = filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0);
 
       return {
-        orders: filteredOrders,
+        orders: limitedOrders,
         total: filteredOrders.length,
         totalRevenue,
         hasMore: filteredOrders.length === (options.limit || 50)
@@ -285,7 +341,7 @@ export class OrderService implements IOrderService {
     });
   }
 
-  async updateOrderStatus(orderId: string, status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled', userId: string): Promise<Order> {
+  async updateOrderStatus(orderId: string, status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled', userId: string): Promise<Order> {
     return this.updateOrder(orderId, { status }, userId);
   }
 
@@ -294,10 +350,20 @@ export class OrderService implements IOrderService {
   }
 
   async addTrackingNumber(orderId: string, trackingNumber: string, carrier?: string, userId?: string): Promise<Order> {
+    // Get current order to check status
+    const existingOrder = await this.orderRepository.findById(orderId);
+    if (!existingOrder) {
+      throw AppError.notFound('Order not found');
+    }
+
     const updateData: UpdateOrderData = { 
-      trackingNumber, 
-      status: 'shipped' 
+      trackingNumber
     };
+    
+    // Only set status to 'shipped' if not already shipped
+    if (existingOrder.status !== 'shipped') {
+      updateData.status = 'shipped';
+    }
     
     if (carrier) {
       updateData.carrier = carrier;
@@ -426,7 +492,7 @@ export class OrderService implements IOrderService {
   async validateOrderUpdate(data: UpdateOrderData): Promise<OrderValidationResult> {
     const errors: string[] = [];
 
-    if (data.status && !['pending', 'processing', 'shipped', 'delivered', 'cancelled'].includes(data.status)) {
+    if (data.status && !['pending', 'processing', 'to_ship', 'shipped', 'delivered', 'cancelled'].includes(data.status)) {
       errors.push('Invalid status value');
     }
 
@@ -459,7 +525,8 @@ export class OrderService implements IOrderService {
   canUpdateStatus(currentStatus: string, newStatus: string): boolean {
     const validTransitions: Record<string, string[]> = {
       'pending': ['processing', 'cancelled'],
-      'processing': ['shipped', 'cancelled'],
+      'processing': ['to_ship', 'cancelled'],
+      'to_ship': ['shipped', 'cancelled'],
       'shipped': ['delivered'],
       'delivered': [],
       'cancelled': []
@@ -471,7 +538,8 @@ export class OrderService implements IOrderService {
   getValidStatusTransitions(currentStatus: string): string[] {
     const validTransitions: Record<string, string[]> = {
       'pending': ['processing', 'cancelled'],
-      'processing': ['shipped', 'cancelled'],
+      'processing': ['to_ship', 'cancelled'],
+      'to_ship': ['shipped', 'cancelled'],
       'shipped': ['delivered'],
       'delivered': [],
       'cancelled': []
@@ -488,8 +556,177 @@ export class OrderService implements IOrderService {
     return this.orderRepository.findByDateRange(dateFrom, dateTo);
   }
 
+  // New functions for order management
+  async markOrderToShip(orderId: string, userId: string): Promise<Order> {
+    return PerformanceMonitor.measure('OrderService.markOrderToShip', async () => {
+      const existingOrder = await this.orderRepository.findById(orderId);
+      if (!existingOrder) {
+        throw AppError.notFound('Order not found');
+      }
+
+      // Check if user can update this order
+      if (!this.canUserUpdateOrder(existingOrder, userId)) {
+        throw AppError.forbidden('Insufficient permissions to update this order');
+      }
+
+      // Validate status transition
+      if (!this.canUpdateStatus(existingOrder.status, 'to_ship')) {
+        throw AppError.badRequest(`Cannot mark order as 'to_ship' from current status: ${existingOrder.status}`);
+      }
+
+      // Update order status to 'to_ship'
+      const updatedOrder = await this.updateOrderStatus(orderId, 'to_ship', userId);
+
+      // Log activity
+      await this.activityRepository.create({
+        type: 'order_status_changed',
+        title: 'Order Ready to Ship',
+        description: `Order #${orderId} has been marked as ready to ship`,
+        priority: 'high',
+        status: 'active',
+        targetId: orderId,
+        actorId: userId,
+        metadata: {
+          orderId,
+          previousStatus: existingOrder.status,
+          newStatus: 'to_ship',
+          customerId: existingOrder.customerId,
+          businessOwnerId: existingOrder.businessOwnerId
+        },
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+
+      // Emit event
+      eventBus.emit('order.status_changed', {
+        orderId,
+        previousStatus: existingOrder.status,
+        newStatus: 'to_ship',
+        customerId: existingOrder.customerId,
+        businessOwnerId: existingOrder.businessOwnerId
+      });
+
+      return updatedOrder;
+    });
+  }
+
+  async getOrdersToShip(businessOwnerId?: string, userId?: string): Promise<Order[]> {
+    return PerformanceMonitor.measure('OrderService.getOrdersToShip', async () => {
+      const searchOptions: OrderSearchOptions = {
+        status: 'to_ship',
+        businessOwnerId,
+        limit: 100,
+        sortBy: 'createdAt',
+        sortOrder: 'desc'
+      };
+
+      const result = await this.getOrders(searchOptions, userId || 'system');
+      return result.orders;
+    });
+  }
+
+  async getOrdersByStatus(status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled', businessOwnerId?: string, userId?: string): Promise<Order[]> {
+    return PerformanceMonitor.measure('OrderService.getOrdersByStatus', async () => {
+      const searchOptions: OrderSearchOptions = {
+        status,
+        businessOwnerId,
+        limit: 100,
+        sortBy: 'createdAt',
+        sortOrder: 'desc'
+      };
+
+      const result = await this.getOrders(searchOptions, userId || 'system');
+      return result.orders;
+    });
+  }
+
   async getOrdersByAmountRange(minAmount: number, maxAmount: number): Promise<Order[]> {
     return this.orderRepository.findByAmountRange(minAmount, maxAmount);
+  }
+
+  /**
+   * Handle order shipped or delivered - trigger shop payment release for customization orders
+   */
+  private async handleOrderShippedOrDelivered(order: Order): Promise<void> {
+    try {
+      // Check if this order has a customization request (design service order)
+      const customizationRequestId = order.items?.[0]?.customizations?.customizationRequestId;
+      
+      if (!customizationRequestId) {
+        // Not a customization order, skip
+        return;
+      }
+
+      console.log(`[OrderService] Order ${order.id} shipped/delivered. Checking if shop payment can be released...`);
+
+      // Import services dynamically to avoid circular dependencies
+      const { CustomizationRepository } = await import('@/repositories/CustomizationRepository');
+      const { escrowService } = await import('./EscrowService');
+      
+      const customizationRepo = new CustomizationRepository();
+      const request = await customizationRepo.findById(customizationRequestId);
+
+      if (!request) {
+        console.warn(`[OrderService] Customization request ${customizationRequestId} not found`);
+        return;
+      }
+
+      // Check if production is completed
+      if (request.productionDetails?.status !== 'completed') {
+        console.log(`[OrderService] Production not completed yet. Status: ${request.productionDetails?.status}`);
+        return;
+      }
+
+      // Check if designer has been paid
+      if (request.paymentDetails?.escrowStatus !== 'designer_paid') {
+        console.log(`[OrderService] Designer not paid yet. Escrow status: ${request.paymentDetails?.escrowStatus}`);
+        return;
+      }
+
+      // All conditions met, release shop payment
+      console.log(`[OrderService] All conditions met. Releasing shop payment...`);
+      await escrowService.releaseShopPayment(customizationRequestId);
+      console.log(`[OrderService] Shop payment released successfully for request ${customizationRequestId}`);
+    } catch (error: any) {
+      console.error('[OrderService] Failed to release shop payment:', error);
+      // Don't throw error - we don't want to fail the order update
+      // Admin can manually trigger payout if needed
+    }
+  }
+
+  private async updateShopStatsForDeliveredOrder(order: Order): Promise<void> {
+    try {
+      if (!order.businessOwnerId) {
+        return;
+      }
+
+      // Import services dynamically to avoid circular dependencies
+      const { ShopProfileService } = await import('./ShopProfileService');
+      const { ShopProfileRepository } = await import('@/repositories/ShopProfileRepository');
+      const { ActivityRepository } = await import('@/repositories/ActivityRepository');
+      
+      const shopProfileRepo = new ShopProfileRepository();
+      const activityRepo = new ActivityRepository();
+      const shopProfileService = new ShopProfileService(shopProfileRepo, activityRepo);
+
+      // Find shop profile by businessOwnerId
+      const shopProfile = await shopProfileService.getShopProfileByUserId(order.businessOwnerId);
+      
+      if (!shopProfile) {
+        return;
+      }
+
+      const currentTotalOrders = shopProfile.shopStats?.totalOrders || 0;
+      const newTotalOrders = currentTotalOrders + 1;
+
+      // Update shop stats: increment totalOrders
+      await shopProfileService.updateShopStats(shopProfile.id, {
+        totalOrders: newTotalOrders
+      });
+    } catch (error: any) {
+      console.error('[OrderService] Failed to update shop stats:', error);
+      // Don't throw error - we don't want to fail the order update
+    }
   }
 
   // Private helper methods
@@ -505,10 +742,10 @@ export class OrderService implements IOrderService {
   private canUserUpdateOrder(order: Order, userId: string): boolean {
     // Admin can update all orders
     // Business owner can update orders for their business
-    // Customer can only update their own pending orders
+    // Customer can update their own pending orders (for cancellation) or shipped orders (for delivery confirmation)
     if (userId === 'admin') return true;
     if (order.businessOwnerId === userId) return true;
-    if (order.customerId === userId && order.status === 'pending') return true;
+    if (order.customerId === userId && (order.status === 'pending' || order.status === 'shipped')) return true;
     
     return false;
   }

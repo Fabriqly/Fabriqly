@@ -9,10 +9,15 @@ export interface DashboardSummary {
   cancelledOrders: number;
   totalCategories: number;
   
-  // Revenue Metrics
+  // Revenue Metrics (subtotal only, excludes tax and shipping)
   totalRevenue: number;
   todayRevenue: number;
   thisMonthRevenue: number;
+  
+  // Platform Commission (5% of subtotal)
+  totalCommission: number;
+  todayCommission: number;
+  thisMonthCommission: number;
   
   // Time-based Metrics
   newUsersToday: number;

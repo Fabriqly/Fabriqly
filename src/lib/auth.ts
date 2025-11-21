@@ -306,13 +306,13 @@ export const authOptions: NextAuthOptions = {
       }
 
       // Role-based redirect after authentication
-      if (token?.role === 'customer') {
+      if (user?.role === 'customer') {
         return `${baseUrl}/explore`;
-      } else if (token?.role === 'designer') {
+      } else if (user?.role === 'designer') {
         return `${baseUrl}/dashboard/designs`;
-      } else if (token?.role === 'admin') {
+      } else if (user?.role === 'admin') {
         return `${baseUrl}/dashboard/admin`;
-      } else if (token?.role === 'business') {
+      } else if (user?.role === 'business') {
         return `${baseUrl}/dashboard/business`;
       }
 

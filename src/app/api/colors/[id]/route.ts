@@ -52,7 +52,7 @@ interface RouteParams {
 // GET /api/colors/[id] - Get single color
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const colorId = params.id;
+    const { id: colorId } = await params;
 
     if (!colorId) {
       return NextResponse.json(
@@ -98,7 +98,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const colorId = params.id;
+    const { id: colorId } = await params;
     const body: UpdateColorData = await request.json();
 
     if (!colorId) {
@@ -229,7 +229,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const colorId = params.id;
+    const { id: colorId } = await params;
 
     if (!colorId) {
       return NextResponse.json(

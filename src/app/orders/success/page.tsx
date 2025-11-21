@@ -90,7 +90,7 @@ export default function OrderSuccessPage() {
               </Button>
             </Link>
             
-            <Link href="/products" className="flex-1">
+            <Link href="/explore" className="flex-1">
               <Button variant="outline" className="w-full">
                 <ShoppingBag className="w-4 h-4 mr-2" />
                 Continue Shopping

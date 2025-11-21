@@ -5,8 +5,17 @@ import { useRouter } from 'next/navigation';
 import { ShopProfile, UpdateShopProfileData } from '@/types/shop-profile';
 import ShopProfileForm from '@/components/shop/ShopProfileForm';
 import ShopProfileView from '@/components/shop/ShopProfileView';
+import ShopAppealForm from '@/components/shop/ShopAppealForm';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 import { useAuth } from '@/hooks/useAuth';
+import { 
+  CheckCircle, 
+  XCircle, 
+  Clock, 
+  AlertTriangle, 
+  MessageSquare,
+  RefreshCw
+} from 'lucide-react';
 
 export default function ShopProfilePage() {
   const { user, isLoading } = useAuth(true, 'business_owner');
@@ -15,10 +24,14 @@ export default function ShopProfilePage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAppealForm, setShowAppealForm] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<any>(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
       fetchShop();
+      loadVerificationStatus();
     }
   }, [user?.id]);
 
@@ -38,6 +51,26 @@ export default function ShopProfilePage() {
       setError(err.message || 'Failed to load shop profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadVerificationStatus = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoadingStatus(true);
+      const response = await fetch('/api/shop-verification-status');
+      const data = await response.json();
+
+      if (response.ok) {
+        setVerificationStatus(data);
+      } else {
+        console.error('Failed to load verification status:', data.error);
+      }
+    } catch (error: any) {
+      console.error('Error loading verification status:', error);
+    } finally {
+      setLoadingStatus(false);
     }
   };
 
@@ -61,9 +94,15 @@ export default function ShopProfilePage() {
 
       setShop(result.data);
       setEditing(false);
+      // Reload verification status after profile update
+      loadVerificationStatus();
     } catch (error: any) {
       throw error;
     }
+  };
+
+  const handleAppealSuccess = () => {
+    loadVerificationStatus();
   };
 
   const handleCreateShop = () => {
@@ -121,6 +160,8 @@ export default function ShopProfilePage() {
           <p className="text-gray-600 mb-6">
             Create your shop profile to start selling on Fabriqly. Your shop will be reviewed by our admin team before going live.
           </p>
+          
+          
           <button
             onClick={handleCreateShop}
             className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
@@ -182,53 +223,104 @@ export default function ShopProfilePage() {
         </div>
       </div>
 
-      {/* Status Banner */}
-      {shop.approvalStatus === 'pending' && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <svg className="w-5 h-5 text-yellow-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            <div>
-              <h3 className="font-semibold text-yellow-800">Pending Approval</h3>
-              <p className="text-sm text-yellow-700 mt-1">
-                Your shop profile is under review by our admin team. You'll be notified once it's approved.
-              </p>
+      {/* Enhanced Status Banner */}
+      {shop && verificationStatus && (
+        <>
+          {/* Approved Status */}
+          {verificationStatus.verificationStatus === 'approved' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+              <div className="flex items-start">
+                <CheckCircle className="h-6 w-6 text-green-600 mt-0.5 mr-3" />
+                <div>
+                  <h3 className="font-semibold text-green-800">Shop Approved ✅</h3>
+                  <p className="text-sm text-green-700 mt-1">
+                    Your shop is live and visible to customers! You can start selling and managing your products.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {shop.approvalStatus === 'rejected' && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <svg className="w-5 h-5 text-red-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
-            <div>
-              <h3 className="font-semibold text-red-800">Application Rejected</h3>
-              <p className="text-sm text-red-700 mt-1">
-                {shop.rejectionReason || 'Your shop profile was not approved. Please update your information and try again.'}
-              </p>
+          {/* Pending Status */}
+          {verificationStatus.verificationStatus === 'pending' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+              <div className="flex items-start">
+                <Clock className="h-6 w-6 text-yellow-600 mt-0.5 mr-3" />
+                <div>
+                  <h3 className="font-semibold text-yellow-800">Application Under Review</h3>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Your shop profile is currently under review by our admin team. We'll notify you once the review is complete.
+                  </p>
+                  {shop.createdAt && (
+                    <p className="text-xs text-yellow-600 mt-2">
+                      Submitted: {new Date(shop.createdAt.seconds * 1000).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {shop.approvalStatus === 'approved' && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <svg className="w-5 h-5 text-green-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <div>
-              <h3 className="font-semibold text-green-800">Shop Approved</h3>
-              <p className="text-sm text-green-700 mt-1">
-                Your shop is live and visible to customers!
-              </p>
+          {/* Rejected Status */}
+          {verificationStatus.verificationStatus === 'rejected' && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+              <div className="flex items-start">
+                <XCircle className="h-6 w-6 text-red-600 mt-0.5 mr-3" />
+                <div>
+                  <h3 className="font-semibold text-red-800">Application Rejected</h3>
+                  <p className="text-sm text-red-700 mt-1">
+                    Your shop profile was not approved. Please review the feedback below and update your information.
+                  </p>
+                  {verificationStatus.rejectionReason && (
+                    <div className="mt-3 p-3 bg-red-100 rounded-lg">
+                      <p className="font-medium text-red-800">Reason:</p>
+                      <p className="text-red-700">{verificationStatus.rejectionReason}</p>
+                    </div>
+                  )}
+                  <div className="mt-4">
+                    <button
+                      onClick={() => setEditing(true)}
+                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium"
+                    >
+                      <RefreshCw className="h-4 w-4 inline mr-2" />
+                      Re-submit Application
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+
+          {/* Suspended Status */}
+          {verificationStatus.verificationStatus === 'suspended' && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+              <div className="flex items-start">
+                <AlertTriangle className="h-6 w-6 text-red-600 mt-0.5 mr-3" />
+                <div>
+                  <h3 className="font-semibold text-red-800">Shop Suspended</h3>
+                  <p className="text-sm text-red-700 mt-1">
+                    Your shop has been suspended. You can submit an appeal to request a review of this decision.
+                  </p>
+                  {verificationStatus.suspensionReason && (
+                    <div className="mt-3 p-3 bg-red-100 rounded-lg">
+                      <p className="font-medium text-red-800">Reason:</p>
+                      <p className="text-red-700">{verificationStatus.suspensionReason}</p>
+                    </div>
+                  )}
+                  <div className="mt-4">
+                    <button
+                      onClick={() => setShowAppealForm(true)}
+                      className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-sm font-medium"
+                    >
+                      <MessageSquare className="h-4 w-4 inline mr-2" />
+                      Submit Appeal
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <ShopProfileView shop={shop} showEditButton={false} />
@@ -238,6 +330,14 @@ export default function ShopProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Appeal Form Modal */}
+      <ShopAppealForm
+        isOpen={showAppealForm}
+        onClose={() => setShowAppealForm(false)}
+        onSuccess={handleAppealSuccess}
+        suspensionReason={verificationStatus?.suspensionReason}
+      />
     </div>
   );
 }
