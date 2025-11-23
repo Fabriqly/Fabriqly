@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
       productId: searchParams.get('productId') || undefined,
       shopId: searchParams.get('shopId') || undefined,
       designerId: searchParams.get('designerId') || undefined,
+      designId: searchParams.get('designId') || undefined,
       customizationRequestId: searchParams.get('customizationRequestId') || undefined,
       reviewType: searchParams.get('reviewType') || undefined,
       limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined
@@ -62,7 +63,8 @@ export async function POST(request: NextRequest) {
       reviewType, 
       productId, 
       shopId, 
-      designerId, 
+      designerId,
+      designId,
       customizationRequestId 
     } = body;
 
@@ -84,6 +86,7 @@ export async function POST(request: NextRequest) {
       productId,
       shopId,
       designerId,
+      designId,
       customizationRequestId
     });
 

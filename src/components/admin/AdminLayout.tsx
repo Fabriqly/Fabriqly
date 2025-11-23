@@ -19,7 +19,8 @@ import {
   Shield,
   Store,
   MessageSquare,
-  FileText
+  FileText,
+  DollarSign
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -80,6 +81,12 @@ const adminNavigation = [
     href: '/dashboard/admin/designer-verification',
     icon: Shield,
     description: 'Verify designer accounts'
+  },
+  {
+    name: 'Payouts',
+    href: '/dashboard/admin/payouts',
+    icon: DollarSign,
+    description: 'Manage designer payouts'
   },
   {
     name: 'Users',

@@ -16,7 +16,8 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  Loader
+  Loader,
+  Lock
 } from 'lucide-react';
 
 interface CustomizationRequest {
@@ -316,41 +317,71 @@ function CustomizationDetailsPageContent() {
             </div>
           )}
 
-          {/* Designer Final Files */}
-          {(request.designerFinalFile || request.designerPreviewImage) && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                Final Design Files
-              </h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                {request.designerFinalFile && (
-                  <a
-                    href={request.designerFinalFile.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-3 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100"
-                  >
-                    <Download className="w-5 h-5 text-green-600" />
-                    <div>
-                      <p className="font-medium text-sm">Final Design File</p>
-                      <p className="text-xs text-gray-500">{request.designerFinalFile.name}</p>
+          {/* Designer Final Files - Only show if payment is made */}
+          {(request.designerFinalFile || request.designerPreviewImage) && (() => {
+            // Check if customer has paid
+            const hasPaid = request.paymentDetails && (
+              request.paymentDetails.paymentStatus === 'fully_paid' ||
+              (request.paymentDetails.paidAmount || 0) >= (request.pricingAgreement?.designFee || 0)
+            );
+
+            if (!hasPaid) {
+              return (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg shadow p-6">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2 text-yellow-800">
+                    <Lock className="w-5 h-5" />
+                    Final Design Files (Payment Required)
+                  </h3>
+                  <p className="text-yellow-700 mb-4">
+                    Please complete your payment to view the final design files.
+                  </p>
+                  {request.pricingAgreement && (
+                    <div className="bg-white rounded-lg p-4 border border-yellow-200">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Payment Required:</p>
+                      <p className="text-lg font-bold text-gray-900">
+                        ₱{request.pricingAgreement.designFee.toFixed(2)}
+                      </p>
                     </div>
-                  </a>
-                )}
-                {request.designerPreviewImage && (
-                  <div>
-                    <p className="text-sm font-medium mb-2">Final Preview</p>
-                    <img 
-                      src={request.designerPreviewImage.url} 
-                      alt="Designer preview"
-                      className="w-full h-48 object-cover rounded-lg"
-                    />
-                  </div>
-                )}
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  Final Design Files
+                </h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {request.designerFinalFile && (
+                    <a
+                      href={request.designerFinalFile.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-3 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100"
+                    >
+                      <Download className="w-5 h-5 text-green-600" />
+                      <div>
+                        <p className="font-medium text-sm">Final Design File</p>
+                        <p className="text-xs text-gray-500">{request.designerFinalFile.name}</p>
+                      </div>
+                    </a>
+                  )}
+                  {request.designerPreviewImage && (
+                    <div>
+                      <p className="text-sm font-medium mb-2">Final Preview</p>
+                      <img 
+                        src={request.designerPreviewImage.url} 
+                        alt="Designer preview"
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Pricing & Payment */}
           {request.pricingAgreement && (

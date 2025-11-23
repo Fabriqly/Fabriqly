@@ -189,6 +189,9 @@ export const Collections = {
   
   // Application System
   DESIGNER_APPLICATIONS: 'designerApplications',
-  SHOP_APPLICATIONS: 'shopApplications'
+  SHOP_APPLICATIONS: 'shopApplications',
+  
+  // Notification System
+  NOTIFICATIONS: 'notifications'
 
 } as const;

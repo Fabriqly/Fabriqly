@@ -9,6 +9,8 @@ export interface DesignerProfile {
   businessName: string;
   userId: string; // Links to users collection
   bio?: string;
+  profileImageUrl?: string;
+  bannerUrl?: string;
   website?: string;
   socialMedia?: {
     instagram?: string;

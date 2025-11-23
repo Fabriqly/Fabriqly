@@ -99,7 +99,8 @@ export async function PUT(request: NextRequest) {
       lastName,
       phone,
       dateOfBirth,
-      address
+      address,
+      photoURL
     } = body;
 
     // Validate required fields
@@ -132,7 +133,7 @@ export async function PUT(request: NextRequest) {
     });
 
     // Prepare update data with proper structure
-    const updateData = {
+    const updateData: any = {
       displayName: finalDisplayName,
       profile: {
         ...currentData.profile,
@@ -150,6 +151,11 @@ export async function PUT(request: NextRequest) {
       },
       updatedAt: new Date().toISOString()
     };
+
+    // Update photoURL if provided
+    if (photoURL !== undefined) {
+      updateData.photoURL = photoURL;
+    }
 
     console.log('💾 Updating Firestore with data:', {
       displayName: updateData.displayName,
