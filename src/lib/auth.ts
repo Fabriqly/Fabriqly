@@ -240,6 +240,8 @@ export const authOptions: NextAuthOptions = {
               await setDoc(userDocRef, userData);
               token.sub = firebaseUserId;
               token.role = 'customer' as UserRole;
+              // New user, use Google image
+              token.photoURL = user.image;
             } else {
               const userData = userDoc.data();
               await setDoc(
@@ -253,10 +255,11 @@ export const authOptions: NextAuthOptions = {
               );
 
               token.role = userData.role as UserRole;
+              // Use photoURL from database if available, otherwise use Google image
+              token.photoURL = userData.photoURL || user.image;
             }
 
             token.displayName = user.name;
-            token.photoURL = user.image;
             token.provider = 'google';
           } else if (account.provider === 'credentials') {
             token.role = user.role as UserRole;
@@ -266,14 +269,24 @@ export const authOptions: NextAuthOptions = {
 
             try {
               const userDocRef = doc(db, Collections.USERS, userId);
-              await setDoc(
-                userDocRef,
-                {
-                  lastLoginAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString()
-                },
-                { merge: true }
-              );
+              const userDoc = await getDoc(userDocRef);
+              
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                // Update photoURL from database if available
+                if (userData.photoURL) {
+                  token.photoURL = userData.photoURL;
+                }
+                
+                await setDoc(
+                  userDocRef,
+                  {
+                    lastLoginAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  },
+                  { merge: true }
+                );
+              }
             } catch (error) {
               console.error('JWT: Error updating last login time:', error);
             }

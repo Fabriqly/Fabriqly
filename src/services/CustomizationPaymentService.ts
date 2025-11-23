@@ -53,8 +53,8 @@ export class CustomizationPaymentService {
       throw AppError.forbidden('Only the assigned designer can create pricing');
     }
 
-    // Allow pricing to be set during in_progress or awaiting_customer_approval
-    if (!['in_progress', 'awaiting_customer_approval'].includes(request.status)) {
+    // Allow pricing to be set during in_progress, awaiting_customer_approval, or awaiting_pricing (after rejection)
+    if (!['in_progress', 'awaiting_customer_approval', 'awaiting_pricing'].includes(request.status)) {
       throw AppError.badRequest('Cannot set pricing at current status: ' + request.status);
     }
 
@@ -95,9 +95,16 @@ export class CustomizationPaymentService {
       }));
     }
 
+    // If status is awaiting_pricing (after rejection), change back to awaiting_customer_approval
+    // so customer can review the new pricing
+    const newStatus = request.status === 'awaiting_pricing' 
+      ? 'awaiting_customer_approval' 
+      : request.status;
+
     const updatedRequest = await this.customizationRepo.update(requestId, {
       pricingAgreement: pricingAgreement as any,
       paymentDetails: paymentDetails as any,
+      status: newStatus,
       updatedAt: Timestamp.now() as any
     });
 

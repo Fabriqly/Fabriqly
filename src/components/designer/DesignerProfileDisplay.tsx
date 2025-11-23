@@ -50,29 +50,54 @@ export function DesignerProfileDisplay({ profile, showActions = false, onEdit }:
   }, [profile.id]);
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
-            {profile.businessName.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">{profile.businessName}</h2>
-            {profile.isVerified && (
-              <div className="flex items-center text-blue-600 text-sm">
-                <Award className="w-4 h-4 mr-1" />
-                Verified Designer
+    <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      {/* Banner */}
+      {profile.bannerUrl ? (
+        <div className="w-full h-48 md:h-64 bg-gray-200 relative">
+          <img
+            src={profile.bannerUrl}
+            alt={`${profile.businessName} banner`}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      ) : (
+        <div className="w-full h-48 md:h-64 bg-gradient-to-r from-blue-500 to-purple-600"></div>
+      )}
+
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-6 -mt-16 md:-mt-20">
+          <div className="flex items-end space-x-4">
+            {/* Profile Picture */}
+            {profile.profileImageUrl ? (
+              <div className="relative">
+                <img
+                  src={profile.profileImageUrl}
+                  alt={profile.businessName}
+                  className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white shadow-lg object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-3xl md:text-4xl font-bold border-4 border-white shadow-lg">
+                {profile.businessName.charAt(0).toUpperCase()}
               </div>
             )}
+            <div className="pb-2">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">{profile.businessName}</h2>
+              {profile.isVerified && (
+                <div className="flex items-center text-blue-600 text-sm mt-1">
+                  <Award className="w-4 h-4 mr-1" />
+                  Verified Designer
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        {showActions && onEdit && (
-          <Button variant="outline" onClick={() => onEdit(profile)}>
-            Edit Profile
-          </Button>
-        )}
-      </div>
+          {showActions && onEdit && (
+            <Button variant="outline" onClick={() => onEdit(profile)} className="mt-16 md:mt-20">
+              Edit Profile
+            </Button>
+          )}
+        </div>
 
       {profile.bio && (
         <div className="mb-6">
@@ -186,14 +211,15 @@ export function DesignerProfileDisplay({ profile, showActions = false, onEdit }:
           </div>
         )}
       </div>
+      </div>
 
       {/* Design Timeline Section */}
-      <div className="mt-6">
+      <div className="mt-6 px-6">
         <DesignTimeline designerId={profile.id} />
       </div>
 
       {/* Reviews Section */}
-      <div className="mt-6">
+      <div className="mt-6 px-6 pb-6">
         <DesignerReviewSection designer={profile} />
       </div>
     </div>

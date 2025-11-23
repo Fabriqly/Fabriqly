@@ -181,14 +181,58 @@ export class CustomizationRepository extends BaseRepository<CustomizationRequest
       }
     }
 
+    // Always sort by most recent first - use requestedAt, fallback to createdAt
     const orderField = filters.sortBy || 'requestedAt';
     const orderDirection = filters.sortOrder || 'desc';
 
-    return this.findAll({
+    // Fetch all matching records with proper sorting from Firestore
+    // Note: Firestore query will sort by orderField, but we need to ensure
+    // proper sorting by requestedAt (most recent first) with createdAt fallback
+    const allResults = await this.findAll({
       filters: queryFilters,
-      orderBy: { field: orderField, direction: orderDirection },
-      limit: filters.limit
+      orderBy: { field: orderField, direction: orderDirection }
     });
+
+    // Additional client-side sort to ensure proper ordering
+    // Sort by requestedAt (most recent first), with createdAt as fallback, then updatedAt
+    const sortedResults = allResults.sort((a, b) => {
+      // Primary: requestedAt, fallback to createdAt, then updatedAt
+      const dateA = a.requestedAt || a.createdAt || a.updatedAt;
+      const dateB = b.requestedAt || b.createdAt || b.updatedAt;
+      
+      if (!dateA && !dateB) return 0;
+      if (!dateA) return 1; // Put items without date at end
+      if (!dateB) return -1;
+      
+      // Convert to Date if needed (handle Firestore Timestamp)
+      let timestampA: Date;
+      let timestampB: Date;
+      
+      if (dateA.toDate && typeof dateA.toDate === 'function') {
+        timestampA = dateA.toDate();
+      } else if (dateA.seconds) {
+        timestampA = new Date(dateA.seconds * 1000);
+      } else {
+        timestampA = new Date(dateA);
+      }
+      
+      if (dateB.toDate && typeof dateB.toDate === 'function') {
+        timestampB = dateB.toDate();
+      } else if (dateB.seconds) {
+        timestampB = new Date(dateB.seconds * 1000);
+      } else {
+        timestampB = new Date(dateB);
+      }
+      
+      // Descending order (newest first) - most recent at top
+      return timestampB.getTime() - timestampA.getTime();
+    });
+
+    // Apply offset and limit AFTER sorting
+    const startIndex = filters.offset || 0;
+    const endIndex = filters.limit ? startIndex + filters.limit : undefined;
+    
+    return sortedResults.slice(startIndex, endIndex);
   }
 }
 

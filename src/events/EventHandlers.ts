@@ -1,6 +1,8 @@
 import { eventBus, EventTypes } from './EventBus';
 import { CacheService } from '@/services/CacheService';
 import { PerformanceMonitor } from '@/monitoring/PerformanceMonitor';
+import { NotificationService } from '@/services/NotificationService';
+import { UserRepository } from '@/repositories/UserRepository';
 
 /**
  * Cache invalidation event handlers
@@ -55,32 +57,17 @@ export class AnalyticsEventHandlers {
   static initialize(): void {
     // Track user registrations
     eventBus.on(EventTypes.USER_CREATED, (event) => {
-      console.log('User registered:', {
-        userId: event.data.id,
-        email: event.data.email,
-        role: event.data.role,
-        timestamp: event.timestamp
-      });
+      // Analytics tracking
     });
 
     // Track product creations
     eventBus.on(EventTypes.PRODUCT_CREATED, (event) => {
-      console.log('Product created:', {
-        productId: event.data.id,
-        businessOwnerId: event.data.businessOwnerId,
-        categoryId: event.data.categoryId,
-        timestamp: event.timestamp
-      });
+      // Analytics tracking
     });
 
     // Track category changes
     eventBus.on(EventTypes.CATEGORY_CREATED, (event) => {
-      console.log('Category created:', {
-        categoryId: event.data.id,
-        name: event.data.name,
-        parentId: event.data.parentId,
-        timestamp: event.timestamp
-      });
+      // Analytics tracking
     });
   }
 }
@@ -89,37 +76,124 @@ export class AnalyticsEventHandlers {
  * Notification event handlers
  */
 export class NotificationEventHandlers {
+  private static notificationService = new NotificationService();
+  private static userRepo = new UserRepository();
+
   static initialize(): void {
-    // Send welcome email when user is created
+    // ===== USER NOTIFICATIONS =====
+
+    // Send welcome notification when user is created
     eventBus.on(EventTypes.USER_CREATED, async (event) => {
       try {
-        // In a real implementation, you would send an email here
-        console.log('Sending welcome email to:', event.data.email);
-        
-        // Simulate email sending
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        console.log('Welcome email sent successfully');
+        await this.notificationService.sendNotification(
+          event.data.id,
+          'user_welcome',
+          {
+            userId: event.data.id,
+            userName: event.data.displayName || event.data.email,
+            relatedEntityId: event.data.id,
+            relatedEntityType: 'user'
+          }
+        );
       } catch (error) {
-        console.error('Failed to send welcome email:', error);
+        console.error('Failed to send welcome notification:', error);
       }
     });
+
+    // Send notification when user is verified
+    eventBus.on(EventTypes.USER_VERIFIED, async (event) => {
+      try {
+        await this.notificationService.sendNotification(
+          event.data.userId || event.data.id,
+          'user_verified',
+          {
+            userId: event.data.userId || event.data.id,
+            relatedEntityId: event.data.userId || event.data.id,
+            relatedEntityType: 'user'
+          }
+        );
+      } catch (error) {
+        console.error('Failed to send verification notification:', error);
+      }
+    });
+
+    // ===== PRODUCT NOTIFICATIONS =====
 
     // Send notification when product is published
     eventBus.on(EventTypes.PRODUCT_PUBLISHED, async (event) => {
       try {
-        console.log('Product published notification:', {
-          productId: event.data.id,
-          productName: event.data.name,
-          businessOwnerId: event.data.businessOwnerId
-        });
-        
-        // In a real implementation, you would send notifications here
-        // - Email to business owner
-        // - Push notification to followers
-        // - Update search index
+        await this.notificationService.sendNotification(
+          event.data.businessOwnerId,
+          'product_published',
+          {
+            productId: event.data.id,
+            productName: event.data.name,
+            businessOwnerId: event.data.businessOwnerId,
+            relatedEntityId: event.data.id,
+            relatedEntityType: 'product'
+          }
+        );
       } catch (error) {
         console.error('Failed to send product published notification:', error);
+      }
+    });
+
+    // Send notification when product is updated
+    eventBus.on(EventTypes.PRODUCT_UPDATED, async (event) => {
+      try {
+        await this.notificationService.sendNotification(
+          event.data.businessOwnerId,
+          'product_updated',
+          {
+            productId: event.data.id,
+            productName: event.data.name,
+            businessOwnerId: event.data.businessOwnerId,
+            relatedEntityId: event.data.id,
+            relatedEntityType: 'product'
+          }
+        );
+      } catch (error) {
+        console.error('Failed to send product updated notification:', error);
+      }
+    });
+
+    // ===== ORDER NOTIFICATIONS =====
+
+    // Notify customer when order is created
+    eventBus.on('order.created', async (event) => {
+      try {
+        await this.notificationService.sendNotification(
+          event.data.customerId,
+          'order_created',
+          {
+            orderId: event.data.orderId,
+            totalAmount: event.data.totalAmount,
+            relatedEntityId: event.data.orderId,
+            relatedEntityType: 'order'
+          }
+        );
+      } catch (error) {
+        console.error('Failed to send order created notification:', error);
+      }
+    });
+
+    // Notify customer when order status changes
+    eventBus.on('order.updated', async (event) => {
+      try {
+        if (event.data.changes?.status) {
+          await this.notificationService.sendNotification(
+            event.data.customerId,
+            'order_status_changed',
+            {
+              orderId: event.data.orderId,
+              status: event.data.changes.status,
+              relatedEntityId: event.data.orderId,
+              relatedEntityType: 'order'
+            }
+          );
+        }
+      } catch (error) {
+        console.error('Failed to send order updated notification:', error);
       }
     });
 
@@ -128,16 +202,23 @@ export class NotificationEventHandlers {
     // Notify designers when new customization request is created
     eventBus.on('customization.request.created', async (event) => {
       try {
-        console.log('📨 Notifying designers of new customization request:', {
-          requestId: event.data.requestId,
-          productName: event.data.productName,
-          customerId: event.data.customerId
-        });
-        
-        // In a real implementation, you would:
-        // - Send email/push notification to available designers
-        // - Create in-app notification
-        // - Send SMS if urgent
+        // Get all designers
+        const designers = await this.userRepo.findByRole('designer');
+        const designerIds = designers.map(d => d.id);
+
+        if (designerIds.length > 0) {
+          await this.notificationService.createNotificationsForUsers(
+            designerIds,
+            'customization_request_created',
+            {
+              requestId: event.data.requestId,
+              productName: event.data.productName,
+              customerId: event.data.customerId,
+              relatedEntityId: event.data.requestId,
+              relatedEntityType: 'customization'
+            }
+          );
+        }
       } catch (error) {
         console.error('Failed to send new request notification:', error);
       }
@@ -146,16 +227,17 @@ export class NotificationEventHandlers {
     // Notify customer when designer is assigned
     eventBus.on('customization.designer.assigned', async (event) => {
       try {
-        console.log('📨 Notifying customer that designer has been assigned:', {
-          requestId: event.data.requestId,
-          designerId: event.data.designerId,
-          customerId: event.data.customerId
-        });
-        
-        // In a real implementation, you would:
-        // - Send email to customer
-        // - Create in-app notification
-        // - Include designer profile info
+        await this.notificationService.sendNotification(
+          event.data.customerId,
+          'customization_designer_assigned',
+          {
+            requestId: event.data.requestId,
+            designerId: event.data.designerId,
+            designerName: event.data.designerName,
+            relatedEntityId: event.data.requestId,
+            relatedEntityType: 'customization'
+          }
+        );
       } catch (error) {
         console.error('Failed to send designer assigned notification:', error);
       }
@@ -164,16 +246,16 @@ export class NotificationEventHandlers {
     // Notify customer when designer completes work
     eventBus.on('customization.design.completed', async (event) => {
       try {
-        console.log('📨 Notifying customer that design is ready for review:', {
-          requestId: event.data.requestId,
-          designerId: event.data.designerId,
-          customerId: event.data.customerId
-        });
-        
-        // In a real implementation, you would:
-        // - Send email to customer with preview
-        // - Create in-app notification with action button
-        // - Send push notification
+        await this.notificationService.sendNotification(
+          event.data.customerId,
+          'customization_design_completed',
+          {
+            requestId: event.data.requestId,
+            designerId: event.data.designerId,
+            relatedEntityId: event.data.requestId,
+            relatedEntityType: 'customization'
+          }
+        );
       } catch (error) {
         console.error('Failed to send design completed notification:', error);
       }
@@ -182,16 +264,16 @@ export class NotificationEventHandlers {
     // Notify designer when customer approves design
     eventBus.on('customization.design.approved', async (event) => {
       try {
-        console.log('✅ Notifying designer of design approval:', {
-          requestId: event.data.requestId,
-          designerId: event.data.designerId,
-          customerId: event.data.customerId
-        });
-        
-        // In a real implementation, you would:
-        // - Send email to designer
-        // - Create in-app notification
-        // - Update designer stats/earnings
+        await this.notificationService.sendNotification(
+          event.data.designerId,
+          'customization_design_approved',
+          {
+            requestId: event.data.requestId,
+            customerId: event.data.customerId,
+            relatedEntityId: event.data.requestId,
+            relatedEntityType: 'customization'
+          }
+        );
       } catch (error) {
         console.error('Failed to send design approved notification:', error);
       }
@@ -200,37 +282,147 @@ export class NotificationEventHandlers {
     // Notify designer when customer rejects design
     eventBus.on('customization.design.rejected', async (event) => {
       try {
-        console.log('🔄 Notifying designer of design rejection:', {
-          requestId: event.data.requestId,
-          designerId: event.data.designerId,
-          customerId: event.data.customerId,
-          reason: event.data.reason
-        });
-        
-        // In a real implementation, you would:
-        // - Send email to designer with feedback
-        // - Create in-app notification with revision notes
-        // - Include customer's rejection reason
+        await this.notificationService.sendNotification(
+          event.data.designerId,
+          'customization_design_rejected',
+          {
+            requestId: event.data.requestId,
+            reason: event.data.reason,
+            customerId: event.data.customerId,
+            relatedEntityId: event.data.requestId,
+            relatedEntityType: 'customization'
+          }
+        );
       } catch (error) {
         console.error('Failed to send design rejected notification:', error);
+      }
+    });
+
+    // Notify customer when pricing is created
+    eventBus.on('customization.pricing.created', async (event) => {
+      try {
+        await this.notificationService.sendNotification(
+          event.data.customerId,
+          'customization_pricing_created',
+          {
+            requestId: event.data.requestId,
+            designFee: event.data.designFee,
+            relatedEntityId: event.data.requestId,
+            relatedEntityType: 'customization'
+          }
+        );
+      } catch (error) {
+        console.error('Failed to send pricing created notification:', error);
+      }
+    });
+
+    // Notify customer when payment is required
+    eventBus.on('customization.payment.updated', async (event) => {
+      try {
+        if (event.data.remainingAmount > 0) {
+          await this.notificationService.sendNotification(
+            event.data.customerId,
+            'customization_payment_required',
+            {
+              requestId: event.data.requestId,
+              amount: event.data.remainingAmount,
+              relatedEntityId: event.data.requestId,
+              relatedEntityType: 'customization'
+            }
+          );
+        }
+      } catch (error) {
+        console.error('Failed to send payment required notification:', error);
       }
     });
 
     // Notify relevant parties when request is cancelled
     eventBus.on('customization.request.cancelled', async (event) => {
       try {
-        console.log('❌ Notifying parties of request cancellation:', {
-          requestId: event.data.requestId,
-          customerId: event.data.customerId,
-          designerId: event.data.designerId
-        });
-        
-        // In a real implementation, you would:
-        // - Send email to designer if assigned
-        // - Update designer's workload
-        // - Process any refunds if applicable
+        // Notify customer
+        await this.notificationService.sendNotification(
+          event.data.customerId,
+          'customization_request_cancelled',
+          {
+            requestId: event.data.requestId,
+            reason: event.data.reason,
+            relatedEntityId: event.data.requestId,
+            relatedEntityType: 'customization'
+          }
+        );
+
+        // Notify designer if assigned
+        if (event.data.designerId) {
+          await this.notificationService.sendNotification(
+            event.data.designerId,
+            'customization_request_cancelled',
+            {
+              requestId: event.data.requestId,
+              reason: event.data.reason,
+              relatedEntityId: event.data.requestId,
+              relatedEntityType: 'customization'
+            }
+          );
+        }
       } catch (error) {
         console.error('Failed to send cancellation notification:', error);
+      }
+    });
+
+    // ===== MESSAGE NOTIFICATIONS =====
+
+    // Notify user when message is received
+    eventBus.on('message.sent', async (event) => {
+      try {
+        await this.notificationService.sendNotification(
+          event.data.receiverId,
+          'message_received',
+          {
+            senderId: event.data.senderId,
+            senderName: event.data.senderName,
+            conversationId: event.data.conversationId,
+            preview: event.data.content?.substring(0, 100),
+            relatedEntityId: event.data.conversationId,
+            relatedEntityType: 'message'
+          }
+        );
+      } catch (error) {
+        console.error('Failed to send message notification:', error);
+      }
+    });
+
+    // ===== REVIEW NOTIFICATIONS =====
+
+    // Notify when review is created
+    eventBus.on('review.created', async (event) => {
+      try {
+        // Determine target user based on review type
+        let targetUserId: string | undefined;
+        if (event.data.reviewType === 'shop' && event.data.shopId) {
+          // Get shop owner
+          // This would need shop repository - for now, skip
+        } else if (event.data.reviewType === 'designer' && event.data.designerId) {
+          targetUserId = event.data.designerId;
+        } else if (event.data.reviewType === 'product' && event.data.productId) {
+          // Get product owner
+          // This would need product repository - for now, skip
+        }
+
+        if (targetUserId) {
+          await this.notificationService.sendNotification(
+            targetUserId,
+            'review_received',
+            {
+              reviewId: event.data.reviewId,
+              rating: event.data.rating,
+              reviewType: event.data.reviewType,
+              relatedEntityId: event.data.reviewId,
+              relatedEntityType: 'review'
+            }
+          );
+        }
+      } catch (error) {
+        console.error('Failed to send review notification:', error);
       }
     });
   }
@@ -243,22 +435,12 @@ export class PerformanceEventHandlers {
   static initialize(): void {
     // Monitor slow operations
     eventBus.on(EventTypes.PERFORMANCE_WARNING, (event) => {
-      console.warn('Performance warning:', {
-        operation: event.data.operation,
-        duration: event.data.duration,
-        threshold: event.data.threshold,
-        timestamp: event.timestamp
-      });
+      // Performance monitoring
     });
 
     // Track errors
     eventBus.on(EventTypes.ERROR_OCCURRED, (event) => {
-      console.error('Error occurred:', {
-        error: event.data.error,
-        operation: event.data.operation,
-        context: event.data.context,
-        timestamp: event.timestamp
-      });
+      // Error tracking
     });
   }
 }
@@ -271,15 +453,11 @@ export class SearchIndexEventHandlers {
     // Update search index when product is created/updated
     eventBus.on(EventTypes.PRODUCT_CREATED, async (event) => {
       try {
-        console.log('Updating search index for product:', event.data.id);
-        
         // In a real implementation, you would update your search index here
         // - Add to Elasticsearch
         // - Update Algolia index
         // - Update internal search cache
-        
         await new Promise(resolve => setTimeout(resolve, 50));
-        console.log('Search index updated successfully');
       } catch (error) {
         console.error('Failed to update search index:', error);
       }
@@ -287,9 +465,8 @@ export class SearchIndexEventHandlers {
 
     eventBus.on(EventTypes.PRODUCT_UPDATED, async (event) => {
       try {
-        console.log('Updating search index for updated product:', event.data.id);
+        // Update search index
         await new Promise(resolve => setTimeout(resolve, 50));
-        console.log('Search index updated successfully');
       } catch (error) {
         console.error('Failed to update search index:', error);
       }
@@ -298,9 +475,8 @@ export class SearchIndexEventHandlers {
     // Remove from search index when product is deleted
     eventBus.on(EventTypes.PRODUCT_DELETED, async (event) => {
       try {
-        console.log('Removing from search index:', event.data.id);
+        // Remove from search index
         await new Promise(resolve => setTimeout(resolve, 50));
-        console.log('Removed from search index successfully');
       } catch (error) {
         console.error('Failed to remove from search index:', error);
       }
@@ -313,54 +489,30 @@ export class SearchIndexEventHandlers {
  */
 export class AuditLogEventHandlers {
   static initialize(): void {
-    // Log all user-related events
+    // Log all user-related events (audit logging)
     eventBus.on(EventTypes.USER_CREATED, (event) => {
-      console.log('AUDIT: User created', {
-        userId: event.data.id,
-        email: event.data.email,
-        role: event.data.role,
-        timestamp: event.timestamp
-      });
+      // Audit log: User created
     });
 
     eventBus.on(EventTypes.USER_UPDATED, (event) => {
-      console.log('AUDIT: User updated', {
-        userId: event.data.id,
-        changes: event.data.changes,
-        timestamp: event.timestamp
-      });
+      // Audit log: User updated
     });
 
     eventBus.on(EventTypes.USER_DELETED, (event) => {
-      console.log('AUDIT: User deleted', {
-        userId: event.data.id,
-        timestamp: event.timestamp
-      });
+      // Audit log: User deleted
     });
 
-    // Log all product-related events
+    // Log all product-related events (audit logging)
     eventBus.on(EventTypes.PRODUCT_CREATED, (event) => {
-      console.log('AUDIT: Product created', {
-        productId: event.data.id,
-        businessOwnerId: event.data.businessOwnerId,
-        timestamp: event.timestamp
-      });
+      // Audit log: Product created
     });
 
     eventBus.on(EventTypes.PRODUCT_UPDATED, (event) => {
-      console.log('AUDIT: Product updated', {
-        productId: event.data.id,
-        changes: event.data.changes,
-        timestamp: event.timestamp
-      });
+      // Audit log: Product updated
     });
 
     eventBus.on(EventTypes.PRODUCT_DELETED, (event) => {
-      console.log('AUDIT: Product deleted', {
-        productId: event.data.id,
-        businessOwnerId: event.data.businessOwnerId,
-        timestamp: event.timestamp
-      });
+      // Audit log: Product deleted
     });
   }
 }
@@ -376,7 +528,7 @@ export function initializeEventHandlers(): void {
   SearchIndexEventHandlers.initialize();
   AuditLogEventHandlers.initialize();
 
-  console.log('Event handlers initialized successfully');
+  // Event handlers initialized
 }
 
 /**

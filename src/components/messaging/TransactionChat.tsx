@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Message } from '@/types/firebase';
 import { useSession } from 'next-auth/react';
+import { db } from '@/lib/firebase';
+import { collection, query, where, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
 
 interface TransactionChatProps {
   customizationRequestId: string;
@@ -30,6 +32,7 @@ export function TransactionChat({
   const [approving, setApproving] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [markAsFinal, setMarkAsFinal] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -40,6 +43,57 @@ export function TransactionChat({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Set up real-time listener for messages
+  useEffect(() => {
+    if (!conversationId || !user?.id) return;
+
+    const messagesRef = collection(db, 'messages');
+    const q = query(
+      messagesRef,
+      where('conversationId', '==', conversationId),
+      orderBy('createdAt', 'asc'),
+      limit(100)
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        setIsConnected(true);
+        const newMessages = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt
+          } as Message;
+        });
+
+        setMessages(newMessages);
+
+        // Mark unread messages as read when they arrive
+        const unreadMessages = newMessages.filter(
+          msg => !msg.isRead && msg.receiverId === user.id
+        );
+        
+        if (unreadMessages.length > 0) {
+          // Mark conversation as read
+          fetch(`/api/messages/conversation/${conversationId}`, {
+            method: 'PATCH'
+          }).catch(err => console.error('Error marking as read:', err));
+        }
+      },
+      (error) => {
+        console.error('Error listening to messages:', error);
+        setIsConnected(false);
+        // Fallback to loading conversation on error
+        loadConversation();
+      }
+    );
+
+    return () => unsubscribe();
+  }, [conversationId, user?.id]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -124,7 +178,8 @@ export function TransactionChat({
       const data = await response.json();
 
       if (data.success) {
-        setMessages((prev) => [...prev, data.data]);
+        // Message will be added via real-time listener, but we can optimistically update
+        // No need to manually add to state - real-time listener will handle it
         setNewMessage('');
         setSelectedFile(null);
         setMarkAsFinal(false);
@@ -168,7 +223,8 @@ export function TransactionChat({
       const data = await response.json();
 
       if (data.success) {
-        setMessages(prev => [...prev, data.data]);
+        // Message will be added via real-time listener, but we can optimistically update
+        // No need to manually add to state - real-time listener will handle it
         setNewMessage('');
       }
     } catch (error) {
@@ -249,7 +305,6 @@ export function TransactionChat({
       
       return date.toLocaleDateString();
     } catch (error) {
-      console.error('Error formatting timestamp:', error, timestamp);
       return 'Just now';
     }
   };
@@ -266,12 +321,29 @@ export function TransactionChat({
     <div className="flex flex-col h-[600px] bg-white rounded-lg shadow-lg border border-gray-200">
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
-        <h3 className="text-lg font-semibold text-gray-900">
-          Chat with {otherUserName}
-        </h3>
-        <p className="text-sm text-gray-500">
-          {otherUserRole === 'designer' ? 'Designer' : 'Customer'}
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Chat with {otherUserName}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {otherUserRole === 'designer' ? 'Designer' : 'Customer'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isConnected ? (
+              <div className="flex items-center gap-1.5 text-xs text-green-600">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span>Live</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                <span>Connecting...</span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Messages */}
