@@ -1,0 +1,40 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // User uploads - users can read/write their own files
+    match /users/{userId}/{allPaths=**} {
+      allow read: if true; // Public read for user uploads
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Design files - public read, authenticated write
+    match /designs/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Customization files - users can access their own
+    match /customizations/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Product images - public read, authenticated write
+    match /products/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // All other paths - require authentication
+    match /{allPaths=**} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}
+
+

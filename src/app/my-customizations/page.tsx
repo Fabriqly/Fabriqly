@@ -17,14 +17,19 @@ import { DesignerPendingRequests } from '@/components/customization/DesignerPend
 import { DesignerWorkModal } from '@/components/customization/DesignerWorkModal';
 import { PricingAgreementForm } from '@/components/customization/PricingAgreementForm';
 import { Loader } from 'lucide-react';
+import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 
 export default function MyCustomizationsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [requests, setRequests] = useState<CustomizationRequest[]>([]);
+  const [allRequests, setAllRequests] = useState<CustomizationRequest[]>([]); // Store all for filtering
+  const [hasAnyRequests, setHasAnyRequests] = useState(false); // Track if user has any requests at all
   const [selectedRequest, setSelectedRequest] = useState<CustomizationRequest | null>(null);
   const [selectedRequestDetails, setSelectedRequestDetails] = useState<CustomizationRequestWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showShopModal, setShowShopModal] = useState(false);
   const [showAddressListModal, setShowAddressListModal] = useState(false);
   const [showShippingModal, setShowShippingModal] = useState(false);
@@ -40,35 +45,97 @@ export default function MyCustomizationsPage() {
   const [reviewType, setReviewType] = useState<'designer' | 'shop' | 'customization'>('designer');
   const [refreshKey, setRefreshKey] = useState(0);
   const [creatingOrder, setCreatingOrder] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [expandedChats, setExpandedChats] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/auth/signin');
-    } else if (status === 'authenticated') {
-      fetchRequests();
     }
-  }, [status, session, router]);
+  }, [status, router]);
 
   const isDesigner = session?.user?.role === 'designer' || session?.user?.role === 'business_owner';
   const isCustomer = session?.user?.role === 'customer';
 
-  const fetchRequests = async () => {
+  useEffect(() => {
+    // When status filter changes, reset to page 1
+    if (status === 'authenticated') {
+      setCurrentPage(1);
+    }
+  }, [statusFilter, status]);
+
+  useEffect(() => {
+    // Fetch when page changes, filter changes, or when authenticated
+    if (status === 'authenticated') {
+      fetchRequests(currentPage);
+    }
+  }, [currentPage, statusFilter, status]);
+
+  const fetchRequests = async (page: number = currentPage) => {
     try {
       setLoading(true);
-      const queryParam = isCustomer 
-        ? `customerId=${session?.user?.id}`
-        : isDesigner 
-        ? `designerId=${session?.user?.id}`
-        : '';
+      const params = new URLSearchParams();
       
-      const response = await fetch(`/api/customizations?${queryParam}`);
+      if (isCustomer) {
+        params.append('customerId', session?.user?.id || '');
+      } else if (isDesigner) {
+        params.append('designerId', session?.user?.id || '');
+      }
+      
+      // Add status filter to server request
+      if (statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      }
+      
+      // Add pagination - limit to 10 items per page
+      const limit = 10;
+      const offset = (page - 1) * limit;
+      params.append('limit', limit.toString());
+      params.append('offset', offset.toString());
+      
+      const response = await fetch(`/api/customizations?${params}`);
       const data = await response.json();
       
       if (data.success) {
-        setRequests(data.data || []);
+        const fetchedRequests = data.data || [];
+        setAllRequests(fetchedRequests);
+        setRequests(fetchedRequests);
+        
+        // Track if user has any requests at all (check without filter)
+        if (statusFilter === 'all' && fetchedRequests.length > 0) {
+          setHasAnyRequests(true);
+        } else if (statusFilter === 'all' && page === 1 && fetchedRequests.length === 0) {
+          // Only set to false if we're on page 1 with no results and no filter
+          setHasAnyRequests(false);
+        }
+        
+        // Simplified pagination calculation
+        const limit = 10;
+        // If we got less than limit, we're on the last page
+        if (fetchedRequests.length < limit) {
+          setTotalPages(page);
+          setTotalCount((page - 1) * limit + fetchedRequests.length);
+        } else {
+          // If we got a full page, there might be more pages
+          // For now, set to current page + 1 (will be corrected when we reach the last page)
+          setTotalPages(page + 1);
+          setTotalCount((page * limit) + 1); // Minimum estimate
+        }
+      } else {
+        // If fetch failed, clear requests
+        setAllRequests([]);
+        setRequests([]);
+        setTotalPages(1);
+        setTotalCount(0);
       }
     } catch (error) {
       console.error('Error fetching requests:', error);
+      setAllRequests([]);
+      setRequests([]);
+      setTotalPages(1);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
@@ -269,31 +336,22 @@ export default function MyCustomizationsPage() {
   };
 
   const handleAddressSelected = async (address: any) => {
-    if (!orderRequestId || creatingOrder === orderRequestId) return;
+    if (!orderRequestId) return;
 
-    try {
-      setCreatingOrder(orderRequestId);
-      const response = await fetch(`/api/customizations/${orderRequestId}/create-order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shippingAddress: address })
-      });
+    // Store shipping address and show payment method selection
+    setPendingShippingAddress(address);
+    setShowAddressListModal(false);
+    setShowPaymentMethodModal(true);
 
-      const data = await response.json();
-
-      if (data.success) {
-        setShowAddressListModal(false);
-        setOrderRequestId(null);
-        alert(`Order created successfully! Order ID: ${data.data.orderId.substring(0, 8)}...\n\nProduction can now begin.`);
-        await fetchRequests();
-      } else {
-        alert(data.error || 'Failed to create order');
-      }
-    } catch (error) {
-      console.error('Error creating order:', error);
-      alert('Failed to create order');
-    } finally {
-      setCreatingOrder(null);
+    // Get order amount from customization request
+    // Amount includes: product cost + printing cost (design fee is already paid separately)
+    const request = requests.find(r => r.id === orderRequestId);
+    if (request?.pricingAgreement) {
+      const productCost = request.pricingAgreement.productCost || 0;
+      const printingCost = request.pricingAgreement.printingCost || 0;
+      const subtotal = productCost + printingCost;
+      const tax = subtotal * 0.08; // 8% tax
+      setOrderAmount(subtotal + tax);
     }
   };
 
@@ -333,6 +391,7 @@ export default function MyCustomizationsPage() {
     setShowPaymentMethodModal(true);
 
     // Get order amount from customization request
+    // Amount includes: product cost + printing cost (design fee is already paid separately)
     const request = requests.find(r => r.id === orderRequestId);
     if (request?.pricingAgreement) {
       const productCost = request.pricingAgreement.productCost || 0;
@@ -404,6 +463,10 @@ export default function MyCustomizationsPage() {
       console.error('Error completing transaction:', error);
       alert('Failed to complete transaction');
     }
+  };
+
+  const formatStatusLabel = (status: string) => {
+    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const getStatusColor = (status: string) => {
@@ -523,28 +586,120 @@ export default function MyCustomizationsPage() {
     return null;
   }
 
+  // For designers, use dashboard layout with sidebar
+  if (isDesigner) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <DashboardHeader user={session?.user || null} showMobileMenu={true} />
+        <div className="flex flex-1">
+          <DashboardSidebar user={session?.user || null} />
+          <div className="flex-1">
+            <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
+              {/* Page Header */}
+              <div className="mb-8">
+                <h1 className="text-2xl font-bold text-gray-900">Customization Requests</h1>
+                <p className="text-gray-600 mt-1">
+                  Manage customization requests from customers
+                </p>
+              </div>
+
+              {/* Available Requests */}
+              <div className="mb-8">
+                <DesignerPendingRequests
+                  key={`pending-${refreshKey}`}
+                  onViewRequest={handleViewRequest}
+                  onClaimRequest={handleClaimRequest}
+                />
+              </div>
+
+              {/* My Active Requests */}
+              <div className="mb-6">
+                <h2 className="text-2xl font-semibold mb-4">My Active Requests</h2>
+                <CustomizationRequestList
+                  key={`list-${refreshKey}`}
+                  userId={session.user.id}
+                  userRole={session.user.role}
+                  onViewRequest={handleWorkOnRequest}
+                  onSetPricing={handleSetPricing}
+                  simpleFilter={true}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Modals - Designer View */}
+        {showReviewModal && selectedRequestDetails && (
+          <CustomizationReviewModal
+            request={selectedRequestDetails}
+            onClose={() => {
+              setShowReviewModal(false);
+              setSelectedRequestDetails(null);
+            }}
+            userRole={session.user.role}
+          />
+        )}
+
+        {showWorkModal && selectedRequestDetails && (
+          <DesignerWorkModal
+            request={selectedRequestDetails}
+            onClose={() => {
+              setShowWorkModal(false);
+              setSelectedRequestDetails(null);
+            }}
+            onSubmit={handleSubmitWork}
+            onSetPricing={() => {
+              setShowWorkModal(false);
+              setShowPricingModal(true);
+            }}
+          />
+        )}
+
+        {showPricingModal && selectedRequestDetails && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6">
+              <h2 className="text-2xl font-bold mb-4">Set Pricing Agreement</h2>
+              <PricingAgreementForm
+                customizationRequestId={selectedRequestDetails.id}
+                onSuccess={() => {
+                  setShowPricingModal(false);
+                  setSelectedRequestDetails(null);
+                  setRefreshKey(prev => prev + 1);
+                  fetchRequests();
+                  alert('Pricing agreement created successfully!');
+                }}
+                onCancel={() => {
+                  setShowPricingModal(false);
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // For customers, use customer header with explore navbar
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow">
+      {/* Customer Header with Explore Navbar */}
+      <CustomerHeader user={session?.user || null} />
+
+      {/* Page Header */}
+      <div className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                {isDesigner ? 'Customization Requests' : 'My Customizations'}
-              </h1>
+              <h1 className="text-3xl font-bold text-gray-900">My Customizations</h1>
               <p className="text-gray-600 mt-1">
-                {isDesigner 
-                  ? 'Manage customization requests from customers'
-                  : 'Track your custom design requests'
-                }
+                Track your custom design requests
               </p>
             </div>
             <button
-              onClick={() => router.push(isDesigner ? '/dashboard' : '/explore')}
+              onClick={() => router.push('/explore')}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
-              {isDesigner ? 'Dashboard' : 'Browse Products'}
+              Browse Products
             </button>
           </div>
         </div>
@@ -552,41 +707,61 @@ export default function MyCustomizationsPage() {
 
       {/* Content */}
       <div className="container mx-auto px-4 py-8">
-        {/* Designer View: Show pending requests first */}
-        {isDesigner && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-semibold mb-4">Available Requests</h2>
-            <DesignerPendingRequests
-              key={`pending-${refreshKey}`}
-              onViewRequest={handleViewRequest}
-              onClaimRequest={handleClaimRequest}
-            />
-          </div>
-        )}
-
-        {/* Designer: My Active Requests | Customer: All Requests */}
+        {/* Customer: All Requests */}
         <div className="mb-6">
-          <h2 className="text-2xl font-semibold mb-4">
-            {isDesigner ? 'My Active Requests' : 'All Requests'}
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-semibold">All Requests</h2>
+            
+            {/* Simple Status Filter for Customers - Show if user has any requests */}
+            {hasAnyRequests && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Filter:</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All</option>
+                  <option value="pending_designer_review">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="awaiting_customer_approval">Awaiting Approval</option>
+                  <option value="ready_for_production">Ready for Production</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+            )}
+          </div>
           
-          {isDesigner ? (
-            <CustomizationRequestList
-              key={`list-${refreshKey}`}
-              userId={session.user.id}
-              userRole={session.user.role}
-              onViewRequest={handleWorkOnRequest}
-              onSetPricing={handleSetPricing}
-            />
+          {loading ? (
+            <div className="text-center py-12 bg-white rounded-lg shadow">
+              <div className="flex justify-center">
+                <Loader className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+              <p className="text-gray-600 mt-4">Loading requests...</p>
+            </div>
           ) : requests.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-lg shadow">
-              <p className="text-gray-600 mb-4">You don't have any customization requests yet.</p>
-              <button
-                onClick={() => router.push('/explore')}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Start Customizing
-              </button>
+              {statusFilter !== 'all' ? (
+                <>
+                  <p className="text-gray-600 mb-4">No requests found with status "{formatStatusLabel(statusFilter)}".</p>
+                  <button
+                    onClick={() => setStatusFilter('all')}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Show All Requests
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-600 mb-4">You don't have any customization requests yet.</p>
+                  <button
+                    onClick={() => router.push('/explore')}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Start Customizing
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-6">
@@ -643,8 +818,8 @@ export default function MyCustomizationsPage() {
                             <div className="text-xs text-gray-600 mt-3 pt-3 border-t border-gray-200">
                               <p className="mb-1">
                                 <span className="font-semibold">Payment Method:</span> {
-                                  request.pricingAgreement.paymentType === 'upfront' ? 'Upfront (100%)' : 
-                                  request.pricingAgreement.paymentType === 'half_payment' ? 'Half Payment (50/50)' : 'Milestone-based'
+                                  request.paymentDetails?.paymentType === 'upfront' ? 'Upfront (100%)' : 
+                                  request.paymentDetails?.paymentType === 'half_payment' ? 'Half Payment (50/50)' : 'Milestone-based'
                                 }
                               </p>
                               <p className="text-gray-500 mt-1">
@@ -703,7 +878,13 @@ export default function MyCustomizationsPage() {
 
                       {/* Action Buttons */}
                       <div className="space-y-2">
-                        {request.status === 'awaiting_customer_approval' && (
+                        {/* Show Review Design button if:
+                            1. Status is awaiting_customer_approval, OR
+                            2. Status is awaiting_pricing but payment is complete and design is uploaded */}
+                        {((request.status === 'awaiting_customer_approval') ||
+                          (request.status === 'awaiting_pricing' && 
+                           request.paymentDetails?.paymentStatus === 'fully_paid' &&
+                           request.designerFinalFile)) && (
                           <div className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
                             <h4 className="font-semibold mb-2 flex items-center gap-2 text-blue-800">
                               🎨 Design Ready for Review
@@ -720,7 +901,8 @@ export default function MyCustomizationsPage() {
                           </div>
                         )}
 
-                        {request.status === 'approved' && !request.printingShopId && (
+                        {/* Select Shop - for approved or ready_for_production */}
+                        {(request.status === 'approved' || request.status === 'ready_for_production') && !request.printingShopId && (
                           <button
                             onClick={() => {
                               setSelectedRequest(request);
@@ -732,7 +914,8 @@ export default function MyCustomizationsPage() {
                           </button>
                         )}
 
-                        {request.status === 'approved' && request.printingShopId && !request.orderId && (
+                        {/* Create Order - for approved or ready_for_production */}
+                        {(request.status === 'approved' || request.status === 'ready_for_production') && request.printingShopId && !request.orderId && (
                           <button
                             onClick={() => handleCreateOrder(request.id)}
                             disabled={creatingOrder === request.id}
@@ -797,12 +980,54 @@ export default function MyCustomizationsPage() {
                     {/* Right: Chat or Production */}
                     <div>
                       {request.designerId && ['in_progress', 'awaiting_customer_approval', 'approved'].includes(request.status) && (
-                        <TransactionChat
-                          customizationRequestId={request.id}
-                          otherUserId={request.designerId}
-                          otherUserName={request.designerName || 'Designer'}
-                          otherUserRole="designer"
-                        />
+                        <div className="border border-gray-200 rounded-lg">
+                          {!expandedChats.has(request.id) ? (
+                            <button
+                              onClick={() => {
+                                setExpandedChats(prev => new Set(prev).add(request.id));
+                              }}
+                              className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center justify-between transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                                <span className="font-medium text-gray-700">Chat with {request.designerName || 'Designer'}</span>
+                              </div>
+                              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                          ) : (
+                            <div>
+                              <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                                <span className="font-semibold text-gray-700">Chat with {request.designerName || 'Designer'}</span>
+                                <button
+                                  onClick={() => {
+                                    setExpandedChats(prev => {
+                                      const newSet = new Set(prev);
+                                      newSet.delete(request.id);
+                                      return newSet;
+                                    });
+                                  }}
+                                  className="text-gray-500 hover:text-gray-700"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                              <div className="p-4">
+                                <TransactionChat
+                                  customizationRequestId={request.id}
+                                  otherUserId={request.designerId}
+                                  otherUserName={request.designerName || 'Designer'}
+                                  otherUserRole="designer"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {['in_production', 'ready_for_pickup'].includes(request.status) && (
@@ -815,10 +1040,72 @@ export default function MyCustomizationsPage() {
             ))}
           </div>
           )}
+
+          {/* Pagination Controls */}
+          {requests.length > 0 && (
+            <div className="mt-8 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Showing {((currentPage - 1) * 10) + 1} to {Math.min(currentPage * 10, (currentPage - 1) * 10 + requests.length)} {totalCount > 0 && `of ${totalCount > (currentPage - 1) * 10 + requests.length ? `${totalCount}+` : totalCount}`} requests
+              </div>
+              {totalPages > 1 && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (currentPage > 1) {
+                      setCurrentPage(currentPage - 1);
+                    }
+                  }}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`px-3 py-2 rounded-lg ${
+                          currentPage === pageNum
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => {
+                    if (currentPage < totalPages) {
+                      setCurrentPage(currentPage + 1);
+                    }
+                  }}
+                  disabled={currentPage >= totalPages}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Modals - Designer View */}
+      {/* Modals - Customer View */}
       {showReviewModal && selectedRequestDetails && (
         <CustomizationReviewModal
           request={selectedRequestDetails}
@@ -826,47 +1113,11 @@ export default function MyCustomizationsPage() {
             setShowReviewModal(false);
             setSelectedRequestDetails(null);
           }}
-          onApprove={isCustomer ? handleApprove : undefined}
-          onReject={isCustomer ? handleReject : undefined}
-          onCancel={isCustomer ? handleCancel : undefined}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onCancel={handleCancel}
           userRole={session.user.role}
         />
-      )}
-
-      {showWorkModal && selectedRequestDetails && (
-        <DesignerWorkModal
-          request={selectedRequestDetails}
-          onClose={() => {
-            setShowWorkModal(false);
-            setSelectedRequestDetails(null);
-          }}
-          onSubmit={handleSubmitWork}
-          onSetPricing={() => {
-            setShowWorkModal(false);
-            setShowPricingModal(true);
-          }}
-        />
-      )}
-
-      {showPricingModal && selectedRequestDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6">
-            <h2 className="text-2xl font-bold mb-4">Set Pricing Agreement</h2>
-            <PricingAgreementForm
-              customizationRequestId={selectedRequestDetails.id}
-              onSuccess={() => {
-                setShowPricingModal(false);
-                setSelectedRequestDetails(null);
-                setRefreshKey(prev => prev + 1);
-                fetchRequests();
-                alert('Pricing agreement created successfully!');
-              }}
-              onCancel={() => {
-                setShowPricingModal(false);
-              }}
-            />
-          </div>
-        </div>
       )}
 
       {/* Shop Selection Modal - Customer View */}
@@ -914,7 +1165,7 @@ export default function MyCustomizationsPage() {
             setShowPaymentMethodModal(false);
             setPendingShippingAddress(null);
             setPendingSaveToProfile(false);
-            setShowShippingModal(true);
+            setShowAddressListModal(true);
           }}
           amount={orderAmount}
           loading={creatingOrder === orderRequestId}

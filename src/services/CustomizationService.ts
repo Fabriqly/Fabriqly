@@ -187,6 +187,10 @@ export class CustomizationService {
       throw new Error('Request is not in progress');
     }
 
+    // Note: Designer can upload final design without payment requirement
+    // Payment is only required for customer to VIEW the design
+    // Designer can set pricing after uploading, or before uploading
+
     const updatedRequest = await this.customizationRepo.updateStatus(
       requestId,
       'awaiting_customer_approval',
@@ -233,17 +237,21 @@ export class CustomizationService {
     });
 
     // Release designer payment from escrow
+    // If payout fails, log error but don't block approval
     const { escrowService } = await import('./EscrowService');
     try {
       await escrowService.releaseDesignerPayment(requestId);
+      console.log('[CustomizationService] Designer payment released successfully');
     } catch (error: any) {
       console.error('[CustomizationService] Failed to release designer payment:', error);
-      // Revert status if escrow release fails
-      await this.customizationRepo.update(requestId, {
-        status: 'awaiting_customer_approval' as any,
-        updatedAt: Timestamp.now() as any,
+      // Don't throw error - approval should succeed even if payout fails
+      // Admin can manually process payout later if needed
+      // Emit event to notify admin of failed payout
+      await eventBus.emit('customization.payout.failed', {
+        requestId,
+        error: error.message,
+        designerId: request.designerId
       });
-      throw new Error(`Failed to process designer payment: ${error.message}`);
     }
 
     // Emit event
@@ -345,7 +353,7 @@ export class CustomizationService {
       throw new Error('Unauthorized');
     }
 
-    if (request.status !== 'approved') {
+    if (request.status !== 'approved' && request.status !== 'ready_for_production') {
       throw new Error('Design must be approved before selecting printing shop');
     }
 

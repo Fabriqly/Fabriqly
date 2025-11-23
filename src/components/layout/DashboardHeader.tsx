@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Menu, LogOut, User } from 'lucide-react';
 import LogoName from '@/../public/LogoName.png';
 import { signOut } from 'next-auth/react';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 interface DashboardHeaderProps {
   user?: {
@@ -56,6 +57,9 @@ export function DashboardHeader({ user, onMenuClick, showMobileMenu = false }: D
 
           {/* Right side - User info and logout */}
           <div className="flex items-center space-x-4">
+            {/* Notifications */}
+            <NotificationBell />
+
             {/* User info */}
             <div className="hidden md:flex items-center space-x-3">
               <div className="flex items-center">

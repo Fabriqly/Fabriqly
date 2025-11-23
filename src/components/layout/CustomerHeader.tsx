@@ -9,12 +9,15 @@ import { CartButton } from '@/components/cart/CartButton';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { signOut } from 'next-auth/react';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import LogoName from '@/../public/LogoName.png';
 
 interface CustomerHeaderProps {
   user?: {
     name?: string | null;
     email?: string | null;
+    image?: string | null;
+    photoURL?: string | null;
   } | null;
 }
 
@@ -90,13 +93,7 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
             </button>
 
             {/* Notifications */}
-            <button className="relative p-2 text-white hover:bg-white/10 rounded-lg transition-colors">
-              <Bell className="w-5 h-5" />
-              {/* Notification Badge */}
-              <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                0
-              </span>
-            </button>
+            <NotificationBell />
 
             {/* User Profile / Login */}
             {user ? (
@@ -105,9 +102,17 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                   className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 rounded-lg px-3 py-2 transition-colors"
                 >
-                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4 text-white" />
-                  </div>
+                  {(user.image || user.photoURL) ? (
+                    <img
+                      src={user.image || user.photoURL || ''}
+                      alt={user.name || 'User'}
+                      className="w-6 h-6 rounded-full object-cover border border-white/20"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                      <User className="w-4 h-4 text-white" />
+                    </div>
+                  )}
                   <span className="text-white text-sm font-medium">
                     {user.name || user.email}
                   </span>
@@ -117,9 +122,22 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                 {/* Dropdown Menu */}
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                    <div className="px-4 py-2 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">{user.name || 'User'}</p>
-                      <p className="text-xs text-gray-500">{user.email}</p>
+                    <div className="px-4 py-2 border-b border-gray-100 flex items-center space-x-3">
+                      {(user.image || user.photoURL) ? (
+                        <img
+                          src={user.image || user.photoURL || ''}
+                          alt={user.name || 'User'}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                          {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{user.name || 'User'}</p>
+                        <p className="text-xs text-gray-500">{user.email}</p>
+                      </div>
                     </div>
                     <Link
                       href="/orders"
@@ -136,6 +154,14 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                     >
                       <MessageCircle className="w-4 h-4 mr-3" />
                       My Customizations
+                    </Link>
+                    <Link
+                      href="/notifications"
+                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <Bell className="w-4 h-4 mr-3" />
+                      Notifications
                     </Link>
                     <Link
                       href="/profile"

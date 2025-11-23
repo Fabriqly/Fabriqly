@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { User, Mail, Phone, MapPin, Calendar, Save, ArrowLeft } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, Save, ArrowLeft, Upload, X, Camera } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserProfile {
@@ -52,6 +52,8 @@ export default function ProfilePage() {
       country: ''
     }
   });
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -71,6 +73,7 @@ export default function ProfilePage() {
 
       if (response.ok && data.success) {
         setProfile(data.data);
+        setProfilePicture(data.data.photoURL || null);
         setFormData({
           firstName: data.data.profile?.firstName || '',
           lastName: data.data.profile?.lastName || '',
@@ -113,6 +116,100 @@ export default function ProfilePage() {
         ...prev,
         [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
       }));
+    }
+  };
+
+  const handleProfilePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file');
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      return;
+    }
+
+    setUploadingPicture(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload/user-profile', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setProfilePicture(data.data.url);
+        // Update the profile with the new photo URL
+        const updateResponse = await fetch('/api/users/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...formData,
+            displayName: `${formData.firstName} ${formData.lastName}`.trim(),
+            photoURL: data.data.url
+          }),
+        });
+
+        if (updateResponse.ok) {
+          setSuccess('Profile picture updated successfully!');
+          await fetchProfile();
+        }
+      } else {
+        setError(data.error?.message || 'Failed to upload profile picture');
+      }
+    } catch (err) {
+      console.error('Error uploading profile picture:', err);
+      setError('Failed to upload profile picture');
+    } finally {
+      setUploadingPicture(false);
+      // Reset input
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveProfilePicture = async () => {
+    if (!confirm('Are you sure you want to remove your profile picture?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          displayName: `${formData.firstName} ${formData.lastName}`.trim(),
+          photoURL: null
+        }),
+      });
+
+      if (response.ok) {
+        setProfilePicture(null);
+        setSuccess('Profile picture removed successfully!');
+        await fetchProfile();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to remove profile picture');
+      }
+    } catch (err) {
+      console.error('Error removing profile picture:', err);
+      setError('Failed to remove profile picture');
     }
   };
 
@@ -215,6 +312,59 @@ export default function ProfilePage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Profile Picture */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+              <Camera className="w-5 h-5 mr-2" />
+              Profile Picture
+            </h2>
+            
+            <div className="flex items-center space-x-6">
+              <div className="relative">
+                {profilePicture ? (
+                  <div className="relative">
+                    <img
+                      src={profilePicture}
+                      alt="Profile"
+                      className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveProfilePicture}
+                      className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                      title="Remove profile picture"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold border-4 border-gray-200">
+                    {profile?.displayName?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex-1">
+                <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors w-fit">
+                  <Upload className="w-4 h-4" />
+                  <span className="text-sm">
+                    {uploadingPicture ? 'Uploading...' : profilePicture ? 'Change Picture' : 'Upload Picture'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProfilePictureUpload}
+                    disabled={uploadingPicture}
+                    className="hidden"
+                  />
+                </label>
+                <p className="text-xs text-gray-500 mt-2">
+                  JPG, PNG or GIF. Max size 5MB.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Basic Information */}
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
