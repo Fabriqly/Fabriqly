@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { RatingInput } from './RatingInput';
+import { X, Upload, Image as ImageIcon } from 'lucide-react';
 
 interface ReviewFormProps {
-  reviewType: 'product' | 'shop' | 'designer' | 'customization';
+  reviewType: 'product' | 'shop' | 'designer' | 'design' | 'customization';
   targetId: string;
   targetName: string;
-  onSuccess: () => void;
+  onSuccess: (review?: any) => void;
   onCancel: () => void;
 }
 
@@ -18,9 +20,59 @@ export function ReviewForm({
   onCancel
 }: ReviewFormProps) {
   const [rating, setRating] = useState(0);
-  const [hoveredRating, setHoveredRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [images, setImages] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingImages(true);
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+          throw new Error(`${file.name} is not an image file`);
+        }
+
+        // Validate file size (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error(`${file.name} is too large. Maximum size is 5MB`);
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/reviews/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error?.message || 'Upload failed');
+        }
+
+        const result = await response.json();
+        return result.data.url;
+      });
+
+      const uploadedUrls = await Promise.all(uploadPromises);
+      setImages([...images, ...uploadedUrls]);
+    } catch (error: any) {
+      alert(error.message || 'Failed to upload images');
+    } finally {
+      setUploadingImages(false);
+      // Reset input
+      e.target.value = '';
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImages(images.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,13 +93,15 @@ export function ReviewForm({
       const requestBody: any = {
         rating,
         comment,
-        reviewType
+        reviewType,
+        images: images.length > 0 ? images : undefined
       };
 
       // Add the appropriate ID field based on review type
       if (reviewType === 'product') requestBody.productId = targetId;
       else if (reviewType === 'shop') requestBody.shopId = targetId;
       else if (reviewType === 'designer') requestBody.designerId = targetId;
+      else if (reviewType === 'design') requestBody.designId = targetId;
       else if (reviewType === 'customization') requestBody.customizationRequestId = targetId;
 
       const response = await fetch('/api/reviews', {
@@ -62,7 +116,7 @@ export function ReviewForm({
 
       if (data.success) {
         alert('Review submitted successfully!');
-        onSuccess();
+        onSuccess(data.data); // Pass the created review to the callback
       } else {
         alert(data.error || 'Failed to submit review');
       }
@@ -79,6 +133,7 @@ export function ReviewForm({
       case 'product': return 'Product';
       case 'shop': return 'Printing Shop';
       case 'designer': return 'Designer';
+      case 'design': return 'Design';
       case 'customization': return 'Service';
       default: return '';
     }
@@ -99,37 +154,7 @@ export function ReviewForm({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Your Rating
         </label>
-        <div className="flex space-x-2">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button
-              key={star}
-              type="button"
-              onClick={() => setRating(star)}
-              onMouseEnter={() => setHoveredRating(star)}
-              onMouseLeave={() => setHoveredRating(0)}
-              className="text-3xl focus:outline-none transition-colors"
-            >
-              <span
-                className={
-                  star <= (hoveredRating || rating)
-                    ? 'text-yellow-400'
-                    : 'text-gray-300'
-                }
-              >
-                ★
-              </span>
-            </button>
-          ))}
-        </div>
-        {rating > 0 && (
-          <p className="text-sm text-gray-600 mt-2">
-            {rating === 1 && 'Poor'}
-            {rating === 2 && 'Fair'}
-            {rating === 3 && 'Good'}
-            {rating === 4 && 'Very Good'}
-            {rating === 5 && 'Excellent'}
-          </p>
-        )}
+        <RatingInput value={rating} onChange={setRating} />
       </div>
 
       <div>
@@ -146,6 +171,55 @@ export function ReviewForm({
         />
         <p className="text-sm text-gray-500 mt-1">
           {comment.length} characters
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Add Photos (Optional)
+        </label>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+              <Upload className="w-4 h-4" />
+              <span className="text-sm">Upload Images</span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageUpload}
+                disabled={uploadingImages}
+                className="hidden"
+              />
+            </label>
+            {uploadingImages && (
+              <span className="text-sm text-gray-500">Uploading...</span>
+            )}
+          </div>
+          
+          {images.length > 0 && (
+            <div className="grid grid-cols-4 gap-2">
+              {images.map((url, index) => (
+                <div key={index} className="relative group">
+                  <img
+                    src={url}
+                    alt={`Review ${index + 1}`}
+                    className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          You can upload up to 5 images. Maximum 5MB per image.
         </p>
       </div>
 

@@ -66,10 +66,23 @@ export class EscrowService {
         throw AppError.badRequest('No designer assigned to this request');
       }
 
-      const designerProfile = await FirebaseAdminService.getDocument(
+      // Try to find designer profile by userId (designerId is typically the userId)
+      // First try as profile ID, if not found, try as userId
+      let designerProfile = await FirebaseAdminService.getDocument(
         Collections.DESIGNER_PROFILES,
         request.designerId
       );
+
+      // If not found by ID, try finding by userId
+      if (!designerProfile) {
+        const profiles = await FirebaseAdminService.queryDocuments(
+          Collections.DESIGNER_PROFILES,
+          [{ field: 'userId', operator: '==', value: request.designerId }],
+          undefined,
+          1
+        );
+        designerProfile = profiles.length > 0 ? profiles[0] : null;
+      }
 
       if (!designerProfile) {
         throw AppError.notFound('Designer profile not found');
@@ -273,10 +286,23 @@ export class EscrowService {
 
       // Also check if designer has payout details configured
       try {
-        const designerProfile = await FirebaseAdminService.getDocument(
+        // Try to find designer profile by userId (designerId is typically the userId)
+        // First try as profile ID, if not found, try as userId
+        let designerProfile = await FirebaseAdminService.getDocument(
           Collections.DESIGNER_PROFILES,
           request.designerId
         );
+
+        // If not found by ID, try finding by userId
+        if (!designerProfile) {
+          const profiles = await FirebaseAdminService.queryDocuments(
+            Collections.DESIGNER_PROFILES,
+            [{ field: 'userId', operator: '==', value: request.designerId }],
+            undefined,
+            1
+          );
+          designerProfile = profiles.length > 0 ? profiles[0] : null;
+        }
 
         if (!designerProfile) {
           return false;

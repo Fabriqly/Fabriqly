@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
-    const reviewType = searchParams.get('type') as 'product' | 'shop' | 'designer';
+    const reviewType = searchParams.get('type') as 'product' | 'shop' | 'designer' | 'design';
     const targetId = searchParams.get('targetId');
 
     if (!reviewType || !targetId) {
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!['product', 'shop', 'designer'].includes(reviewType)) {
+    if (!['product', 'shop', 'designer', 'design'].includes(reviewType)) {
       return NextResponse.json(
         { error: 'Invalid review type' },
         { status: 400 }

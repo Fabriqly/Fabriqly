@@ -11,7 +11,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 
 /**
  * POST /api/customizations/[id]/approve-design
- * Customer approves the final design, triggering designer payout
+ * Customer approves the final design, triggering automatic designer payout
  */
 export async function POST(
   request: NextRequest,
@@ -89,26 +89,25 @@ export async function POST(
     });
 
     // 7. Release designer payment from escrow
-    console.log('[ApproveDesign] Releasing designer payment...');
+    // If payout fails, log error but don't block approval
+    let payoutSuccess = false;
+    let payoutError: string | null = null;
+    
+    console.log('[ApproveDesign] Attempting to release designer payment...');
     try {
       await escrowService.releaseDesignerPayment(customizationId);
       console.log('[ApproveDesign] Designer payment released successfully');
+      payoutSuccess = true;
     } catch (error: any) {
       console.error('[ApproveDesign] Failed to release designer payment:', error);
-      // Revert status change
-      await customizationRepo.update(customizationId, {
-        status: 'awaiting_customer_approval',
-        updatedAt: Timestamp.now() as any,
+      payoutError = error.message || 'Unknown error';
+      // Don't throw error - approval should succeed even if payout fails
+      // Admin can manually process payout later if needed
+      eventBus.emit('customization.payout.failed', {
+        requestId: customizationId,
+        error: payoutError,
+        designerId: customizationRequest.designerId
       });
-      
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Failed to process designer payment',
-          details: error.message,
-        },
-        { status: 500 }
-      );
     }
 
     // 8. Fire events
@@ -130,10 +129,14 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: 'Design approved successfully. Designer payment has been processed.',
+      message: payoutSuccess 
+        ? 'Design approved successfully. Designer payment has been processed.'
+        : 'Design approved successfully. Payout processing failed - admin will handle manually.',
       data: {
         status: 'ready_for_production',
         finalDesignUrl,
+        payoutProcessed: payoutSuccess,
+        payoutError: payoutError,
       },
     });
   } catch (error: any) {
@@ -152,6 +155,7 @@ export async function POST(
     );
   }
 }
+
 
 
 

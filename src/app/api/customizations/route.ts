@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
     const designerId = searchParams.get('designerId');
     const status = searchParams.get('status');
     const productId = searchParams.get('productId');
+    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
+    const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
 
     // Authorization: users can only see their own requests unless they're admin/designer
     let filters: CustomizationFilters = {};
@@ -58,6 +60,12 @@ export async function GET(request: NextRequest) {
 
     if (status) filters.status = status as any;
     if (productId) filters.productId = productId;
+    if (limit) filters.limit = limit;
+    if (offset) filters.offset = offset;
+    
+    // Always sort by most recent first (newest at top)
+    filters.sortBy = 'requestedAt';
+    filters.sortOrder = 'desc';
 
     const requests = await customizationService.searchRequests(filters);
 

@@ -6,11 +6,14 @@ import ShopProfileView from '@/components/shop/ShopProfileView';
 import { ShopProfile } from '@/types/shop-profile';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function ShopProfilePage() {
   const params = useParams();
   const router = useRouter();
   const { data: session } = useSession();
+  const { user } = useAuth();
   const [shop, setShop] = useState<ShopProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,10 +46,13 @@ export default function ShopProfilePage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center py-12">
-          <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-2 text-gray-600">Loading shop profile...</p>
+      <div className="min-h-screen bg-gray-50">
+        <CustomerHeader user={user} />
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-2 text-gray-600">Loading shop profile...</p>
+          </div>
         </div>
       </div>
     );
@@ -54,16 +60,19 @@ export default function ShopProfilePage() {
 
   if (error || !shop) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto text-center">
-          <h1 className="text-2xl font-bold mb-4">Shop Not Found</h1>
-          <p className="text-gray-600 mb-6">{error || 'The shop you are looking for does not exist.'}</p>
-          <a
-            href="/shops"
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Browse All Shops
-          </a>
+      <div className="min-h-screen bg-gray-50">
+        <CustomerHeader user={user} />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto text-center">
+            <h1 className="text-2xl font-bold mb-4">Shop Not Found</h1>
+            <p className="text-gray-600 mb-6">{error || 'The shop you are looking for does not exist.'}</p>
+            <a
+              href="/explore/shops"
+              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Browse All Shops
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -72,12 +81,15 @@ export default function ShopProfilePage() {
   const canEdit = session && (session.user as any)?.id === shop.userId;
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <ShopProfileView 
-        shop={shop} 
-        showEditButton={canEdit} 
-        onEdit={canEdit ? handleEdit : undefined}
-      />
+    <div className="min-h-screen bg-gray-50">
+      <CustomerHeader user={user} />
+      <div className="container mx-auto px-4 py-8">
+        <ShopProfileView 
+          shop={shop} 
+          showEditButton={canEdit} 
+          onEdit={canEdit ? handleEdit : undefined}
+        />
+      </div>
     </div>
   );
 }

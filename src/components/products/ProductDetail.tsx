@@ -30,6 +30,8 @@ import {
 } from 'lucide-react';
 import { AddToCartButton } from '@/components/cart/AddToCartButton';
 import { useAuth } from '@/hooks/useAuth';
+import { ProductReviewSection } from '@/components/reviews/ProductReviewSection';
+import { RatingDisplay } from '@/components/reviews/RatingDisplay';
 
 export function ProductDetail() {
   const params = useParams();
@@ -47,13 +49,30 @@ export function ProductDetail() {
   const [productColors, setProductColors] = useState<ProductColorWithDetails[]>([]);
   const [selectedColorId, setSelectedColorId] = useState<string>('');
   const [colorPriceAdjustment, setColorPriceAdjustment] = useState<number>(0);
+  const [averageRating, setAverageRating] = useState(0);
+  const [totalReviews, setTotalReviews] = useState(0);
 
   useEffect(() => {
     if (productId) {
       loadProduct();
       loadProductColors();
+      loadRatingStats();
     }
   }, [productId]);
+
+  const loadRatingStats = async () => {
+    try {
+      const response = await fetch(`/api/reviews/average?type=product&targetId=${productId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setAverageRating(data.data.average || 0);
+        setTotalReviews(data.data.total || 0);
+      }
+    } catch (error) {
+      console.error('Error loading rating stats:', error);
+    }
+  };
 
   const loadProduct = async () => {
     setLoading(true);
@@ -359,14 +378,13 @@ export function ProductDetail() {
               </div>
 
               <div className="flex items-center space-x-4 mb-4">
-                <div className="flex items-center">
-                  <div className="flex text-yellow-400">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-5 h-5 fill-current" />
-                    ))}
-                  </div>
-                  <span className="ml-2 text-sm text-gray-600">(4.8) 124 reviews</span>
-                </div>
+                <RatingDisplay 
+                  rating={averageRating} 
+                  totalReviews={totalReviews}
+                  size="md"
+                  showNumber={true}
+                  showTotal={true}
+                />
                 <span className="text-sm text-gray-500">SKU: {product.sku}</span>
               </div>
 
@@ -597,6 +615,14 @@ export function ProductDetail() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Reviews Section */}
+        <div className="mt-12">
+          <ProductReviewSection 
+            productId={product.id}
+            productName={product.name}
+          />
         </div>
       </div>
     </div>

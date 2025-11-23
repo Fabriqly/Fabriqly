@@ -15,6 +15,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import Link from 'next/link';
+import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { useSession } from 'next-auth/react';
 
 interface Order {
   id: string;
@@ -45,6 +47,7 @@ interface OrderItem {
 
 export default function OrdersPage() {
   const { user } = useAuth();
+  const { data: session } = useSession();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -228,8 +231,11 @@ export default function OrdersPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b">
+      {/* Customer Header with Explore Navbar */}
+      <CustomerHeader user={session?.user || null} />
+
+      {/* Page Header */}
+      <div className="bg-white border-b shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
