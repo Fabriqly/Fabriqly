@@ -4,7 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Discount, CreateDiscountData, DiscountType, DiscountScope } from '@/types/promotion';
-import { X } from 'lucide-react';
+import { Product } from '@/types/products';
+import { Category } from '@/types/products';
+import { X, Search, Check, Loader2 } from 'lucide-react';
 
 interface DiscountFormProps {
   discount?: Discount | null;
@@ -29,6 +31,63 @@ export function DiscountForm({ discount, onClose, onSuccess }: DiscountFormProps
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [categorySearchTerm, setCategorySearchTerm] = useState('');
+  const [productSearchResults, setProductSearchResults] = useState<Product[]>([]);
+  const [categorySearchResults, setCategorySearchResults] = useState<Category[]>([]);
+  const [showProductSearch, setShowProductSearch] = useState(false);
+  const [showCategorySearch, setShowCategorySearch] = useState(false);
+  const [searchingProducts, setSearchingProducts] = useState(false);
+  const [searchingCategories, setSearchingCategories] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<Category[]>([]);
+
+  // Load products and categories when editing
+  useEffect(() => {
+    const loadSelectedItems = async () => {
+      if (discount && discount.targetIds && discount.targetIds.length > 0) {
+        if (discount.scope === 'product') {
+          // Fetch product details for selected IDs
+          try {
+            const products = await Promise.all(
+              discount.targetIds.map(async (id) => {
+                try {
+                  const response = await fetch(`/api/products/${id}`);
+                  const data = await response.json();
+                  if (response.ok && data.success) {
+                    return data.data;
+                  }
+                  return null;
+                } catch {
+                  return null;
+                }
+              })
+            );
+            setSelectedProducts(products.filter(Boolean) as Product[]);
+          } catch (error) {
+            console.error('Error loading selected products:', error);
+          }
+        } else if (discount.scope === 'category') {
+          // Fetch category details for selected IDs
+          try {
+            const response = await fetch('/api/categories');
+            const data = await response.json();
+            if (response.ok && data.success) {
+              const allCategories = data.data.categories || [];
+              const selected = allCategories.filter((cat: Category) => 
+                discount.targetIds?.includes(cat.id)
+              );
+              setSelectedCategories(selected);
+            }
+          } catch (error) {
+            console.error('Error loading selected categories:', error);
+          }
+        }
+      }
+    };
+
+    loadSelectedItems();
+  }, [discount]);
 
   useEffect(() => {
     if (discount) {
@@ -78,6 +137,112 @@ export function DiscountForm({ discount, onClose, onSuccess }: DiscountFormProps
       });
     }
   }, [discount]);
+
+  // Update targetIds when selected products/categories change
+  useEffect(() => {
+    if (formData.scope === 'product') {
+      const ids = selectedProducts.map(p => p.id);
+      if (JSON.stringify(ids) !== JSON.stringify(formData.targetIds || [])) {
+        setFormData(prev => ({
+          ...prev,
+          targetIds: ids
+        }));
+      }
+    } else if (formData.scope === 'category') {
+      const ids = selectedCategories.map(c => c.id);
+      if (JSON.stringify(ids) !== JSON.stringify(formData.targetIds || [])) {
+        setFormData(prev => ({
+          ...prev,
+          targetIds: ids
+        }));
+      }
+    }
+  }, [selectedProducts, selectedCategories]);
+
+  // Clear selections when scope changes
+  useEffect(() => {
+    if (formData.scope !== 'product') {
+      setSelectedProducts([]);
+      setProductSearchTerm('');
+      setShowProductSearch(false);
+    }
+    if (formData.scope !== 'category') {
+      setSelectedCategories([]);
+      setCategorySearchTerm('');
+      setShowCategorySearch(false);
+    }
+  }, [formData.scope]);
+
+  // Search products
+  useEffect(() => {
+    if (productSearchTerm.length > 0 && showProductSearch) {
+      const searchProducts = async () => {
+        setSearchingProducts(true);
+        try {
+          const response = await fetch(`/api/products?search=${encodeURIComponent(productSearchTerm)}&limit=10&status=active`);
+          const data = await response.json();
+          if (response.ok && data.success) {
+            setProductSearchResults(data.data.products || []);
+          } else {
+            setProductSearchResults([]);
+          }
+        } catch (error) {
+          console.error('Error searching products:', error);
+          setProductSearchResults([]);
+        } finally {
+          setSearchingProducts(false);
+        }
+      };
+
+      const timeoutId = setTimeout(searchProducts, 300); // Debounce
+      return () => clearTimeout(timeoutId);
+    } else {
+      setProductSearchResults([]);
+    }
+  }, [productSearchTerm, showProductSearch]);
+
+  // Load all categories for category search
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
+  
+  useEffect(() => {
+    if (formData.scope === 'category' && allCategories.length === 0) {
+      const loadCategories = async () => {
+        setSearchingCategories(true);
+        try {
+          const response = await fetch('/api/categories?includeInactive=false');
+          const data = await response.json();
+          if (response.ok && data.success) {
+            const categories = data.data.categories || [];
+            setAllCategories(categories);
+            setCategorySearchResults(categories);
+          } else {
+            setCategorySearchResults([]);
+          }
+        } catch (error) {
+          console.error('Error loading categories:', error);
+          setCategorySearchResults([]);
+        } finally {
+          setSearchingCategories(false);
+        }
+      };
+
+      loadCategories();
+    }
+  }, [formData.scope, allCategories.length]);
+
+  // Filter categories by search term
+  useEffect(() => {
+    if (formData.scope === 'category' && allCategories.length > 0) {
+      if (categorySearchTerm.length === 0) {
+        setCategorySearchResults(allCategories);
+      } else {
+        const filtered = allCategories.filter(cat => 
+          (cat.categoryName || cat.name || '').toLowerCase().includes(categorySearchTerm.toLowerCase())
+        );
+        setCategorySearchResults(filtered);
+      }
+    }
+  }, [categorySearchTerm, allCategories, formData.scope]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -215,25 +380,161 @@ export function DiscountForm({ discount, onClose, onSuccess }: DiscountFormProps
           {(formData.scope === 'product' || formData.scope === 'category') && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {formData.scope === 'product' ? 'Product IDs' : 'Category IDs'} *
-                <span className="text-xs text-gray-500 ml-2">
-                  (Comma-separated, e.g., "id1,id2,id3")
-                </span>
+                {formData.scope === 'product' ? 'Select Products' : 'Select Categories'} *
               </label>
-              <Input
-                value={formData.targetIds?.join(',') || ''}
-                onChange={(e) => {
-                  const ids = e.target.value
-                    .split(',')
-                    .map(id => id.trim())
-                    .filter(id => id.length > 0);
-                  setFormData({ ...formData, targetIds: ids });
-                }}
-                placeholder={formData.scope === 'product' 
-                  ? 'Enter product IDs separated by commas' 
-                  : 'Enter category IDs separated by commas'}
-                required={formData.scope === 'product' || formData.scope === 'category'}
-              />
+              
+              {/* Selected Items Display */}
+              {(formData.scope === 'product' ? selectedProducts.length > 0 : selectedCategories.length > 0) && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {(formData.scope === 'product' ? selectedProducts : selectedCategories).map((item) => (
+                    <span
+                      key={item.id}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                    >
+                      {formData.scope === 'product' 
+                        ? (item as Product).name 
+                        : ((item as Category).categoryName || (item as Category).name)}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (formData.scope === 'product') {
+                            setSelectedProducts(prev => prev.filter(p => p.id !== item.id));
+                          } else {
+                            setSelectedCategories(prev => prev.filter(c => c.id !== item.id));
+                          }
+                        }}
+                        className="ml-2 text-blue-600 hover:text-blue-800"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Search Input */}
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    type="text"
+                    value={formData.scope === 'product' ? productSearchTerm : categorySearchTerm}
+                    onChange={(e) => {
+                      if (formData.scope === 'product') {
+                        setProductSearchTerm(e.target.value);
+                        setShowProductSearch(true);
+                      } else {
+                        setCategorySearchTerm(e.target.value);
+                        setShowCategorySearch(true);
+                      }
+                    }}
+                    onFocus={() => {
+                      if (formData.scope === 'product') {
+                        setShowProductSearch(true);
+                        if (productSearchTerm.length > 0) {
+                          // Trigger search if there's a search term
+                        }
+                      } else {
+                        setShowCategorySearch(true);
+                        // Show all categories when focused (if not already loaded)
+                        if (allCategories.length === 0 && !searchingCategories) {
+                          const loadCategories = async () => {
+                            setSearchingCategories(true);
+                            try {
+                              const response = await fetch('/api/categories?includeInactive=false');
+                              const data = await response.json();
+                              if (response.ok && data.success) {
+                                const categories = data.data.categories || [];
+                                setAllCategories(categories);
+                                setCategorySearchResults(categories);
+                              }
+                            } catch (error) {
+                              console.error('Error loading categories:', error);
+                            } finally {
+                              setSearchingCategories(false);
+                            }
+                          };
+                          loadCategories();
+                        }
+                      }
+                    }}
+                    placeholder={formData.scope === 'product' 
+                      ? 'Search products by name...' 
+                      : 'Search categories by name...'}
+                    className="pl-10"
+                  />
+                  {(formData.scope === 'product' ? searchingProducts : searchingCategories) && (
+                    <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 animate-spin" />
+                  )}
+                </div>
+
+                {/* Search Results Dropdown */}
+                {((formData.scope === 'product' && showProductSearch && productSearchResults.length > 0) ||
+                  (formData.scope === 'category' && showCategorySearch && categorySearchResults.length > 0)) && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {(formData.scope === 'product' ? productSearchResults : categorySearchResults).map((item) => {
+                      const isSelected = formData.scope === 'product'
+                        ? selectedProducts.some(p => p.id === item.id)
+                        : selectedCategories.some(c => c.id === item.id);
+                      
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            if (formData.scope === 'product') {
+                              const product = item as Product;
+                              if (!selectedProducts.some(p => p.id === product.id)) {
+                                setSelectedProducts(prev => [...prev, product]);
+                              }
+                              setProductSearchTerm('');
+                              setShowProductSearch(false);
+                            } else {
+                              const category = item as Category;
+                              if (!selectedCategories.some(c => c.id === category.id)) {
+                                setSelectedCategories(prev => [...prev, category]);
+                              }
+                              setCategorySearchTerm('');
+                              setShowCategorySearch(false);
+                            }
+                          }}
+                          disabled={isSelected}
+                          className={`w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between ${
+                            isSelected ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          <span>
+                            {formData.scope === 'product' 
+                              ? (item as Product).name 
+                              : ((item as Category).categoryName || (item as Category).name)}
+                          </span>
+                          {isSelected && <Check className="w-4 h-4 text-blue-600" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* No Results Message */}
+                {((formData.scope === 'product' && showProductSearch && productSearchTerm.length > 0 && productSearchResults.length === 0 && !searchingProducts) ||
+                  (formData.scope === 'category' && showCategorySearch && categorySearchTerm.length > 0 && categorySearchResults.length === 0 && !searchingCategories)) && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg p-4 text-center text-sm text-gray-500">
+                    No {formData.scope === 'product' ? 'products' : 'categories'} found
+                  </div>
+                )}
+              </div>
+
+              {/* Click outside to close dropdown */}
+              {(showProductSearch || showCategorySearch) && (
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => {
+                    setShowProductSearch(false);
+                    setShowCategorySearch(false);
+                  }}
+                />
+              )}
+
               {formData.targetIds && formData.targetIds.length > 0 && (
                 <p className="mt-1 text-xs text-gray-500">
                   {formData.targetIds.length} {formData.scope === 'product' ? 'product' : 'category'}(ies) selected
