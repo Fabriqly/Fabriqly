@@ -12,14 +12,33 @@ export class FirebaseAdminService {
     const converted = { ...data };
     
     for (const key in converted) {
-      if (converted[key] instanceof Timestamp) {
-        converted[key] = converted[key].toDate();
-      } else if (Array.isArray(converted[key])) {
-        converted[key] = converted[key].map(item => 
+      const value = converted[key];
+      
+      // Handle Firestore Timestamp instances
+      if (value instanceof Timestamp) {
+        converted[key] = value.toDate();
+      }
+      // Handle Firestore Timestamp format with _seconds and _nanoseconds (underscore prefix)
+      else if (value && typeof value === 'object' && typeof value._seconds === 'number') {
+        const seconds = value._seconds || 0;
+        const nanoseconds = value._nanoseconds || 0;
+        converted[key] = new Date(seconds * 1000 + nanoseconds / 1000000);
+      }
+      // Handle Firestore Timestamp format with seconds and nanoseconds (no underscore)
+      else if (value && typeof value === 'object' && typeof value.seconds === 'number') {
+        const seconds = value.seconds || 0;
+        const nanoseconds = value.nanoseconds || 0;
+        converted[key] = new Date(seconds * 1000 + nanoseconds / 1000000);
+      }
+      // Handle arrays
+      else if (Array.isArray(value)) {
+        converted[key] = value.map(item => 
           item instanceof Timestamp ? item.toDate() : item
         );
-      } else if (typeof converted[key] === 'object' && converted[key] !== null) {
-        converted[key] = this.convertTimestamps(converted[key]);
+      }
+      // Handle nested objects
+      else if (typeof value === 'object' && value !== null) {
+        converted[key] = this.convertTimestamps(value);
       }
     }
     
