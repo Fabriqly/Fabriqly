@@ -20,7 +20,8 @@ import {
   Store,
   MessageSquare,
   FileText,
-  DollarSign
+  DollarSign,
+  Tag
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -87,6 +88,12 @@ const adminNavigation = [
     href: '/dashboard/admin/payouts',
     icon: DollarSign,
     description: 'Manage designer payouts'
+  },
+  {
+    name: 'Promotions',
+    href: '/dashboard/admin/promotions',
+    icon: Tag,
+    description: 'Manage discounts and coupons'
   },
   {
     name: 'Users',

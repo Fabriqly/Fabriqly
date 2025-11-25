@@ -10,6 +10,12 @@ import { UserRole } from '@/types/next-auth';
 import { AuthErrorHandler, AuthErrorCode } from './auth-errors';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 
+// Validate NEXTAUTH_URL on import
+if (!process.env.NEXTAUTH_URL) {
+  console.error('❌ NEXTAUTH_URL is not set in environment variables!');
+  console.error('Please add NEXTAUTH_URL=http://localhost:3000 to your .env.local file');
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -318,18 +324,7 @@ export const authOptions: NextAuthOptions = {
         return url;
       }
 
-      // Role-based redirect after authentication
-      if (user?.role === 'customer') {
-        return `${baseUrl}/explore`;
-      } else if (user?.role === 'designer') {
-        return `${baseUrl}/dashboard/designs`;
-      } else if (user?.role === 'admin') {
-        return `${baseUrl}/dashboard/admin`;
-      } else if (user?.role === 'business') {
-        return `${baseUrl}/dashboard/business`;
-      }
-
-      // Default redirect
+      // Default redirect - role-based redirects are handled in middleware or after sign-in
       return `${baseUrl}/explore`;
     }
   },

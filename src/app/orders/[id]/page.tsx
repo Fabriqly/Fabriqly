@@ -30,6 +30,16 @@ interface Order {
   tax: number;
   shippingCost: number;
   totalAmount: number;
+  discountAmount?: number;
+  appliedCouponCode?: string;
+  appliedDiscounts?: Array<{
+    discountId: string;
+    couponCode: string;
+    discountType: string;
+    discountValue: number;
+    discountAmount: number;
+    scope: string;
+  }>;
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   shippingAddress: Address;
@@ -456,6 +466,19 @@ export default function OrderDetailPage() {
                   <span>Subtotal</span>
                   <span>{formatPrice(order.subtotal)}</span>
                 </div>
+                {order.discountAmount && order.discountAmount > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>
+                      Discount
+                      {order.appliedCouponCode && (
+                        <span className="text-xs text-gray-500 ml-1">
+                          ({order.appliedCouponCode})
+                        </span>
+                      )}
+                    </span>
+                    <span>-{formatPrice(order.discountAmount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span>Shipping</span>
                   <span>{formatPrice(order.shippingCost)}</span>

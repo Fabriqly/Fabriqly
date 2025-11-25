@@ -14,7 +14,8 @@ import {
   Palette,
   Briefcase,
   Store,
-  Settings
+  Settings,
+  Tag
 } from 'lucide-react';
 
 const getNavigationItems = (userRole?: string | null) => {
@@ -70,6 +71,12 @@ const getNavigationItems = (userRole?: string | null) => {
       href: '/dashboard/customizations',
       icon: Settings,
       description: 'Manage shop customization orders'
+    });
+    baseItems.push({
+      name: 'Promotions',
+      href: '/dashboard/promotions',
+      icon: Tag,
+      description: 'Manage discounts and coupons'
     });
   }
 

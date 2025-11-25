@@ -192,6 +192,10 @@ export const Collections = {
   SHOP_APPLICATIONS: 'shopApplications',
   
   // Notification System
-  NOTIFICATIONS: 'notifications'
+  NOTIFICATIONS: 'notifications',
+  
+  // Promotion System
+  DISCOUNTS: 'discounts',
+  COUPONS: 'coupons'
 
 } as const;
