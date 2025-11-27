@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
-import { DesignCard } from '@/components/designer/DesignCard';
+import { ProductCard } from '@/components/products/ProductCard';
 import { useAuth } from '@/hooks/useAuth';
-import { DesignWithDetails } from '@/types/enhanced-products';
-import { Filter, SlidersHorizontal, Search, Check, X } from 'lucide-react';
+import { ProductWithDetails } from '@/types/products';
+import { Filter, SlidersHorizontal, Search, Check, X, Palette } from 'lucide-react';
 
-export default function ExploreDesignsPage() {
+export default function GraphicsServicesPage() {
   const { user } = useAuth();
-  const [designs, setDesigns] = useState<DesignWithDetails[]>([]);
+  const [products, setProducts] = useState<ProductWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
@@ -17,34 +17,67 @@ export default function ExploreDesignsPage() {
   const [tagSearch, setTagSearch] = useState('');
 
   useEffect(() => {
-    fetchDesigns();
+    loadGraphicsServices();
   }, []);
 
-  const fetchDesigns = async () => {
+  const loadGraphicsServices = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/designs?isPublic=true&isActive=true&limit=100');
+      // Filter products by the "design" tag
+      const response = await fetch('/api/products?tags=design&status=active&limit=100');
       const data = await response.json();
       
-      if (data.success || data.designs) {
-        const fetchedDesigns: DesignWithDetails[] = data.designs || data.data?.designs || [];
-        setDesigns(fetchedDesigns);
+      if (response.ok && data.success) {
+        const fetchedProducts: ProductWithDetails[] = data.data.products || [];
         
-        // Extract unique tags from all designs
+        // Normalize image data for ProductCard (same as merchandise page)
+        const formattedProducts = fetchedProducts.map((product: any) => {
+          if (!product.images || product.images.length === 0) {
+            if (product.primaryImageUrl) {
+              product.images = [{
+                imageUrl: product.primaryImageUrl,
+                isPrimary: true,
+                altText: product.name
+              }];
+            } else if (product.imageUrl) {
+              product.images = [{
+                imageUrl: product.imageUrl,
+                isPrimary: true,
+                altText: product.name
+              }];
+            } else {
+              product.images = [];
+            }
+          } else {
+            product.images = product.images.map((img: any) => ({
+              ...img,
+              imageUrl: img.imageUrl || img.url,
+              isPrimary: img.isPrimary !== undefined ? img.isPrimary : false,
+              altText: img.altText || product.name
+            }));
+          }
+          return product;
+        });
+        
+        setProducts(formattedProducts);
+        
+        // Extract unique tags from all products (excluding "design" and "merchandise" tags)
         const allTags = new Set<string>();
-        fetchedDesigns.forEach((design) => {
-          if (design.tags && Array.isArray(design.tags)) {
-            design.tags.forEach((tag: string) => {
-              if (tag && tag.trim()) {
+        formattedProducts.forEach((product: any) => {
+          if (product.tags && Array.isArray(product.tags)) {
+            product.tags.forEach((tag: string) => {
+              if (tag && tag.trim() && tag.toLowerCase() !== 'design' && tag.toLowerCase() !== 'merchandise') {
                 allTags.add(tag.trim());
               }
             });
           }
         });
         setTags(Array.from(allTags).sort());
+      } else {
+        console.error('Error loading graphics services:', data.error);
       }
     } catch (error) {
-      console.error('Error fetching designs:', error);
+      console.error('Error loading graphics services:', error);
     } finally {
       setLoading(false);
     }
@@ -68,12 +101,12 @@ export default function ExploreDesignsPage() {
     tag.toLowerCase().includes(tagSearch.toLowerCase())
   );
 
-  const filteredDesigns = selectedTags.length > 0
-    ? designs.filter(design => 
-        design.tags && Array.isArray(design.tags) && 
-        design.tags.some(tag => selectedTags.includes(tag))
+  const filteredProducts = selectedTags.length > 0
+    ? products.filter(product => 
+        product.tags && Array.isArray(product.tags) && 
+        product.tags.some(tag => selectedTags.includes(tag))
       )
-    : designs;
+    : products;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
@@ -82,9 +115,9 @@ export default function ExploreDesignsPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-extrabold text-gray-900 mb-2 tracking-tight">Explore Designs</h1>
+          <h1 className="text-4xl font-extrabold text-gray-900 mb-2 tracking-tight">Graphics & Design Services</h1>
           <p className="text-lg text-gray-600 max-w-2xl">
-            Discover amazing designs from talented creators.
+            Professional design services for your creative needs.
           </p>
         </div>
 
@@ -188,27 +221,25 @@ export default function ExploreDesignsPage() {
                   </div>
                 ))}
               </div>
-            ) : filteredDesigns.length === 0 ? (
+            ) : filteredProducts.length === 0 ? (
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
                 <div className="text-gray-400 mb-4">
-                  <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
+                  <Palette className="mx-auto h-12 w-12" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Designs Found</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Services Found</h3>
                 <p className="text-gray-500">
                   {selectedTags.length === 0 
-                    ? 'No designs available at the moment.' 
-                    : `No designs found with the selected tags.`}
+                    ? 'No services available at the moment.' 
+                    : `No services found with the selected tags.`}
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredDesigns.map((design) => (
-                  <DesignCard
-                    key={design.id}
-                    design={design}
-                    variant="catalog"
+                {filteredProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    variant="customer"
                     showActions={false}
                   />
                 ))}
@@ -220,3 +251,4 @@ export default function ExploreDesignsPage() {
     </div>
   );
 }
+

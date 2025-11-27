@@ -304,7 +304,7 @@ export function ProductCard({
           </Link>
 
           {/* Tags - Always reserve space for consistent alignment */}
-          <div className="flex flex-wrap gap-1 mb-3 min-h-[24px]">
+          <div className="flex flex-wrap gap-1 mb-2 min-h-[24px]">
             {product.tags && product.tags.length > 0 ? (
               <>
                 {product.tags.slice(0, 2).map((tag, index) => (
@@ -336,11 +336,8 @@ export function ProductCard({
             </div>
           )}
 
-          {/* Spacer to push price/cart to bottom */}
-          <div className="flex-1" />
-
-          {/* Price and Add to Cart - Always pinned to bottom */}
-          <div className="flex items-center justify-between gap-2 mt-auto pt-2">
+          {/* Price and Add to Cart */}
+          <div className="flex items-center justify-between gap-2">
             {/* Price */}
             <div className="flex items-center space-x-2 flex-1 min-w-0">
               <span className="text-lg font-bold text-indigo-600">

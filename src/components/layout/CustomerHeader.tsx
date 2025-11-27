@@ -259,9 +259,9 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
               Merchandise
             </Link>
             <Link
-              href="/graphics-services"
+              href="/explore/graphics-services"
               className={`px-3 py-2 text-sm font-medium transition-colors ${
-                pathname === '/graphics-services' 
+                pathname === '/explore/graphics-services' 
                   ? 'text-white border-b-2 border-white/80' 
                   : 'text-white/70 hover:text-white'
               }`}
