@@ -41,6 +41,9 @@ export default function XenditPaymentForm({
 }: XenditPaymentFormProps) {
   // Use orderIds if provided, otherwise use single orderId
   const allOrderIds = orderIds || [orderId];
+  
+  // Debug: Log the amount being used
+  console.log('[XenditPaymentForm] Component rendered with amount:', amount, 'orderIds:', allOrderIds);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -201,17 +204,19 @@ export default function XenditPaymentForm({
     setError(null);
 
     try {
+      const requestData = {
+        orderId: allOrderIds[0], // Primary order ID for backward compatibility
+        orderIds: allOrderIds, // All order IDs
+        totalAmount: amount, // Combined total amount
+        paymentMethod: 'invoice',
+      };
+      console.log('[XenditPaymentForm] Creating invoice with amount:', amount, 'requestData:', requestData);
       const response = await fetch('/api/payments/create-invoice', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          orderId: allOrderIds[0], // Primary order ID for backward compatibility
-          orderIds: allOrderIds, // All order IDs
-          totalAmount: amount, // Combined total amount
-          paymentMethod: 'invoice',
-        }),
+        body: JSON.stringify(requestData),
       });
 
       const result = await response.json();

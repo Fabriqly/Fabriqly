@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { CartSidebar } from '@/components/cart/CartSidebar';
 import XenditPaymentForm from '@/components/payments/XenditPaymentForm';
+import { DiscountSummary } from '@/components/promotions/DiscountSummary';
+import { CouponSelectionModal } from '@/components/promotions/CouponSelectionModal';
 import { 
   CreditCard, 
   MapPin, 
@@ -18,7 +20,8 @@ import {
   Truck,
   Shield,
   Edit,
-  Check
+  Check,
+  X
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -42,12 +45,54 @@ interface Address {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { state: cartState, clearCart } = useCart();
+  const { state: cartState, clearCart, applyCoupon, removeCoupon } = useCart();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [bulkCheckoutItems, setBulkCheckoutItems] = useState<any[]>([]);
-  const [isBulkCheckout, setIsBulkCheckout] = useState(false);
+  const [bulkCheckoutItems, setBulkCheckoutItems] = useState<any[]>(() => {
+    // Initialize bulk checkout items immediately on client side
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isBulk = urlParams.get('bulk') === 'true';
+      if (isBulk) {
+        const storedItems = sessionStorage.getItem('bulkCheckoutItems');
+        if (storedItems) {
+          try {
+            const items = JSON.parse(storedItems);
+            if (items && Array.isArray(items) && items.length > 0) {
+              console.log('[Checkout] Initialized bulk checkout items from sessionStorage:', items);
+              return items; // Return items immediately
+            }
+          } catch (e) {
+            console.error('[Checkout] Error parsing bulk checkout items in initial state:', e);
+          }
+        }
+      }
+    }
+    return [];
+  });
+  const [isBulkCheckout, setIsBulkCheckout] = useState(() => {
+    // Initialize bulk checkout state immediately on client side
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isBulk = urlParams.get('bulk') === 'true';
+      if (isBulk) {
+        const storedItems = sessionStorage.getItem('bulkCheckoutItems');
+        if (storedItems) {
+          try {
+            const items = JSON.parse(storedItems);
+            if (items && Array.isArray(items) && items.length > 0) {
+              console.log('[Checkout] Initialized bulk checkout mode from sessionStorage');
+              return true; // Will be confirmed in useEffect
+            }
+          } catch (e) {
+            // Ignore parse errors, will be handled in useEffect
+          }
+        }
+      }
+    }
+    return false;
+  });
 
   // Form states
   const [shippingAddress, setShippingAddress] = useState<Address>({
@@ -90,32 +135,73 @@ export default function CheckoutPage() {
   const [isSelectingBilling, setIsSelectingBilling] = useState(false);
   const [addressRefreshTrigger, setAddressRefreshTrigger] = useState(0);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [showCouponModal, setShowCouponModal] = useState(false);
 
   // Check for bulk checkout items
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const isBulk = urlParams.get('bulk') === 'true';
-    
-    console.log('Checkout page - isBulk:', isBulk);
-    
-    if (isBulk) {
-      const storedItems = sessionStorage.getItem('bulkCheckoutItems');
-      console.log('Checkout page - storedItems:', storedItems);
+    // Only run on client side
+    if (typeof window === 'undefined') return;
+
+    const checkBulkCheckout = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isBulk = urlParams.get('bulk') === 'true';
       
-      if (storedItems) {
-        try {
-          const items = JSON.parse(storedItems);
-          console.log('Checkout page - parsed items:', items);
-          setBulkCheckoutItems(items);
-          setIsBulkCheckout(true);
-          // Clear the stored items
-          sessionStorage.removeItem('bulkCheckoutItems');
-        } catch (error) {
-          console.error('Error parsing bulk checkout items:', error);
+      console.log('[Checkout] Checking bulk checkout:', { isBulk, search: window.location.search });
+      
+      // Only set bulk checkout if explicitly requested via URL parameter
+      // AND there are stored items in sessionStorage
+      if (isBulk) {
+        const storedItems = sessionStorage.getItem('bulkCheckoutItems');
+        console.log('[Checkout] Bulk checkout requested, stored items:', storedItems);
+        
+        if (storedItems) {
+          try {
+            const items = JSON.parse(storedItems);
+            console.log('[Checkout] Parsed bulk checkout items:', items);
+            
+            if (items && Array.isArray(items) && items.length > 0) {
+              setBulkCheckoutItems(items);
+              setIsBulkCheckout(true);
+              console.log('[Checkout] Set bulk checkout mode with', items.length, 'items');
+              // Don't clear immediately - wait until order is created to prevent issues on refresh
+            } else {
+              // If no valid items, reset to regular checkout
+              console.log('[Checkout] No valid items, resetting to regular checkout');
+              setIsBulkCheckout(false);
+              setBulkCheckoutItems([]);
+            }
+          } catch (error) {
+            console.error('[Checkout] Error parsing bulk checkout items:', error);
+            setIsBulkCheckout(false);
+            setBulkCheckoutItems([]);
+          }
+        } else {
+          // No stored items, reset to regular checkout
+          console.log('[Checkout] No stored items found, resetting to regular checkout');
+          setIsBulkCheckout(false);
+          setBulkCheckoutItems([]);
         }
+      } else {
+        // Not a bulk checkout, ensure we're in regular mode
+        // Also clear any leftover bulk items from sessionStorage
+        console.log('[Checkout] Not bulk checkout, clearing sessionStorage');
+        sessionStorage.removeItem('bulkCheckoutItems');
+        setIsBulkCheckout(false);
+        setBulkCheckoutItems([]);
       }
-    }
-  }, []);
+    };
+
+    // Check immediately
+    checkBulkCheckout();
+
+    // Also listen for popstate events (back/forward navigation)
+    window.addEventListener('popstate', checkBulkCheckout);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('popstate', checkBulkCheckout);
+    };
+  }, []); // Keep empty deps, but check on mount and listen to navigation
 
 
   // This effect is now handled in the main bulk checkout effect above
@@ -203,6 +289,8 @@ export default function CheckoutPage() {
     }).format(price);
   };
 
+  const { calculateDiscount } = useCart();
+
   const calculateSubtotal = () => {
     if (isBulkCheckout) {
       return bulkCheckoutItems.reduce((sum, item) => sum + item.totalPrice, 0);
@@ -211,7 +299,16 @@ export default function CheckoutPage() {
   };
 
   const calculateTax = () => {
-    return calculateSubtotal() * 0.08; // 8% tax
+    const subtotal = calculateSubtotal();
+    const discount = calculateDiscount();
+    const discountScope = cartState.discountScope;
+    
+    // Tax is calculated on subtotal after product/order discounts
+    // Shipping discounts don't affect tax
+    const taxableAmount = (discountScope === 'shipping') 
+      ? subtotal 
+      : Math.max(0, subtotal - discount);
+    return taxableAmount * 0.08; // 8% tax
   };
 
   const calculateShipping = () => {
@@ -219,7 +316,21 @@ export default function CheckoutPage() {
   };
 
   const calculateTotal = () => {
-    return calculateSubtotal() + calculateTax() + calculateShipping();
+    const subtotal = calculateSubtotal();
+    const discount = calculateDiscount();
+    const tax = calculateTax();
+    const shipping = calculateShipping();
+    
+    // If discount is for shipping, apply it to shipping instead of subtotal
+    const discountScope = cartState.discountScope;
+    if (discountScope === 'shipping') {
+      // Shipping discount: subtract from shipping
+      const shippingAfterDiscount = Math.max(0, shipping - discount);
+      return Math.max(0, subtotal + tax + shippingAfterDiscount);
+    } else {
+      // Product/category/order discount: subtract from subtotal
+      return Math.max(0, subtotal - discount + tax + shipping);
+    }
   };
 
   const handleAddressChange = (field: keyof Address, value: string, type: 'shipping' | 'billing') => {
@@ -358,6 +469,7 @@ export default function CheckoutPage() {
             },
           })),
           shippingAddress,
+          couponCode: cartState.couponCode || undefined,
           billingAddress: useSameAddress ? shippingAddress : billingAddress,
           paymentMethod: 'xendit', // Default to Xendit
           notes: orderNotes,
@@ -381,8 +493,20 @@ export default function CheckoutPage() {
       });
 
       const orders = await Promise.all(orderPromises);
+      console.log('[Checkout] Orders created:', orders.map(o => ({
+        id: o.order.id,
+        totalAmount: o.order.totalAmount,
+        discountAmount: o.order.discountAmount,
+        appliedCouponCode: o.order.appliedCouponCode
+      })));
       setCreatedOrders(orders);
       setCurrentStep('payment');
+      
+      // Clear bulk checkout items from sessionStorage after order is created
+      if (isBulkCheckout) {
+        sessionStorage.removeItem('bulkCheckoutItems');
+        console.log('[Checkout] Cleared bulk checkout items from sessionStorage after order creation');
+      }
       
     } catch (error) {
       console.error('Error creating orders:', error);
@@ -638,7 +762,22 @@ export default function CheckoutPage() {
                 <XenditPaymentForm
                   orderId={createdOrders[0].order.id}
                   orderIds={createdOrders.map(o => o.order.id)}
-                  amount={createdOrders.reduce((sum, order) => sum + order.order.totalAmount, 0)}
+                  amount={(() => {
+                    // Calculate the total from orders (should include discount)
+                    const orderTotal = createdOrders.reduce((sum, order) => {
+                      console.log('[Checkout] Order totalAmount:', order.order.totalAmount, 'discountAmount:', order.order.discountAmount, 'appliedCouponCode:', order.order.appliedCouponCode);
+                      return sum + order.order.totalAmount;
+                    }, 0);
+                    
+                    // Also calculate from cart state for comparison (this is what's shown in the summary)
+                    const calculatedTotal = calculateTotal();
+                    console.log('[Checkout] Payment amount - Order total:', orderTotal, 'Calculated total (from cart):', calculatedTotal);
+                    
+                    // Use the calculated total from cart state to match what's shown in the order summary
+                    // This ensures the payment amount matches what the user sees
+                    // The order's totalAmount should match this, but if there's a discrepancy, use the calculated value
+                    return calculatedTotal;
+                  })()}
                   customerInfo={{
                     firstName: shippingAddress.firstName,
                     lastName: shippingAddress.lastName,
@@ -693,15 +832,59 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
+              {/* Coupon Section */}
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Have a coupon code?
+                  </label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowCouponModal(true)}
+                  >
+                    Browse Discounts
+                  </Button>
+                </div>
+                {cartState.couponCode && (
+                  <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Check className="w-4 h-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-900">
+                          Coupon Applied: {cartState.couponCode}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          await removeCoupon();
+                        }}
+                        className="text-green-700 hover:text-green-900"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Order Totals */}
               <div className="space-y-2 border-t pt-4">
                 <div className="flex justify-between text-sm">
                   <span>Subtotal</span>
                   <span>{formatPrice(calculateSubtotal())}</span>
                 </div>
+                {calculateDiscount() > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Discount</span>
+                    <span>-{formatPrice(calculateDiscount())}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span>Shipping</span>
-                  <span>{formatPrice(calculateShipping())}</span>
+                  <span>{formatPrice(Math.max(0, calculateShipping() - (cartState.discountScope === 'shipping' ? calculateDiscount() : 0)))}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Tax</span>
@@ -778,6 +961,42 @@ export default function CheckoutPage() {
           }}
           userName={user?.name}
           userId={user?.id}
+        />
+      )}
+
+      {/* Coupon Selection Modal */}
+      {showCouponModal && (
+        <CouponSelectionModal
+          isOpen={showCouponModal}
+          onClose={() => setShowCouponModal(false)}
+          onSelect={async (couponCode, discountId) => {
+            console.log('[Checkout] Coupon selected:', { couponCode, discountId });
+            if (couponCode) {
+              // Apply the coupon code
+              console.log('[Checkout] Applying coupon code:', couponCode);
+              const result = await applyCoupon(couponCode);
+              console.log('[Checkout] Coupon apply result:', result);
+              if (result.success) {
+                setShowCouponModal(false);
+              } else {
+                // Show error if coupon application failed
+                setError(result.error || 'Failed to apply coupon');
+              }
+            } else if (discountId) {
+              // For discounts without coupons, we can't apply them directly
+              // They need a coupon code to be applied
+              setError('This discount requires a coupon code. Please enter the coupon code for this discount.');
+            } else {
+              setError('Please select a discount or enter a coupon code');
+            }
+          }}
+          orderAmount={calculateSubtotal()}
+          shippingCost={calculateShipping()}
+          productIds={isBulkCheckout 
+            ? bulkCheckoutItems.map(item => item.productId)
+            : cartState.cart?.items.map(item => item.productId) || []}
+          categoryIds={[]} // Could be fetched from products if needed
+          currentCouponCode={cartState.couponCode}
         />
       )}
     </div>

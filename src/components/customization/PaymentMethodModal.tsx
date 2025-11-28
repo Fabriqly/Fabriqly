@@ -19,7 +19,7 @@ interface PaymentMethodModalProps {
   loading?: boolean;
 }
 
-export function PaymentMethodModal({
+function PaymentMethodModal({
   onSubmit,
   onClose,
   amount,
@@ -178,3 +178,5 @@ export function PaymentMethodModal({
   );
 }
 
+export { PaymentMethodModal };
+export default PaymentMethodModal;

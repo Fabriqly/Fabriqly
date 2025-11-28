@@ -20,7 +20,9 @@ import {
   Store,
   MessageSquare,
   FileText,
-  DollarSign
+  DollarSign,
+  Tag,
+  AlertTriangle
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -71,6 +73,12 @@ const adminNavigation = [
     description: 'Review shop suspension appeals'
   },
   {
+    name: 'Disputes',
+    href: '/dashboard/admin/disputes',
+    icon: AlertTriangle,
+    description: 'Manage and resolve disputes'
+  },
+  {
     name: 'Applications',
     href: '/dashboard/admin/applications',
     icon: FileText,
@@ -87,6 +95,12 @@ const adminNavigation = [
     href: '/dashboard/admin/payouts',
     icon: DollarSign,
     description: 'Manage designer payouts'
+  },
+  {
+    name: 'Promotions',
+    href: '/dashboard/admin/promotions',
+    icon: Tag,
+    description: 'Manage discounts and coupons'
   },
   {
     name: 'Users',
