@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown, Settings, Package } from 'lucide-react';
+import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown, Settings, Package, AlertTriangle } from 'lucide-react';
 import { CartButton } from '@/components/cart/CartButton';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -156,6 +156,14 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                       My Customizations
                     </Link>
                     <Link
+                      href="/disputes"
+                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <AlertTriangle className="w-4 h-4 mr-3" />
+                      My Disputes
+                    </Link>
+                    <Link
                       href="/notifications"
                       className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                       onClick={() => setIsDropdownOpen(false)}
@@ -259,9 +267,9 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
               Merchandise
             </Link>
             <Link
-              href="/graphics-services"
+              href="/explore/graphics-services"
               className={`px-3 py-2 text-sm font-medium transition-colors ${
-                pathname === '/graphics-services' 
+                pathname === '/explore/graphics-services' 
                   ? 'text-white border-b-2 border-white/80' 
                   : 'text-white/70 hover:text-white'
               }`}

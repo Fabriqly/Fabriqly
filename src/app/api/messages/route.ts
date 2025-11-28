@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { receiverId, content, type, attachments, customizationRequestId, orderId } = body;
+    const { receiverId, content, type, attachments, conversationId, customizationRequestId, orderId } = body;
 
     if (!receiverId) {
       return NextResponse.json(
@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
       content,
       type: type || 'text',
       attachments,
+      conversationId,
       customizationRequestId,
       orderId
     });
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
         success: false,
         error: error.message || 'Failed to send message' 
       },
-      { status: 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }

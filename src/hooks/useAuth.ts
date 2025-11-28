@@ -93,19 +93,12 @@ export function useAuth(requireAuth = false, requiredRole?: string) {
   }, [session, authError]);
 
   // Check for role changes periodically (for pending applications that get approved)
+  // OPTIMIZED: Only check for pending users, and use longer intervals to reduce load
   useEffect(() => {
-    // Only check for users with pending applications or customers who might have applications
+    // Only check for users with pending applications - skip customers entirely
     const shouldCheck = user?.id && (
       user.role === 'pending_designer' || 
-      user.role === 'pending_shop' ||
-      // For customers, only check if they're on specific pages that indicate they might have an application
-      (user.role === 'customer' && (
-        typeof window !== 'undefined' && (
-          window.location.pathname.includes('/my-applications') ||
-          window.location.pathname.includes('/dashboard') ||
-          window.location.pathname.includes('/explore')
-        )
-      ))
+      user.role === 'pending_shop'
     );
 
     if (!shouldCheck) {
@@ -150,30 +143,19 @@ export function useAuth(requireAuth = false, requiredRole?: string) {
       }
     };
 
-    // For pending users, check more frequently; for customers, less frequently
-    const checkInterval = (user.role === 'pending_designer' || user.role === 'pending_shop') 
-      ? 30000  // 30 seconds for pending users
-      : 60000; // 60 seconds for customers
-
-    // Check immediately on mount for customers (in case they just got approved)
-    if (user.role === 'customer') {
-      checkRoleChange();
-    }
-
-    // Set up interval checking
-    const interval = setInterval(checkRoleChange, checkInterval);
-
-    // Also check when page becomes visible
+    // OPTIMIZED: Use longer intervals (2 minutes) to reduce server load
+    // Only check when page becomes visible, not on a fixed interval
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !isChecking) {
         checkRoleChange();
       }
     };
 
+    // Check once on mount, then only on visibility change
+    checkRoleChange();
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [user?.id, user?.role, update]); // Only re-run if user ID or role changes
