@@ -50,7 +50,7 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
     isPublic: true,
     pricing: {
       isFree: true,
-      currency: 'USD'
+      currency: 'PHP'
     }
   });
 
@@ -71,7 +71,7 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
         fileFormat: design.fileFormat,
         tags: design.tags,
         isPublic: design.isPublic,
-        pricing: design.pricing || { isFree: true, currency: 'USD' }
+        pricing: design.pricing || { isFree: true, currency: 'PHP' }
       });
     }
   }, [design]);
@@ -495,10 +495,11 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                       Currency
                     </label>
                     <select
-                      value={formData.pricing?.currency || 'USD'}
+                      value={formData.pricing?.currency || 'PHP'}
                       onChange={(e) => handlePricingChange('currency', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
+                      <option value="PHP">PHP</option>
                       <option value="USD">USD</option>
                       <option value="EUR">EUR</option>
                       <option value="GBP">GBP</option>
