@@ -90,9 +90,12 @@ export async function POST(request: NextRequest) {
       failure_redirect_url: `${process.env.NEXTAUTH_URL}/orders/failed?orders=${allOrderIds.join(',')}`,
     };
 
-    console.log('Creating invoice with data:', {
+    console.log('[Create Invoice API] Creating invoice with data:', {
       external_id: invoiceData.external_id,
       amount: invoiceData.amount,
+      calculatedTotal,
+      totalAmountParam: totalAmount,
+      orderTotalAmounts: validOrders.map(o => ({ id: o.id, totalAmount: o.totalAmount, discountAmount: o.discountAmount, appliedCouponCode: o.appliedCouponCode })),
       description: invoiceData.description,
       currency: invoiceData.currency
     });

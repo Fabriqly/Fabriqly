@@ -35,6 +35,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ProductReviewSection } from '@/components/reviews/ProductReviewSection';
 import { RatingDisplay } from '@/components/reviews/RatingDisplay';
 import { ReviewList } from '@/components/reviews/ReviewList';
+import { ReviewForm } from '@/components/reviews/ReviewForm';
 import { Review } from '@/types/firebase';
 
 export function ProductDetail() {
@@ -63,6 +64,8 @@ export function ProductDetail() {
   const [shopProfile, setShopProfile] = useState<any>(null);
   const [shopLogoError, setShopLogoError] = useState(false);
   const [shopRating, setShopRating] = useState<{ average: number; total: number } | null>(null);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [hasUserReviewed, setHasUserReviewed] = useState(false);
 
   useEffect(() => {
     if (productId) {
@@ -72,6 +75,16 @@ export function ProductDetail() {
       loadReviews();
     }
   }, [productId]);
+
+  useEffect(() => {
+    // Check if user has reviewed when reviews or user changes
+    if (user?.id && reviews.length > 0) {
+      const userReview = reviews.find((r) => r.customerId === user.id);
+      setHasUserReviewed(!!userReview);
+    } else if (!user?.id) {
+      setHasUserReviewed(false);
+    }
+  }, [user?.id, reviews]);
 
   useEffect(() => {
     if (product) {
@@ -128,6 +141,11 @@ export function ProductDetail() {
       
       if (data.success) {
         setReviews(data.data || []);
+        // Check if user has already reviewed
+        if (user?.id) {
+          const userReview = data.data?.find((r: Review) => r.customerId === user.id);
+          setHasUserReviewed(!!userReview);
+        }
       }
     } catch (error) {
       console.error('Error loading reviews:', error);
@@ -972,9 +990,37 @@ export function ProductDetail() {
 
             {activeTab === 'reviews' && (
               <div>
-                <h3 className="text-lg font-bold border-l-4 border-indigo-600 pl-2 mb-4 text-slate-900">
-                  Customer Reviews
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold border-l-4 border-indigo-600 pl-2 text-slate-900">
+                    Customer Reviews
+                  </h3>
+                  {user && !hasUserReviewed && !showReviewForm && (
+                    <Button
+                      onClick={() => setShowReviewForm(true)}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Write a Review
+                    </Button>
+                  )}
+                </div>
+
+                {showReviewForm && (
+                  <div className="mb-6 border border-indigo-200 rounded-lg p-6 bg-indigo-50">
+                    <ReviewForm
+                      reviewType="product"
+                      targetId={productId}
+                      targetName={product?.productName || 'Product'}
+                      onSuccess={() => {
+                        setShowReviewForm(false);
+                        loadReviews();
+                        loadRatingStats();
+                      }}
+                      onCancel={() => setShowReviewForm(false)}
+                    />
+                  </div>
+                )}
+
                 {reviews.length > 0 ? (
                   <div className="space-y-4">
                     {reviews.map((review) => (
@@ -1028,7 +1074,20 @@ export function ProductDetail() {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <p className="text-sm text-slate-600">No reviews yet. Be the first to review!</p>
+                    {!showReviewForm && (
+                      <>
+                        <p className="text-sm text-slate-600 mb-4">No reviews yet. Be the first to review!</p>
+                        {user && (
+                          <Button
+                            onClick={() => setShowReviewForm(true)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                          >
+                            <MessageSquare className="w-4 h-4 mr-2" />
+                            Write the First Review
+                          </Button>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </div>

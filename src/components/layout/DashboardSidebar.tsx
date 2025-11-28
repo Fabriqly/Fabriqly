@@ -14,7 +14,9 @@ import {
   Palette,
   Briefcase,
   Store,
-  Settings
+  Settings,
+  Tag,
+  AlertTriangle
 } from 'lucide-react';
 
 const getNavigationItems = (userRole?: string | null) => {
@@ -71,6 +73,12 @@ const getNavigationItems = (userRole?: string | null) => {
       icon: Settings,
       description: 'Manage shop customization orders'
     });
+    baseItems.push({
+      name: 'Promotions',
+      href: '/dashboard/promotions',
+      icon: Tag,
+      description: 'Manage discounts and coupons'
+    });
   }
 
   // Add remaining common items
@@ -80,6 +88,12 @@ const getNavigationItems = (userRole?: string | null) => {
       href: '/dashboard/orders',
       icon: ShoppingCart,
       description: 'View and manage orders'
+    },
+    {
+      name: 'Disputes',
+      href: '/disputes',
+      icon: AlertTriangle,
+      description: 'View and manage disputes'
     },
     {
       name: 'Finance',
