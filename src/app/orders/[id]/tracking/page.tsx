@@ -81,6 +81,31 @@ export default function TrackingPage() {
     }
   };
 
+  // Helper function to convert any timestamp format to Date
+  const convertToDate = (timestamp: any): Date | null => {
+    if (!timestamp) return null;
+    
+    try {
+      // Handle Firestore Timestamp object (has toDate method)
+      if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+        return timestamp.toDate();
+      }
+      // Handle serialized Firestore timestamp (has _seconds and _nanoseconds)
+      else if (timestamp._seconds !== undefined) {
+        const seconds = timestamp._seconds;
+        const nanoseconds = timestamp._nanoseconds || 0;
+        return new Date(seconds * 1000 + nanoseconds / 1000000);
+      }
+      // Handle regular Date string or number
+      else {
+        return new Date(timestamp);
+      }
+    } catch (error) {
+      console.error('Error converting timestamp to date:', error);
+      return null;
+    }
+  };
+
   const getStatusSteps = () => {
     const steps = [
       { id: 'pending', label: 'Order Placed', icon: CheckCircle },
@@ -94,7 +119,7 @@ export default function TrackingPage() {
     const currentIndex = statusOrder.indexOf(order?.status || '');
 
     // Get timestamps from status history
-    const getStatusTimestamp = (status: string) => {
+    const getStatusTimestamp = (status: string, stepIndex: number) => {
       // First, try to get from status history
       const historyEntry = order?.statusHistory?.find(h => h.status === status);
       if (historyEntry?.timestamp) {
@@ -105,6 +130,7 @@ export default function TrackingPage() {
       // Fallback for orders without history:
       // - 'pending' uses createdAt
       // - current status uses updatedAt
+      // - For completed intermediate statuses, estimate based on order progression
       if (status === 'pending') {
         console.log(`[Tracking] Using createdAt for pending:`, order?.createdAt);
         return order?.createdAt;
@@ -112,6 +138,20 @@ export default function TrackingPage() {
       if (status === order?.status) {
         console.log(`[Tracking] Using updatedAt for current status ${status}:`, order?.updatedAt);
         return order?.updatedAt;
+      }
+      
+      // For completed intermediate statuses, estimate dates based on order progression
+      if (stepIndex <= currentIndex && order?.createdAt) {
+        const createdAt = convertToDate(order.createdAt);
+        const updatedAt = convertToDate(order.updatedAt);
+        
+        if (createdAt && updatedAt) {
+          const timeDiff = updatedAt.getTime() - createdAt.getTime();
+          const statusProgress = (stepIndex + 1) / (currentIndex + 1);
+          const estimatedDate = new Date(createdAt.getTime() + (timeDiff * statusProgress));
+          console.log(`[Tracking] Estimated timestamp for ${status}:`, estimatedDate);
+          return estimatedDate;
+        }
       }
       
       console.log(`[Tracking] No timestamp found for ${status}`);
@@ -122,32 +162,26 @@ export default function TrackingPage() {
       ...step,
       isCompleted: index <= currentIndex,
       isCurrent: index === currentIndex,
-      timestamp: getStatusTimestamp(step.id),
+      timestamp: getStatusTimestamp(step.id, index),
     }));
   };
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'N/A';
     
-    try {
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        return 'N/A';
-      }
-      
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch (error) {
-      console.error('Error formatting date:', error);
+    const date = convertToDate(timestamp);
+    
+    if (!date || isNaN(date.getTime())) {
       return 'N/A';
     }
+    
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (loading) {
@@ -250,7 +284,7 @@ export default function TrackingPage() {
                     </div>
 
                     {/* Timestamp */}
-                    {step.isCompleted && step.timestamp && (
+                    {(step.isCompleted || step.isCurrent) && (
                       <div className="text-sm text-gray-500">
                         <Clock className="w-4 h-4 inline mr-1" />
                         {formatDate(step.timestamp)}

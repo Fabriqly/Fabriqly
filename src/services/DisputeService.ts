@@ -309,6 +309,9 @@ export class DisputeService {
       return dispute;
     } catch (error: any) {
       console.error('[DisputeService] Failed to file dispute:', error);
+      if (error instanceof AppError || error.name === 'AppError') {
+        throw error;
+      }
       throw AppError.internal('Failed to file dispute', error);
     }
   }
@@ -342,6 +345,9 @@ export class DisputeService {
       };
     } catch (error: any) {
       console.error('[DisputeService] Error getting dispute details:', error);
+      if (error instanceof AppError || error.name === 'AppError') {
+        throw error;
+      }
       throw AppError.internal('Failed to get dispute details', error);
     }
   }
@@ -408,6 +414,9 @@ export class DisputeService {
       return updatedDispute;
     } catch (error: any) {
       console.error('[DisputeService] Failed to accept dispute:', error);
+      if (error instanceof AppError || error.name === 'AppError') {
+        throw error;
+      }
       throw AppError.internal('Failed to accept dispute', error);
     }
   }
@@ -479,6 +488,11 @@ export class DisputeService {
       return updatedDispute;
     } catch (error: any) {
       console.error('[DisputeService] Failed to offer partial refund:', error);
+      // If it's already an AppError, re-throw it as-is to preserve status code
+      if (error instanceof AppError || error.name === 'AppError') {
+        throw error;
+      }
+      // Only convert non-AppError errors to internal errors
       throw AppError.internal('Failed to offer partial refund', error);
     }
   }
@@ -549,6 +563,9 @@ export class DisputeService {
       return updatedDispute;
     } catch (error: any) {
       console.error('[DisputeService] Failed to accept partial refund:', error);
+      if (error instanceof AppError || error.name === 'AppError') {
+        throw error;
+      }
       throw AppError.internal('Failed to accept partial refund', error);
     }
   }
@@ -592,6 +609,9 @@ export class DisputeService {
       return updatedDispute;
     } catch (error: any) {
       console.error('[DisputeService] Failed to reject partial refund:', error);
+      if (error instanceof AppError || error.name === 'AppError') {
+        throw error;
+      }
       throw AppError.internal('Failed to reject partial refund', error);
     }
   }
@@ -641,6 +661,9 @@ export class DisputeService {
       return updatedDispute;
     } catch (error: any) {
       console.error('[DisputeService] Failed to cancel dispute:', error);
+      if (error instanceof AppError || error.name === 'AppError') {
+        throw error;
+      }
       throw AppError.internal('Failed to cancel dispute', error);
     }
   }
@@ -785,6 +808,9 @@ export class DisputeService {
       return updatedDispute;
     } catch (error: any) {
       console.error('[DisputeService] Failed to resolve dispute:', error);
+      if (error instanceof AppError || error.name === 'AppError') {
+        throw error;
+      }
       throw AppError.internal('Failed to resolve dispute', error);
     }
   }

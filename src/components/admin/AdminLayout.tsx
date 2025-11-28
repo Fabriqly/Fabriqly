@@ -22,7 +22,7 @@ import {
   FileText,
   DollarSign,
   Tag,
-  AlertCircle
+  AlertTriangle
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -75,8 +75,8 @@ const adminNavigation = [
   {
     name: 'Disputes',
     href: '/dashboard/admin/disputes',
-    icon: AlertCircle,
-    description: 'Review and resolve customer disputes'
+    icon: AlertTriangle,
+    description: 'Manage and resolve disputes'
   },
   {
     name: 'Applications',

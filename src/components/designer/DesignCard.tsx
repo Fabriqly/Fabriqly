@@ -130,7 +130,7 @@ export function DesignCard({
             </div>
           </div>
 
-          {design.tags.length > 0 && (
+          {design.tags && Array.isArray(design.tags) && design.tags.length > 0 && (
             <div className="mt-3 pt-3 border-t border-gray-200">
               <div className="flex flex-wrap gap-1">
                 {design.tags.slice(0, 3).map((tag, index) => (
@@ -280,7 +280,7 @@ export function DesignCard({
           </span>
         </div>
 
-        {design.tags.length > 0 && (
+        {design.tags && Array.isArray(design.tags) && design.tags.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="flex flex-wrap gap-1">
               {design.tags.map((tag, index) => (

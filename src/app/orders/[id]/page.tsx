@@ -20,7 +20,6 @@ import {
   Mail
 } from 'lucide-react';
 import Link from 'next/link';
-import { FileDisputeButton } from '@/components/disputes/FileDisputeButton';
 
 interface Order {
   id: string;
@@ -349,10 +348,22 @@ export default function OrderDetailPage() {
               <h2 className="text-lg font-semibold mb-4">Order Items</h2>
               
               <div className="space-y-4">
-                {order.items.map((item, index) => (
+                {order.items.map((item, index) => {
+                  // Check if there's a design file URL to show as preview
+                  const designFileUrl = item.customizations?.designerFinalFileUrl as string | undefined;
+                  
+                  return (
                   <div key={index} className="flex items-center space-x-4 p-4 border rounded-lg">
-                    <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <Package className="w-6 h-6 text-gray-400" />
+                    <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {designFileUrl ? (
+                        <img 
+                          src={designFileUrl}
+                          alt="Design Preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Package className="w-6 h-6 text-gray-400" />
+                      )}
                     </div>
                     
                     <div className="flex-1">
@@ -362,12 +373,67 @@ export default function OrderDetailPage() {
                       {item.customizations && Object.keys(item.customizations).length > 0 && (
                         <div className="mt-2">
                           <p className="text-xs font-medium text-gray-700 mb-1">Customizations:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {Object.entries(item.customizations).map(([key, value]) => (
-                              <span key={key} className="px-2 py-1 bg-gray-100 text-xs rounded">
-                                {key}: {value}
-                              </span>
-                            ))}
+                          <div className="space-y-1">
+                            {Object.entries(item.customizations).map(([key, value]) => {
+                              // Check if value is a URL
+                              const isUrl = typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'));
+                              
+                              // Extract filename from URL if possible
+                              const getDisplayText = (url: string) => {
+                                try {
+                                  const urlObj = new URL(url);
+                                  const pathParts = urlObj.pathname.split('/');
+                                  const filename = pathParts[pathParts.length - 1];
+                                  // Remove query params and decode
+                                  const cleanFilename = filename.split('?')[0];
+                                  return decodeURIComponent(cleanFilename) || 'View File';
+                                } catch {
+                                  return 'View File';
+                                }
+                              };
+
+                              if (isUrl) {
+                                // Special handling for URLs - show as clickable link
+                                if (key === 'designerFinalFileUrl') {
+                                  return (
+                                    <div key={key} className="flex items-center gap-2">
+                                      <a
+                                        href={value as string}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                                      >
+                                        <Package className="w-3 h-3" />
+                                        View Design File
+                                      </a>
+                                    </div>
+                                  );
+                                } else {
+                                  // For other URLs, show truncated or as link
+                                  return (
+                                    <div key={key} className="flex items-center gap-2">
+                                      <span className="text-xs text-gray-600">{key}:</span>
+                                      <a
+                                        href={value as string}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-blue-600 hover:text-blue-800 underline truncate max-w-xs"
+                                        title={value as string}
+                                      >
+                                        {getDisplayText(value as string)}
+                                      </a>
+                                    </div>
+                                  );
+                                }
+                              } else {
+                                // Regular text values
+                                return (
+                                  <div key={key} className="text-xs text-gray-600">
+                                    <span className="font-medium">{key}:</span> {String(value)}
+                                  </div>
+                                );
+                              }
+                            })}
                           </div>
                         </div>
                       )}
@@ -378,7 +444,8 @@ export default function OrderDetailPage() {
                       <p className="text-sm text-gray-500">{formatPrice(item.price)} each</p>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -544,15 +611,6 @@ export default function OrderDetailPage() {
                       Track Package
                     </Button>
                   </Link>
-                )}
-                
-                {/* File Dispute Button - Show when order is shipped or delivered (for customers only) */}
-                {(order.status === 'shipped' || order.status === 'delivered') && user?.role === 'customer' && (
-                  <FileDisputeButton 
-                    orderId={order.id}
-                    variant="outline"
-                    size="md"
-                  />
                 )}
                 
                 {order.status === 'pending' && order.paymentStatus === 'pending' && (

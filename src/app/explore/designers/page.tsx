@@ -7,6 +7,11 @@ import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Award, Star, Download, Eye } from 'lucide-react';
 
+interface DesignerReviewStats {
+  averageRating: number;
+  totalReviews: number;
+}
+
 export default function ExploreDesignersPage() {
   const { user } = useAuth();
   const [designers, setDesigners] = useState<DesignerProfile[]>([]);
@@ -71,6 +76,34 @@ export default function ExploreDesignersPage() {
 }
 
 function DesignerCard({ designer }: { designer: DesignerProfile }) {
+  const [reviewStats, setReviewStats] = useState<DesignerReviewStats>({
+    averageRating: designer.portfolioStats?.averageRating || 0,
+    totalReviews: 0
+  });
+
+  useEffect(() => {
+    // Fetch actual review data
+    const fetchReviewStats = async () => {
+      try {
+        const response = await fetch(`/api/reviews/average?type=designer&targetId=${designer.id}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setReviewStats({
+            averageRating: data.data.average || 0,
+            totalReviews: data.data.total || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching designer review stats:', error);
+      }
+    };
+
+    if (designer.id) {
+      fetchReviewStats();
+    }
+  }, [designer.id]);
+
   return (
     <Link href={`/explore/designers/${designer.id}`}>
       <div className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow overflow-hidden cursor-pointer">
@@ -103,9 +136,9 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
             </div>
             <div className="text-center">
               <div className="text-xl font-bold text-yellow-600">
-                {(designer.portfolioStats?.averageRating || 0).toFixed(1)}
+                {reviewStats.averageRating.toFixed(1)}
               </div>
-              <div className="text-xs text-gray-500">Rating</div>
+              <div className="text-xs text-gray-500">Rating ({reviewStats.totalReviews} reviews)</div>
             </div>
           </div>
 
@@ -142,7 +175,7 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
             </div>
             <span className="flex items-center gap-1">
               <Star className="w-4 h-4 text-yellow-400 fill-current" />
-              {(designer.portfolioStats?.averageRating || 0).toFixed(1)}
+              {reviewStats.averageRating.toFixed(1)} ({reviewStats.totalReviews})
             </span>
           </div>
         </div>

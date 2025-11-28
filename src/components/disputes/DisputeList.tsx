@@ -49,7 +49,8 @@ export function DisputeList({ userId, showFilters = true }: DisputeListProps) {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (userId) params.append('filedBy', userId);
+      // Don't pass filedBy - let the API return all disputes where user is involved (filer OR accused)
+      // The API will automatically filter to show disputes where user is either filer or accused party
       if (filterStage !== 'all') params.append('stage', filterStage);
       if (filterStatus !== 'all') params.append('status', filterStatus);
 

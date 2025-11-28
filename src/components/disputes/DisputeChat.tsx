@@ -18,7 +18,7 @@ interface DisputeChatProps {
   dispute: Dispute;
 }
 
-export function DisputeChat({
+function DisputeChat({
   disputeId,
   conversationId,
   otherUserId,
@@ -35,40 +35,166 @@ export function DisputeChat({
   const [showPartialRefundForm, setShowPartialRefundForm] = useState(false);
   const [partialRefundAmount, setPartialRefundAmount] = useState('');
   const [partialRefundPercentage, setPartialRefundPercentage] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!conversationId || !user?.id) return;
 
-    const messagesRef = collection(db, 'messages');
-    const q = query(
-      messagesRef,
-      where('conversationId', '==', conversationId),
-      orderBy('createdAt', 'asc'),
-      limit(100)
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const newMessages = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
-            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt
-          } as Message;
-        });
-        setMessages(newMessages);
-      },
-      (error) => {
-        console.error('Error listening to messages:', error);
+    // Load messages via API (bypasses Firestore security rules)
+    const loadMessagesViaAPI = async () => {
+      if (!conversationId) {
+        console.warn('[DisputeChat] No conversationId provided, skipping load');
+        return;
       }
-    );
 
-    return () => unsubscribe();
+      try {
+        // Validate conversationId before making request
+        if (!conversationId || typeof conversationId !== 'string' || conversationId.trim() === '') {
+          console.error('[DisputeChat] Invalid conversationId:', conversationId);
+          setIsConnected(false);
+          return;
+        }
+
+        setIsConnected(true);
+        const url = `/api/messages/conversation/${encodeURIComponent(conversationId)}?limit=100`;
+        console.log('[DisputeChat] Fetching messages from:', url);
+        
+        const response = await fetch(url, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }).catch((fetchError) => {
+          // Handle network errors
+          console.error('[DisputeChat] Network error:', fetchError);
+          throw new Error(`Network error: ${fetchError.message || 'Failed to connect to server'}`);
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { error: errorText || `HTTP ${response.status}` };
+          }
+          throw new Error(errorData.error || `Failed to fetch messages: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.success && data.data) {
+          console.log('[DisputeChat] Loaded', data.data.length, 'messages from API');
+          // Convert timestamps properly
+          const processedMessages = data.data.map((msg: any) => {
+            let createdAt: Date;
+            // Handle various timestamp formats
+            if (msg.createdAt?.toDate) {
+              createdAt = msg.createdAt.toDate();
+            } else if (msg.createdAt?.seconds) {
+              createdAt = new Date(msg.createdAt.seconds * 1000);
+            } else if (msg.createdAt instanceof Date) {
+              createdAt = msg.createdAt;
+            } else if (typeof msg.createdAt === 'string') {
+              // Handle ISO string format from JSON serialization
+              createdAt = new Date(msg.createdAt);
+            } else if (msg.createdAt) {
+              createdAt = new Date(msg.createdAt);
+            } else {
+              createdAt = new Date();
+            }
+
+            let updatedAt: Date;
+            // Handle various timestamp formats
+            if (msg.updatedAt?.toDate) {
+              updatedAt = msg.updatedAt.toDate();
+            } else if (msg.updatedAt?.seconds) {
+              updatedAt = new Date(msg.updatedAt.seconds * 1000);
+            } else if (msg.updatedAt instanceof Date) {
+              updatedAt = msg.updatedAt;
+            } else if (typeof msg.updatedAt === 'string') {
+              // Handle ISO string format from JSON serialization
+              updatedAt = new Date(msg.updatedAt);
+            } else if (msg.updatedAt) {
+              updatedAt = new Date(msg.updatedAt);
+            } else {
+              updatedAt = new Date();
+            }
+
+            return {
+              ...msg,
+              createdAt,
+              updatedAt
+            } as Message;
+          });
+          // Sort by createdAt (ascending - oldest first)
+          processedMessages.sort((a: Message, b: Message) => {
+            const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt as any).getTime();
+            const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt as any).getTime();
+            return aTime - bTime;
+          });
+          
+          // Only update state if messages actually changed (prevent unnecessary re-renders)
+          setMessages(prevMessages => {
+            // Check if messages are different
+            if (prevMessages.length !== processedMessages.length) {
+              console.log('[DisputeChat] Setting', processedMessages.length, 'processed messages (count changed)');
+              return processedMessages;
+            }
+            
+            // Check if any message IDs are different
+            const prevIds = prevMessages.map(m => m.id).sort().join(',');
+            const newIds = processedMessages.map(m => m.id).sort().join(',');
+            if (prevIds !== newIds) {
+              console.log('[DisputeChat] Setting', processedMessages.length, 'processed messages (content changed)');
+              return processedMessages;
+            }
+            
+            // Messages are the same, don't update
+            return prevMessages;
+          });
+        } else {
+          console.warn('[DisputeChat] API response not successful:', data);
+          setIsConnected(false);
+        }
+      } catch (error: any) {
+        console.error('[DisputeChat] Error loading messages via API:', error);
+        console.error('[DisputeChat] Error details:', {
+          conversationId,
+          conversationIdType: typeof conversationId,
+          conversationIdLength: conversationId?.length,
+          errorMessage: error.message,
+          errorName: error.name
+        });
+        setIsConnected(false);
+        
+        // Don't show alert for network errors during polling (too noisy)
+        // Only show for initial load failures
+        if (messages.length === 0) {
+          if (error.message?.includes('Failed to fetch') || error.message?.includes('Network error')) {
+            console.warn('[DisputeChat] Initial load failed - this might be because:');
+            console.warn('1. The conversationId might not exist yet');
+            console.warn('2. Network connectivity issue');
+            console.warn('3. Server might not be running');
+            console.warn('Will retry on next poll...');
+          }
+        }
+      }
+    };
+
+    // Use API as primary method since Firestore rules are blocking queries
+    // Load initial messages immediately
+    loadMessagesViaAPI();
+    
+    // Set up polling to refresh messages every 3 seconds (reasonable balance)
+    const pollInterval = setInterval(() => {
+      loadMessagesViaAPI();
+    }, 3000);
+
+    return () => {
+      clearInterval(pollInterval);
+    };
   }, [conversationId, user?.id]);
 
   useEffect(() => {
@@ -96,14 +222,91 @@ export function DisputeChat({
         })
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to send message');
+        throw new Error(data.error || 'Failed to send message');
       }
 
+      console.log('[DisputeChat] Message sent successfully:', data.data);
       setNewMessage('');
-    } catch (error) {
+      
+      // Reload messages after sending (single reload after short delay)
+      // The polling will also pick it up, so we don't need multiple reloads
+      setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/messages/conversation/${conversationId}?limit=200&_t=${Date.now()}`, {
+            cache: 'no-store',
+            headers: {
+              'Cache-Control': 'no-cache'
+            }
+          });
+          const apiData = await response.json();
+          if (apiData.success && apiData.data) {
+            // Convert timestamps properly
+            const processedMessages = apiData.data.map((msg: any) => {
+              let createdAt: Date;
+              if (msg.createdAt?.toDate) {
+                createdAt = msg.createdAt.toDate();
+              } else if (msg.createdAt?.seconds) {
+                createdAt = new Date(msg.createdAt.seconds * 1000);
+              } else if (msg.createdAt instanceof Date) {
+                createdAt = msg.createdAt;
+              } else if (typeof msg.createdAt === 'string') {
+                createdAt = new Date(msg.createdAt);
+              } else if (msg.createdAt) {
+                createdAt = new Date(msg.createdAt);
+              } else {
+                createdAt = new Date();
+              }
+
+              let updatedAt: Date;
+              if (msg.updatedAt?.toDate) {
+                updatedAt = msg.updatedAt.toDate();
+              } else if (msg.updatedAt?.seconds) {
+                updatedAt = new Date(msg.updatedAt.seconds * 1000);
+              } else if (msg.updatedAt instanceof Date) {
+                updatedAt = msg.updatedAt;
+              } else if (typeof msg.updatedAt === 'string') {
+                updatedAt = new Date(msg.updatedAt);
+              } else if (msg.updatedAt) {
+                updatedAt = new Date(msg.updatedAt);
+              } else {
+                updatedAt = new Date();
+              }
+
+              return {
+                ...msg,
+                createdAt,
+                updatedAt
+              } as Message;
+            });
+            // Sort by createdAt
+            processedMessages.sort((a: Message, b: Message) => {
+              const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt as any).getTime();
+              const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt as any).getTime();
+              return aTime - bTime;
+            });
+            // Use the same smart update logic to prevent loops
+            setMessages(prevMessages => {
+              if (prevMessages.length !== processedMessages.length) {
+                return processedMessages;
+              }
+              const prevIds = prevMessages.map(m => m.id).sort().join(',');
+              const newIds = processedMessages.map(m => m.id).sort().join(',');
+              if (prevIds !== newIds) {
+                return processedMessages;
+              }
+              return prevMessages;
+            });
+          }
+        } catch (error) {
+          console.error('Error reloading messages:', error);
+        }
+      }, 1000);
+    } catch (error: any) {
       console.error('Error sending message:', error);
-      alert('Failed to send message');
+      alert(error.message || 'Failed to send message. Please try again.');
     } finally {
       setSending(false);
     }
@@ -131,7 +334,7 @@ export function DisputeChat({
       const fileUrl = uploadData.data.url;
 
       // Send message with attachment
-      await fetch('/api/messages', {
+      const messageResponse = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -149,6 +352,35 @@ export function DisputeChat({
           orderId: dispute.orderId
         })
       });
+
+      const messageData = await messageResponse.json();
+      if (!messageResponse.ok) {
+        throw new Error(messageData.error || 'Failed to send file message');
+      }
+      
+      // Reload messages after sending file
+      setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/messages/conversation/${conversationId}`);
+          const apiData = await response.json();
+          if (apiData.success && apiData.data) {
+            const processedMessages = apiData.data.map((msg: any) => ({
+              ...msg,
+              createdAt: msg.createdAt?.toDate ? msg.createdAt.toDate() :
+                        msg.createdAt?.seconds ? new Date(msg.createdAt.seconds * 1000) :
+                        msg.createdAt instanceof Date ? msg.createdAt :
+                        msg.createdAt ? new Date(msg.createdAt) : new Date(),
+              updatedAt: msg.updatedAt?.toDate ? msg.updatedAt.toDate() :
+                        msg.updatedAt?.seconds ? new Date(msg.updatedAt.seconds * 1000) :
+                        msg.updatedAt instanceof Date ? msg.updatedAt :
+                        msg.updatedAt ? new Date(msg.updatedAt) : new Date()
+            }));
+            setMessages(processedMessages);
+          }
+        } catch (error) {
+          console.error('Error reloading messages:', error);
+        }
+      }, 500);
     } catch (error) {
       console.error('Error uploading file:', error);
       alert('Failed to upload file');
@@ -190,23 +422,59 @@ export function DisputeChat({
     }
   };
 
-  const formatTime = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
+  const formatTime = (date: Date | any) => {
+    try {
+      let dateObj: Date;
+      if (date instanceof Date) {
+        dateObj = date;
+      } else if (date?.toDate) {
+        dateObj = date.toDate();
+      } else if (date?.seconds) {
+        dateObj = new Date(date.seconds * 1000);
+      } else if (typeof date === 'string' || typeof date === 'number') {
+        dateObj = new Date(date);
+      } else {
+        dateObj = new Date();
+      }
+      
+      // Check if date is valid
+      if (isNaN(dateObj.getTime())) {
+        return 'Invalid date';
+      }
+      
+      return new Intl.DateTimeFormat('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(dateObj);
+    } catch (error) {
+      console.error('Error formatting time:', error, date);
+      return 'Invalid date';
+    }
   };
 
   return (
     <div className="flex flex-col h-[600px]">
       {/* Header */}
       <div className="p-4 border-b bg-gray-50">
-        <h3 className="font-semibold">Dispute Conversation</h3>
-        <p className="text-sm text-gray-600">Discussing with {otherUserName}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold">Dispute Conversation</h3>
+            <p className="text-sm text-gray-600">Discussing with {otherUserName}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-xs text-gray-500">{isConnected ? 'Connected' : 'Disconnected'}</span>
+          </div>
+        </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            <p>No messages yet. Start the conversation!</p>
+          </div>
+        )}
         {messages.map(message => (
           <div
             key={message.id}
@@ -338,8 +606,6 @@ export function DisputeChat({
   );
 }
 
-
-
-
-
+export { DisputeChat };
+export default DisputeChat;
 

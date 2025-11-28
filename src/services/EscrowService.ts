@@ -398,7 +398,6 @@ export class EscrowService {
 
   /**
    * Freeze escrow due to dispute
-   * Note: Only freezes if payment details exist (escrow has been set up)
    */
   async freezeEscrow(customizationRequestId: string, disputeId: string): Promise<void> {
     try {
@@ -409,17 +408,8 @@ export class EscrowService {
         throw AppError.notFound('Customization request not found');
       }
 
-      // If no payment details exist, there's no escrow to freeze
-      // This is normal for design phase disputes before payment is made
       if (!request.paymentDetails) {
-        console.log(`[EscrowService] No payment details found - skipping escrow freeze (design phase dispute)`);
-        return;
-      }
-
-      // If escrow status is already disputed, don't update again
-      if (request.paymentDetails.escrowStatus === 'disputed') {
-        console.log(`[EscrowService] Escrow already frozen for this dispute`);
-        return;
+        throw AppError.badRequest('No payment details found for this request');
       }
 
       // Store previous status to restore later
@@ -445,8 +435,6 @@ export class EscrowService {
       console.log(`[EscrowService] Escrow frozen successfully`);
     } catch (error: any) {
       console.error(`[EscrowService] Failed to freeze escrow:`, error);
-      // Don't throw error - allow dispute to be filed even if escrow freeze fails
-      // This is important for design phase disputes where escrow might not exist yet
       throw AppError.internal('Failed to freeze escrow', error);
     }
   }

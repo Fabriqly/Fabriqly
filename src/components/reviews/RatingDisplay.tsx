@@ -11,7 +11,7 @@ interface RatingDisplayProps {
   showTotal?: boolean;
 }
 
-export function RatingDisplay({ 
+function RatingDisplay({ 
   rating, 
   totalReviews, 
   size = 'md',
@@ -66,3 +66,5 @@ export function RatingDisplay({
   );
 }
 
+export { RatingDisplay };
+export default RatingDisplay;

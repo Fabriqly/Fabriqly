@@ -23,7 +23,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   shipping_incomplete_order: 'Incomplete Order'
 };
 
-export function DisputeDetailView({ disputeId }: DisputeDetailViewProps) {
+function DisputeDetailView({ disputeId }: DisputeDetailViewProps) {
   const { data: session } = useSession();
   const [dispute, setDispute] = useState<DisputeWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -381,8 +381,6 @@ export function DisputeDetailView({ disputeId }: DisputeDetailViewProps) {
   );
 }
 
-
-
-
-
+export { DisputeDetailView };
+export default DisputeDetailView;
 

@@ -120,9 +120,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { data: session } = useSession();
 
   // Load cart from database when user is authenticated
+  // OPTIMIZED: Only load cart when cart is actually needed (when opened or when adding items)
   useEffect(() => {
     if (session?.user?.id) {
-      refreshCart();
+      // Only load cart if it's likely to be needed soon
+      // This prevents unnecessary API calls on every page load
+      const shouldLoadCart = typeof window !== 'undefined' && (
+        window.location.pathname.includes('/checkout') ||
+        window.location.pathname.includes('/cart') ||
+        localStorage.getItem('cartNeedsRefresh') === 'true'
+      );
+
+      if (shouldLoadCart) {
+        refreshCart();
+        localStorage.removeItem('cartNeedsRefresh');
+      }
     } else {
       // Clear cart when user logs out
       dispatch({ type: 'SET_CART', payload: null });
@@ -169,6 +181,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       if (response.ok && data.success) {
         dispatch({ type: 'SET_CART', payload: data.data });
+        // Mark that cart needs refresh for next page load
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('cartNeedsRefresh', 'true');
+        }
       } else {
         dispatch({ type: 'SET_ERROR', payload: data.error || 'Failed to add item to cart' });
       }
@@ -258,6 +274,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const toggleCart = () => {
+    // OPTIMIZED: Load cart when opening if not already loaded
+    if (session?.user?.id && !state.cart && !state.loading) {
+      refreshCart();
+    }
     dispatch({ type: 'TOGGLE_CART' });
   };
 
