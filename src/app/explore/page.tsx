@@ -129,7 +129,7 @@ export default function ExplorePage() {
                 </div>
               </a>
               <a 
-                href="/graphics-services" 
+                href="/explore/graphics-services" 
                 className="block bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg p-6 text-white min-h-[90px] flex items-center justify-center hover:shadow-lg transition-shadow cursor-pointer"
               >
                 <div className="text-center">
@@ -403,7 +403,7 @@ export default function ExplorePage() {
                 </div>
               </div>
               <a 
-                href="/graphics-services" 
+                href="/explore/graphics-services" 
                 className="text-purple-600 hover:text-purple-500 font-medium transition-colors"
               >
                 View All →
