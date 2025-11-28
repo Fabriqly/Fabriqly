@@ -31,6 +31,7 @@ service cloud.firestore {
     // Messages collection
     match /messages/{messageId} {
       // Users can read messages where they are sender or receiver
+      // This works for queries because each document will have senderId/receiverId
       allow read: if isAuthenticated() && (
         resource.data.senderId == request.auth.uid ||
         resource.data.receiverId == request.auth.uid
@@ -40,7 +41,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && 
         request.resource.data.senderId == request.auth.uid;
       
-      // Users can update messages they sent (for marking as read, etc.)
+      // Users can update messages they sent or received (for marking as read, etc.)
       allow update: if isAuthenticated() && (
         resource.data.senderId == request.auth.uid ||
         resource.data.receiverId == request.auth.uid

@@ -100,17 +100,6 @@ export interface ShopProfile {
   approvedAt?: Timestamp;
   rejectionReason?: string;
   
-  // Strike System
-  strikes: number; // Default 0
-  strikeHistory: Array<{
-    disputeId: string;
-    reason: string;
-    issuedAt: Timestamp;
-    issuedBy?: string; // Admin ID
-  }>;
-  isSuspended: boolean; // Auto-suspended at 3 strikes
-  suspensionReason?: string;
-  
   // Timestamps
   createdAt: Timestamp;
   updatedAt: Timestamp;

@@ -5,6 +5,11 @@ import ShopList from '@/components/shop/ShopList';
 import { ShopProfile } from '@/types/shop-profile';
 import Link from 'next/link';
 
+interface ShopReviewStats {
+  averageRating: number;
+  totalReviews: number;
+}
+
 export default function ShopsPage() {
   const [shops, setShops] = useState<ShopProfile[]>([]);
   const [featuredShops, setFeaturedShops] = useState<ShopProfile[]>([]);
@@ -73,6 +78,34 @@ export default function ShopsPage() {
 }
 
 function FeaturedShopCard({ shop }: { shop: ShopProfile }) {
+  const [reviewStats, setReviewStats] = useState<ShopReviewStats>({
+    averageRating: shop.ratings?.averageRating || 0,
+    totalReviews: shop.ratings?.totalReviews || 0
+  });
+
+  useEffect(() => {
+    // Fetch actual review data
+    const fetchReviewStats = async () => {
+      try {
+        const response = await fetch(`/api/reviews/average?type=shop&targetId=${shop.id}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setReviewStats({
+            averageRating: data.data.average || 0,
+            totalReviews: data.data.total || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching shop review stats:', error);
+      }
+    };
+
+    if (shop.id) {
+      fetchReviewStats();
+    }
+  }, [shop.id]);
+
   return (
     <Link href={`/shops/${shop.username}`}>
       <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg shadow-md border-2 border-blue-200 hover:shadow-lg transition-shadow overflow-hidden cursor-pointer">
@@ -117,7 +150,7 @@ function FeaturedShopCard({ shop }: { shop: ShopProfile }) {
           <div className="flex justify-between items-center text-sm font-medium">
             <div className="flex gap-4">
               <span className="text-blue-700">{shop.shopStats.totalProducts} Products</span>
-              <span className="text-purple-700">⭐ {shop.ratings.averageRating.toFixed(1)}</span>
+              <span className="text-purple-700">⭐ {reviewStats.averageRating.toFixed(1)} ({reviewStats.totalReviews} reviews)</span>
             </div>
           </div>
         </div>

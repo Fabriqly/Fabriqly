@@ -1,11 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
-import { ProductCard } from '@/components/products/ProductCard';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { useAuth } from '@/hooks/useAuth';
 import { ProductWithDetails } from '@/types/products';
+
+// Dynamically import ProductCard to reduce initial bundle size
+const ProductCard = dynamic(() => import('@/components/products/ProductCard').then(mod => ({ default: mod.ProductCard })), {
+  loading: () => <LoadingCard />,
+  ssr: true
+});
 
 export default function ExplorePage() {
   const { user } = useAuth();
@@ -17,65 +23,58 @@ export default function ExplorePage() {
   const [graphicsLoading, setGraphicsLoading] = useState(true);
 
   useEffect(() => {
-    loadFeaturedProducts();
-    loadMerchandiseProducts();
-    loadGraphicsServices();
+    // Load all products in parallel for better performance
+    const loadAllProducts = async () => {
+      try {
+        // Set all loading states to true
+        setLoading(true);
+        setMerchandiseLoading(true);
+        setGraphicsLoading(true);
+
+        // Fetch all three endpoints in parallel
+        const [featuredResponse, merchandiseResponse, graphicsResponse] = await Promise.all([
+          fetch('/api/products?limit=8&status=active'),
+          fetch('/api/products?tags=merchandise&status=active&limit=4'),
+          fetch('/api/products?tags=design&status=active&limit=4')
+        ]);
+
+        // Process responses in parallel
+        const [featuredData, merchandiseData, graphicsData] = await Promise.all([
+          featuredResponse.json(),
+          merchandiseResponse.json(),
+          graphicsResponse.json()
+        ]);
+
+        // Update state with results
+        if (featuredResponse.ok && featuredData.success) {
+          setProducts(featuredData.data.products || []);
+        } else {
+          console.error('Error loading products:', featuredData.error);
+        }
+
+        if (merchandiseResponse.ok && merchandiseData.success) {
+          setMerchandiseProducts(merchandiseData.data.products || []);
+        } else {
+          console.error('Error loading merchandise products:', merchandiseData.error);
+        }
+
+        if (graphicsResponse.ok && graphicsData.success) {
+          setGraphicsProducts(graphicsData.data.products || []);
+        } else {
+          console.error('Error loading graphics services:', graphicsData.error);
+        }
+      } catch (error) {
+        console.error('Error loading products:', error);
+      } finally {
+        // Set all loading states to false
+        setLoading(false);
+        setMerchandiseLoading(false);
+        setGraphicsLoading(false);
+      }
+    };
+
+    loadAllProducts();
   }, []);
-
-  const loadFeaturedProducts = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/products?limit=8&status=active');
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        // The API returns { success: true, data: { products: [...] } }
-        setProducts(data.data.products || []);
-      } else {
-        console.error('Error loading products:', data.error);
-      }
-    } catch (error) {
-      console.error('Error loading products:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadMerchandiseProducts = async () => {
-    try {
-      setMerchandiseLoading(true);
-      const response = await fetch('/api/products?tags=merchandise&status=active&limit=4');
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        setMerchandiseProducts(data.data.products || []);
-      } else {
-        console.error('Error loading merchandise products:', data.error);
-      }
-    } catch (error) {
-      console.error('Error loading merchandise products:', error);
-    } finally {
-      setMerchandiseLoading(false);
-    }
-  };
-
-  const loadGraphicsServices = async () => {
-    try {
-      setGraphicsLoading(true);
-      const response = await fetch('/api/products?tags=design&status=active&limit=4');
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        setGraphicsProducts(data.data.products || []);
-      } else {
-        console.error('Error loading graphics services:', data.error);
-      }
-    } catch (error) {
-      console.error('Error loading graphics services:', error);
-    } finally {
-      setGraphicsLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">

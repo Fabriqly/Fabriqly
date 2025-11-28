@@ -16,6 +16,7 @@ export interface SendMessageData {
     type: string;
     size: number;
   }>;
+  conversationId?: string; // Optional: if provided, use this conversation instead of finding/creating
   customizationRequestId?: string;
   orderId?: string;
 }
@@ -52,16 +53,30 @@ export class MessagingService {
       throw AppError.badRequest('Message content or attachments are required');
     }
 
-    // Find or create conversation
-    const conversation = await this.conversationRepo.findOrCreateConversation(
-      data.senderId,
-      data.receiverId,
-      {
-        customizationRequestId: data.customizationRequestId,
-        orderId: data.orderId,
-        type: data.customizationRequestId ? 'customization' : data.orderId ? 'order' : 'general'
+    // Use provided conversationId or find/create conversation
+    let conversation;
+    if (data.conversationId) {
+      // Use existing conversation
+      conversation = await this.conversationRepo.findById(data.conversationId);
+      if (!conversation) {
+        throw AppError.notFound('Conversation not found');
       }
-    );
+      // Verify user is a participant
+      if (!conversation.participants.includes(data.senderId) || !conversation.participants.includes(data.receiverId)) {
+        throw AppError.forbidden('You are not a participant in this conversation');
+      }
+    } else {
+      // Find or create conversation
+      conversation = await this.conversationRepo.findOrCreateConversation(
+        data.senderId,
+        data.receiverId,
+        {
+          customizationRequestId: data.customizationRequestId,
+          orderId: data.orderId,
+          type: data.customizationRequestId ? 'customization' : data.orderId ? 'order' : 'general'
+        }
+      );
+    }
 
     // Create message
     const messageData = {
@@ -205,7 +220,7 @@ export class MessagingService {
   }
 
   /**
-   * Create dispute conversation
+   * Create a dedicated conversation for dispute negotiation
    */
   async createDisputeConversation(
     party1Id: string,
@@ -213,6 +228,8 @@ export class MessagingService {
     orderId?: string,
     customizationRequestId?: string
   ): Promise<Conversation> {
+    // Create a new conversation specifically for dispute
+    // We don't reuse existing conversations to keep dispute discussions separate
     return this.conversationRepo.findOrCreateConversation(
       party1Id,
       party2Id,

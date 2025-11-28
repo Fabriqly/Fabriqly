@@ -43,10 +43,17 @@ export async function GET(request: NextRequest) {
     if (session.user.role !== 'admin') {
       // Filter to only show disputes where user is involved
       if (!filedBy && !accusedParty) {
-        // If no specific filter, show all disputes for this user
-        filters.filedBy = session.user.id;
-        // Note: We'll need to handle accusedParty separately
-      } else if (filedBy !== session.user.id && accusedParty !== session.user.id) {
+        // If no specific filter, we'll show all disputes where user is filer OR accused
+        // This is handled in the query logic below (lines 76-81)
+        // Don't set a default filter here - let it fall through to get both
+      } else if (filedBy && filedBy !== session.user.id && accusedParty !== session.user.id) {
+        // If specific filter is provided but user is not involved, deny access
+        return NextResponse.json(
+          { error: 'Forbidden: You can only view your own disputes' },
+          { status: 403 }
+        );
+      } else if (accusedParty && accusedParty !== session.user.id && filedBy !== session.user.id) {
+        // If specific filter is provided but user is not involved, deny access
         return NextResponse.json(
           { error: 'Forbidden: You can only view your own disputes' },
           { status: 403 }

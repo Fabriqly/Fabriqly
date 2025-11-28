@@ -10,6 +10,11 @@ interface ShopListProps {
   category?: string;
 }
 
+interface ShopReviewStats {
+  averageRating: number;
+  totalReviews: number;
+}
+
 export default function ShopList({ initialShops = [], searchTerm = '', category }: ShopListProps) {
   const [shops, setShops] = useState<ShopProfile[]>(initialShops);
   const [loading, setLoading] = useState(false);
@@ -103,6 +108,34 @@ export default function ShopList({ initialShops = [], searchTerm = '', category 
 }
 
 function ShopCard({ shop }: { shop: ShopProfile }) {
+  const [reviewStats, setReviewStats] = useState<ShopReviewStats>({
+    averageRating: shop.ratings?.averageRating || 0,
+    totalReviews: shop.ratings?.totalReviews || 0
+  });
+
+  useEffect(() => {
+    // Fetch actual review data
+    const fetchReviewStats = async () => {
+      try {
+        const response = await fetch(`/api/reviews/average?type=shop&targetId=${shop.id}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setReviewStats({
+            averageRating: data.data.average || 0,
+            totalReviews: data.data.total || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching shop review stats:', error);
+      }
+    };
+
+    if (shop.id) {
+      fetchReviewStats();
+    }
+  }, [shop.id]);
+
   return (
     <Link href={`/shops/${shop.username}`}>
       <div className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow overflow-hidden cursor-pointer">
@@ -166,7 +199,7 @@ function ShopCard({ shop }: { shop: ShopProfile }) {
           <div className="flex justify-between items-center text-sm text-gray-600 border-t pt-3">
             <div className="flex gap-4">
               <span>{shop.shopStats?.totalProducts || 0} Products</span>
-              <span>⭐ {(shop.ratings?.averageRating || 0).toFixed(1)}</span>
+              <span>⭐ {reviewStats.averageRating.toFixed(1)} ({reviewStats.totalReviews} reviews)</span>
             </div>
             {shop.location && shop.location.city && (
               <span className="text-xs">{shop.location.city}</span>
