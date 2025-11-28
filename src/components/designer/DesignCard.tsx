@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { DesignWithDetails } from '@/types/enhanced-products';
 import { Button } from '@/components/ui/Button';
@@ -16,7 +16,10 @@ import {
   Tag,
   MoreVertical,
   Edit,
-  Trash2
+  Trash2,
+  X,
+  User,
+  Calendar
 } from 'lucide-react';
 
 interface DesignCardProps {
@@ -35,9 +38,11 @@ export function DesignCard({
   variant = 'portfolio'
 }: DesignCardProps) {
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-PH', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'PHP',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(price);
   };
 
@@ -46,15 +51,43 @@ export function DesignCard({
   };
 
   if (variant === 'catalog') {
+    const [showQuickView, setShowQuickView] = useState(false);
+
     return (
-      <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden">
-        <Link href={`/designs/${design.id}`}>
+      <>
+      <div className="bg-white rounded-lg shadow-md hover:-translate-y-1 hover:shadow-xl transition-all duration-300 overflow-hidden group flex flex-col h-full">
+        <Link 
+          href={`/explore/designs/${design.id}`}
+          onClick={() => {
+            // Store referrer page for breadcrumb navigation
+            if (typeof window !== 'undefined') {
+              const pathname = window.location.pathname;
+              let referrer = 'designs';
+              let referrerLabel = 'Designs';
+              let referrerPath = '/explore/designs';
+              
+              if (pathname.startsWith('/explore/designs')) {
+                referrer = 'designs';
+                referrerLabel = 'Designs';
+                referrerPath = '/explore/designs';
+              } else if (pathname.startsWith('/explore')) {
+                referrer = 'explore';
+                referrerLabel = 'Explore';
+                referrerPath = '/explore';
+              }
+              
+              sessionStorage.setItem(`design_${design.id}_referrer`, referrer);
+              sessionStorage.setItem(`design_${design.id}_referrerLabel`, referrerLabel);
+              sessionStorage.setItem(`design_${design.id}_referrerPath`, referrerPath);
+            }
+          }}
+        >
           <div className="aspect-square bg-gray-100 relative overflow-hidden">
             {design.thumbnailUrl ? (
               <img
                 src={design.thumbnailUrl}
                 alt={design.designName}
-                className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -62,18 +95,38 @@ export function DesignCard({
               </div>
             )}
             
+            {/* Gradient Overlay - appears on hover */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            
+            {/* Quick View Button - slides up on hover */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 pointer-events-auto">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowQuickView(true);
+                }}
+                className="bg-white text-gray-900 px-4 py-2 rounded-full text-sm font-medium shadow-lg hover:bg-gray-50 flex items-center gap-2 whitespace-nowrap"
+              >
+                <Eye className="w-4 h-4" />
+                Quick View
+              </button>
+            </div>
+            
+            {/* Featured Badge - Upper left of image */}
             {design.isFeatured && (
-              <div className="absolute top-2 left-2">
-                <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full flex items-center">
+              <div className="absolute top-2 left-2 z-10">
+                <span className="bg-white/80 backdrop-blur-sm text-yellow-800 text-xs font-semibold px-2.5 py-1 rounded-full border border-white/20 shadow-sm flex items-center">
                   <Star className="w-3 h-3 mr-1 fill-current" />
                   Featured
                 </span>
               </div>
             )}
 
+            {/* Free Badge - Upper right of image */}
             {design.pricing?.isFree && (
-              <div className="absolute top-2 right-2">
-                <span className="bg-green-600 text-white text-xs px-2 py-1 rounded-full">
+              <div className="absolute top-2 right-2 z-10">
+                <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded">
                   Free
                 </span>
               </div>
@@ -81,77 +134,264 @@ export function DesignCard({
           </div>
         </Link>
 
-        <div className="p-4">
-          <Link href={`/designs/${design.id}`}>
-            <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors mb-2">
+        <div className="p-3 flex flex-col flex-1">
+          {/* Design Name */}
+          <Link 
+            href={`/explore/designs/${design.id}`}
+            onClick={() => {
+              // Store referrer page for breadcrumb navigation
+              if (typeof window !== 'undefined') {
+                const pathname = window.location.pathname;
+                let referrer = 'designs';
+                let referrerLabel = 'Designs';
+                let referrerPath = '/explore/designs';
+                
+                if (pathname.startsWith('/explore/designs')) {
+                  referrer = 'designs';
+                  referrerLabel = 'Designs';
+                  referrerPath = '/explore/designs';
+                } else if (pathname.startsWith('/explore')) {
+                  referrer = 'explore';
+                  referrerLabel = 'Explore';
+                  referrerPath = '/explore';
+                }
+                
+                sessionStorage.setItem(`design_${design.id}_referrer`, referrer);
+                sessionStorage.setItem(`design_${design.id}_referrerLabel`, referrerLabel);
+                sessionStorage.setItem(`design_${design.id}_referrerPath`, referrerPath);
+              }
+            }}
+          >
+            <h3 className="text-sm font-medium text-gray-900 hover:text-indigo-600 transition-colors mb-2 line-clamp-2 leading-tight">
               {design.designName}
             </h3>
           </Link>
 
-          <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-            {design.description}
-          </p>
-
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-4 text-sm text-gray-500">
-              <div className="flex items-center space-x-1">
-                <Eye className="w-4 h-4" />
-                <span>{design.viewCount}</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Download className="w-4 h-4" />
-                <span>{design.downloadCount}</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Heart className="w-4 h-4" />
-                <span>{design.likesCount}</span>
-              </div>
-            </div>
-
-            {!design.pricing?.isFree && design.pricing?.price && (
-              <div className="text-lg font-bold text-gray-900">
-                {formatPrice(design.pricing.price)}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-500">
-              by {design.designer.businessName}
-            </span>
-            
-            <div className="flex items-center space-x-2">
-              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                {formatFileSize(design.fileFormat)}
-              </span>
-              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
-                {design.designType}
-              </span>
-            </div>
-          </div>
-
-          {design.tags.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-200">
-              <div className="flex flex-wrap gap-1">
-                {design.tags.slice(0, 3).map((tag, index) => (
+          {/* Tags - Always reserve space for consistent alignment */}
+          <div className="flex flex-wrap gap-1 mb-2 min-h-[24px]">
+            {design.tags && design.tags.length > 0 ? (
+              <>
+                {design.tags.slice(0, 2).map((tag, index) => (
                   <span
                     key={index}
-                    className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600"
+                    className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full"
                   >
-                    <Tag className="w-3 h-3 mr-1" />
                     {tag}
                   </span>
                 ))}
-                {design.tags.length > 3 && (
-                  <span className="text-xs text-gray-500">
-                    +{design.tags.length - 3} more
+                {design.tags.length > 2 && (
+                  <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-full">
+                    +{design.tags.length - 2}
                   </span>
                 )}
-              </div>
+              </>
+            ) : (
+              /* Empty space when no tags for consistent alignment */
+              <div className="h-6" />
+            )}
+          </div>
+
+          {/* Designer Name */}
+          <div className="mb-2">
+            <span className="text-xs text-gray-500">
+              by {design.designer.businessName}
+            </span>
+          </div>
+
+          {/* Price and Download */}
+          <div className="flex items-center justify-between gap-2 mt-auto">
+            {/* Price */}
+            <div className="flex items-center space-x-2 flex-1 min-w-0">
+              {design.pricing?.isFree ? (
+                <span className="text-lg font-bold text-green-600">
+                  Free
+                </span>
+              ) : design.pricing?.price ? (
+                <span className="text-lg font-bold text-indigo-600">
+                  {formatPrice(design.pricing.price)}
+                </span>
+              ) : (
+                <span className="text-lg font-bold text-indigo-600">
+                  Free
+                </span>
+              )}
             </div>
-          )}
+            
+            {/* Download Button */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // Navigate to design detail page for download
+                window.location.href = `/explore/designs/${design.id}`;
+              }}
+              className="flex-shrink-0 p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900 transition-colors"
+              aria-label="Download design"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Quick View Modal */}
+      {showQuickView && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowQuickView(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="quick-view-title"
+        >
+          <div 
+            className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header - Only close button */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-end z-10">
+              <button
+                onClick={() => setShowQuickView(false)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Scrollable Content */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+                {/* Image */}
+                <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                  {design.thumbnailUrl ? (
+                    <img
+                      src={design.thumbnailUrl}
+                      alt={design.designName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <ImageIcon className="w-16 h-16" />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Design Info - Right side with button pinned to bottom */}
+                <div className="flex flex-col h-full min-h-0">
+                  <div className="space-y-4 flex-1">
+                    <div>
+                      <h3 id="quick-view-title" className="text-2xl font-bold text-gray-900 mb-2">{design.designName}</h3>
+                      <p className="text-gray-600">{design.description}</p>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      {design.pricing?.isFree ? (
+                        <span className="text-3xl font-bold text-green-600">Free</span>
+                      ) : design.pricing?.price ? (
+                        <span className="text-3xl font-bold text-indigo-600">
+                          {formatPrice(design.pricing.price)}
+                        </span>
+                      ) : (
+                        <span className="text-3xl font-bold text-indigo-600">Free</span>
+                      )}
+                    </div>
+
+                    {/* Designer Info */}
+                    <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <User className="w-4 h-4" />
+                      <span>by {design.designer.businessName}</span>
+                    </div>
+
+                    {/* Design Details */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Type:</span>
+                        <span className="font-medium capitalize">{design.designType}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Format:</span>
+                        <span className="font-medium uppercase">{formatFileSize(design.fileFormat)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Category:</span>
+                        <span className="font-medium">{design.category.categoryName}</span>
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="flex items-center space-x-4 text-sm text-gray-600 pt-2 border-t border-gray-200">
+                      <div className="flex items-center space-x-1">
+                        <Eye className="w-4 h-4" />
+                        <span>{design.viewCount} views</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Download className="w-4 h-4" />
+                        <span>{design.downloadCount} downloads</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Heart className="w-4 h-4" />
+                        <span>{design.likesCount} likes</span>
+                      </div>
+                    </div>
+                    
+                    {/* Tags */}
+                    {design.tags && design.tags.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-gray-900">Tags</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {design.tags.map((tag, index) => (
+                            <span
+                              key={index}
+                              className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* View Details Button - Pinned to bottom of right column */}
+                  <div className="mt-auto pt-4">
+                    <Link 
+                      href={`/explore/designs/${design.id}`}
+                      onClick={() => {
+                        setShowQuickView(false);
+                        // Store referrer page for breadcrumb navigation
+                        if (typeof window !== 'undefined') {
+                          const pathname = window.location.pathname;
+                          let referrer = 'designs';
+                          let referrerLabel = 'Designs';
+                          let referrerPath = '/explore/designs';
+                          
+                          if (pathname.startsWith('/explore/designs')) {
+                            referrer = 'designs';
+                            referrerLabel = 'Designs';
+                            referrerPath = '/explore/designs';
+                          } else if (pathname.startsWith('/explore')) {
+                            referrer = 'explore';
+                            referrerLabel = 'Explore';
+                            referrerPath = '/explore';
+                          }
+                          
+                          sessionStorage.setItem(`design_${design.id}_referrer`, referrer);
+                          sessionStorage.setItem(`design_${design.id}_referrerLabel`, referrerLabel);
+                          sessionStorage.setItem(`design_${design.id}_referrerPath`, referrerPath);
+                        }
+                      }}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-center px-4 py-3 rounded-lg font-medium transition-colors block"
+                    >
+                      View Details
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
     );
   }
 
@@ -280,7 +520,7 @@ export function DesignCard({
           </span>
         </div>
 
-        {design.tags.length > 0 && (
+        {design.tags && Array.isArray(design.tags) && design.tags.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="flex flex-wrap gap-1">
               {design.tags.map((tag, index) => (

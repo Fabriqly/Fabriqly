@@ -13,10 +13,11 @@ const shopProfileService = new ShopProfileService(shopProfileRepository, activit
 // GET /api/shop-profiles/[id] - Get single shop profile
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const shop = await shopProfileService.getShopProfile(    const { id } = await params;);
+    const { id } = await params;
+    const shop = await shopProfileService.getShopProfile(id);
     
     if (!shop) {
       return NextResponse.json(
@@ -26,7 +27,7 @@ export async function GET(
     }
     
     // Increment view count (in background, don't wait)
-    shopProfileService.incrementViewCount(    const { id } = await params;).catch(console.error);
+    shopProfileService.incrementViewCount(id).catch(console.error);
     
     return NextResponse.json({
       success: true,
@@ -47,7 +48,7 @@ export async function GET(
 // PATCH /api/shop-profiles/[id] - Update shop profile
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession();
@@ -70,9 +71,10 @@ export async function PATCH(
       );
     }
 
+    const { id } = await params;
     const data: UpdateShopProfileData = await request.json();
     
-    const shop = await shopProfileService.updateShopProfile(    const { id } = await params;, data, userId);
+    const shop = await shopProfileService.updateShopProfile(id, data, userId);
     
     return NextResponse.json({
       success: true,
@@ -94,7 +96,7 @@ export async function PATCH(
 // DELETE /api/shop-profiles/[id] - Delete shop profile
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession();
@@ -117,7 +119,8 @@ export async function DELETE(
       );
     }
     
-    await shopProfileService.deleteShopProfile(    const { id } = await params;, userId);
+    const { id } = await params;
+    await shopProfileService.deleteShopProfile(id, userId);
     
     return NextResponse.json({
       success: true,
