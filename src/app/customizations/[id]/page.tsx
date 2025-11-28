@@ -19,6 +19,7 @@ import {
   Loader,
   Lock
 } from 'lucide-react';
+import { FileDisputeButton } from '@/components/disputes/FileDisputeButton';
 
 interface CustomizationRequest {
   id: string;
@@ -204,7 +205,18 @@ function CustomizationDetailsPageContent() {
               </h1>
               <p className="text-gray-600">Request ID: {request.id.substring(0, 12)}...</p>
             </div>
-            {getStatusBadge(request.status)}
+            <div className="flex items-center gap-3">
+              {getStatusBadge(request.status)}
+              {/* File Dispute Button - Show for customers when status is in_progress or awaiting_customer_approval */}
+              {user?.role === 'customer' && 
+               (request.status === 'in_progress' || request.status === 'awaiting_customer_approval') && (
+                <FileDisputeButton 
+                  customizationRequestId={request.id}
+                  variant="outline"
+                  size="md"
+                />
+              )}
+            </div>
           </div>
         </div>
 

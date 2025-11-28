@@ -27,6 +27,16 @@ export interface DesignerProfile {
     totalViews: number;
     averageRating: number;
   };
+  // Strike System
+  strikes: number; // Default 0
+  strikeHistory: Array<{
+    disputeId: string;
+    reason: string;
+    issuedAt: Timestamp;
+    issuedBy?: string; // Admin ID
+  }>;
+  isSuspended: boolean; // Auto-suspended at 3 strikes
+  suspensionReason?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -69,6 +79,16 @@ export interface ShopProfile {
     totalRevenue: number;
     averageRating: number;
   };
+  // Strike System
+  strikes: number; // Default 0
+  strikeHistory: Array<{
+    disputeId: string;
+    reason: string;
+    issuedAt: Timestamp;
+    issuedBy?: string; // Admin ID
+  }>;
+  isSuspended: boolean; // Auto-suspended at 3 strikes
+  suspensionReason?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

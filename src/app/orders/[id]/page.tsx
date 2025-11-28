@@ -20,6 +20,7 @@ import {
   Mail
 } from 'lucide-react';
 import Link from 'next/link';
+import { FileDisputeButton } from '@/components/disputes/FileDisputeButton';
 
 interface Order {
   id: string;
@@ -543,6 +544,15 @@ export default function OrderDetailPage() {
                       Track Package
                     </Button>
                   </Link>
+                )}
+                
+                {/* File Dispute Button - Show when order is shipped or delivered (for customers only) */}
+                {(order.status === 'shipped' || order.status === 'delivered') && user?.role === 'customer' && (
+                  <FileDisputeButton 
+                    orderId={order.id}
+                    variant="outline"
+                    size="md"
+                  />
                 )}
                 
                 {order.status === 'pending' && order.paymentStatus === 'pending' && (

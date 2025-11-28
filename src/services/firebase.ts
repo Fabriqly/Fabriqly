@@ -196,6 +196,9 @@ export const Collections = {
   
   // Promotion System
   DISCOUNTS: 'discounts',
-  COUPONS: 'coupons'
+  COUPONS: 'coupons',
+  
+  // Dispute System
+  DISPUTES: 'disputes'
 
 } as const;
