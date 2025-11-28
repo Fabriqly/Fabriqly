@@ -205,6 +205,26 @@ export class MessagingService {
   }
 
   /**
+   * Create dispute conversation
+   */
+  async createDisputeConversation(
+    party1Id: string,
+    party2Id: string,
+    orderId?: string,
+    customizationRequestId?: string
+  ): Promise<Conversation> {
+    return this.conversationRepo.findOrCreateConversation(
+      party1Id,
+      party2Id,
+      {
+        orderId,
+        customizationRequestId,
+        type: 'dispute'
+      }
+    );
+  }
+
+  /**
    * Delete conversation
    */
   async deleteConversation(conversationId: string, userId: string): Promise<void> {

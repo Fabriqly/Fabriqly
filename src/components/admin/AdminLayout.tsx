@@ -21,7 +21,8 @@ import {
   MessageSquare,
   FileText,
   DollarSign,
-  Tag
+  Tag,
+  AlertCircle
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -70,6 +71,12 @@ const adminNavigation = [
     href: '/dashboard/admin/shop-appeals',
     icon: MessageSquare,
     description: 'Review shop suspension appeals'
+  },
+  {
+    name: 'Disputes',
+    href: '/dashboard/admin/disputes',
+    icon: AlertCircle,
+    description: 'Review and resolve customer disputes'
   },
   {
     name: 'Applications',

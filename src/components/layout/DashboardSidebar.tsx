@@ -15,7 +15,8 @@ import {
   Briefcase,
   Store,
   Settings,
-  Tag
+  Tag,
+  AlertTriangle
 } from 'lucide-react';
 
 const getNavigationItems = (userRole?: string | null) => {
@@ -87,6 +88,12 @@ const getNavigationItems = (userRole?: string | null) => {
       href: '/dashboard/orders',
       icon: ShoppingCart,
       description: 'View and manage orders'
+    },
+    {
+      name: 'Disputes',
+      href: '/disputes',
+      icon: AlertTriangle,
+      description: 'View and manage disputes'
     },
     {
       name: 'Finance',

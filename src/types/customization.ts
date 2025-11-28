@@ -106,7 +106,8 @@ export interface PaymentDetails {
   }>;
 
   // Escrow tracking
-  escrowStatus: 'held' | 'designer_paid' | 'shop_paid' | 'fully_released';
+  escrowStatus: 'held' | 'designer_paid' | 'shop_paid' | 'fully_released' | 'disputed';
+  disputeId?: string; // Link to active dispute if escrow is frozen
   designerPayoutId?: string;  // Xendit disbursement ID
   designerPaidAt?: Timestamp;
   designerPayoutAmount?: number;
