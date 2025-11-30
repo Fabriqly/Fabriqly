@@ -5,8 +5,9 @@ import { useSession } from 'next-auth/react';
 import { Notification, NotificationType, NotificationCategory } from '@/types/notification';
 import { NotificationItem } from './NotificationItem';
 import { Loader, CheckCircle2, Filter, X } from 'lucide-react';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 
 interface NotificationCenterProps {
   className?: string;
@@ -22,9 +23,53 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
   const [categoryFilter, setCategoryFilter] = useState<NotificationCategory | 'all'>('all');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [firebaseAuthReady, setFirebaseAuthReady] = useState(false);
+  const [authError, setAuthError] = useState(false);
 
+  // Check Firebase Auth state
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setFirebaseAuthReady(false);
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser && firebaseUser.uid === session.user.id) {
+        setFirebaseAuthReady(true);
+        setAuthError(false);
+      } else if (firebaseUser === null) {
+        // Firebase Auth not synced yet, but we'll try API fallback
+        setFirebaseAuthReady(false);
+      }
+    }, (error) => {
+      console.error('[NotificationCenter] Firebase Auth error:', error);
+      setAuthError(true);
+      setFirebaseAuthReady(false);
+      // Fallback to API immediately on auth error
+      fetchUnreadCount();
+      fetchNotifications();
+    });
+
+    return () => unsubscribe();
+  }, [session?.user?.id]);
+
+  // Set up Firestore listener only after Firebase Auth is ready
+  useEffect(() => {
+    if (!session?.user?.id || !firebaseAuthReady) {
+      // If Firebase Auth not ready, use API fallback
+      if (session?.user?.id && !firebaseAuthReady && !authError) {
+        // Wait a bit for Firebase Auth to sync, then fallback to API
+        const timeout = setTimeout(() => {
+          if (!firebaseAuthReady) {
+            fetchUnreadCount();
+            fetchNotifications();
+          }
+        }, 2000);
+        return () => clearTimeout(timeout);
+      }
+      return;
+    }
 
     // For real-time updates, we'll use polling for filtered views
     // Real-time listener for unread count
@@ -37,8 +82,13 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
 
     const unsubscribeUnread = onSnapshot(unreadQuery, (snapshot) => {
       setUnreadCount(snapshot.size);
-    }, (error) => {
-      console.error('Error listening to unread count:', error);
+    }, (error: any) => {
+      console.error('[NotificationCenter] Error listening to unread count:', error);
+      // Check if it's a permission error
+      if (error.code === 'permission-denied' || error.code === 'PERMISSION_DENIED') {
+        console.warn('[NotificationCenter] Permission denied, falling back to API');
+        setAuthError(true);
+      }
       fetchUnreadCount();
     });
 
@@ -48,9 +98,14 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
     return () => {
       unsubscribeUnread();
     };
-  }, [session?.user?.id, filter, typeFilter, categoryFilter, page]);
+  }, [session?.user?.id, firebaseAuthReady, authError, filter, typeFilter, categoryFilter, page]);
 
   const fetchNotifications = async () => {
+    if (!session?.user?.id) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -71,7 +126,15 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
         params.append('category', categoryFilter);
       }
 
-      const response = await fetch(`/api/notifications?${params}`);
+      const response = await fetch(`/api/notifications?${params}`, {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
       const data = await response.json();
       if (data.success) {
         if (page === 1) {
@@ -82,23 +145,46 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
         setHasMore((data.data || []).length === 20);
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('[NotificationCenter] Error fetching notifications:', error);
+      if (page === 1) {
+        setNotifications([]);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const fetchUnreadCount = async () => {
+    if (!session?.user?.id) return;
+
     try {
-      const response = await fetch('/api/notifications/unread-count');
+      const response = await fetch('/api/notifications/unread-count', {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
       const data = await response.json();
       if (data.success) {
         setUnreadCount(data.data.count || 0);
       }
     } catch (error) {
-      console.error('Error fetching unread count:', error);
+      console.error('[NotificationCenter] Error fetching unread count:', error);
+      setUnreadCount(0);
     }
   };
+
+  // Initial fetch if Firebase Auth is not ready
+  useEffect(() => {
+    if (session?.user?.id && !firebaseAuthReady && !loading) {
+      fetchUnreadCount();
+      fetchNotifications();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id, firebaseAuthReady]);
 
   const handleMarkAsRead = async (id: string) => {
     try {

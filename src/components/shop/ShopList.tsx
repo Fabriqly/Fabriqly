@@ -109,11 +109,6 @@ function ShopCard({ shop }: { shop: ShopProfile }) {
         
         if (data.success && data.data?.average !== undefined) {
           setActualRating(data.data.average || 0);
-        }
-      } catch (error) {
-        console.error('Error fetching rating:', error);
-        // Keep the default rating from shop.ratings if fetch fails
-        if (data.success) {
           setReviewStats({
             averageRating: data.data.average || 0,
             totalReviews: data.data.total || 0

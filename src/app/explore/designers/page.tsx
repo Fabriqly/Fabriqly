@@ -229,10 +229,6 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
         
         if (data.success && data.data?.average !== undefined) {
           setActualRating(data.data.average || 0);
-        }
-      } catch (error) {
-        console.error('Error fetching rating:', error);
-        if (data.success) {
           setReviewStats({
             averageRating: data.data.average || 0,
             totalReviews: data.data.total || 0
