@@ -16,8 +16,9 @@ import { CustomizationReviewModal } from '@/components/customization/Customizati
 import { DesignerPendingRequests } from '@/components/customization/DesignerPendingRequests';
 import { DesignerWorkModal } from '@/components/customization/DesignerWorkModal';
 import { PricingAgreementForm } from '@/components/customization/PricingAgreementForm';
-import { Loader } from 'lucide-react';
+import { Loader, Search, Clock, MessageCircle } from 'lucide-react';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 
 export default function MyCustomizationsPage() {
@@ -49,6 +50,8 @@ export default function MyCustomizationsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [expandedChats, setExpandedChats] = useState<Set<string>>(new Set());
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -72,6 +75,29 @@ export default function MyCustomizationsPage() {
       fetchRequests(currentPage);
     }
   }, [currentPage, statusFilter, status]);
+
+  // Fetch request details when selectedRequestId changes
+  useEffect(() => {
+    if (selectedRequestId && isCustomer) {
+      const fetchRequestDetails = async () => {
+        try {
+          const response = await fetch(`/api/customizations/${selectedRequestId}`);
+          const result = await response.json();
+          if (result.success) {
+            setSelectedRequestDetails(result.data);
+            // Also update selectedRequest for modals
+            const request = requests.find(r => r.id === selectedRequestId);
+            if (request) {
+              setSelectedRequest(request);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching request details:', error);
+        }
+      };
+      fetchRequestDetails();
+    }
+  }, [selectedRequestId, isCustomer, requests]);
 
   const fetchRequests = async (page: number = currentPage) => {
     try {
@@ -102,6 +128,11 @@ export default function MyCustomizationsPage() {
         const fetchedRequests = data.data || [];
         setAllRequests(fetchedRequests);
         setRequests(fetchedRequests);
+        
+        // Set first request as selected if none selected and requests exist
+        if (!selectedRequestId && fetchedRequests.length > 0 && isCustomer) {
+          setSelectedRequestId(fetchedRequests[0].id);
+        }
         
         // Track if user has any requests at all (check without filter)
         if (statusFilter === 'all' && fetchedRequests.length > 0) {
@@ -673,55 +704,51 @@ export default function MyCustomizationsPage() {
                 }}
               />
             </div>
-          </div>
-        )}
-      </div>
-    );
-  }
+        </div>
+      )}
+    </div>
+  );
+}
 
   // For customers, use customer header with explore navbar
   return (
+    <>
     <div className="min-h-screen bg-gray-50">
-      {/* Customer Header with Explore Navbar */}
       <CustomerHeader user={session?.user || null} />
+      
+      <div className="flex gap-8 p-8">
+        {/* Left Sidebar - Floating Navigation Card */}
+        <CustomerNavigationSidebar />
 
-      {/* Page Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">My Customizations</h1>
-              <p className="text-gray-600 mt-1">
-                Track your custom design requests
-              </p>
-            </div>
-            <button
-              onClick={() => router.push('/explore')}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Browse Products
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="container mx-auto px-4 py-8">
-        {/* Customer: All Requests */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold">All Requests</h2>
-            
-            {/* Simple Status Filter for Customers - Show if user has any requests */}
-            {hasAnyRequests && (
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700">Filter:</label>
+        {/* Right Content Area */}
+        <main className="flex-1">
+          {/* Split View Container */}
+          <div className="h-[calc(100vh-theme(spacing.32))] flex border border-gray-200 rounded-lg bg-white overflow-hidden">
+            {/* Left Sidebar - Request List */}
+            <div className="w-80 border-r border-gray-200 flex flex-col bg-gray-50">
+              {/* Sidebar Header */}
+              <div className="p-4 border-b border-gray-200 bg-white">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">My Customizations</h2>
+                
+                {/* Search */}
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search requests..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+                
+                {/* Filter */}
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 >
-                  <option value="all">All</option>
+                  <option value="all">All Status</option>
                   <option value="pending_designer_review">Pending</option>
                   <option value="in_progress">In Progress</option>
                   <option value="awaiting_customer_approval">Awaiting Approval</option>
@@ -729,199 +756,229 @@ export default function MyCustomizationsPage() {
                   <option value="completed">Completed</option>
                 </select>
               </div>
-            )}
-          </div>
-          
-          {loading ? (
-            <div className="text-center py-12 bg-white rounded-lg shadow">
-              <div className="flex justify-center">
-                <Loader className="w-8 h-8 animate-spin text-blue-600" />
-              </div>
-              <p className="text-gray-600 mt-4">Loading requests...</p>
-            </div>
-          ) : requests.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg shadow">
-              {statusFilter !== 'all' ? (
-                <>
-                  <p className="text-gray-600 mb-4">No requests found with status "{formatStatusLabel(statusFilter)}".</p>
-                  <button
-                    onClick={() => setStatusFilter('all')}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Show All Requests
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="text-gray-600 mb-4">You don't have any customization requests yet.</p>
-                  <button
-                    onClick={() => router.push('/explore')}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Start Customizing
-                  </button>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {requests.map((request) => (
-              <div key={request.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                {/* Request Header */}
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold text-gray-900">{request.productName}</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Request ID: {request.id.substring(0, 8)}...
-                      </p>
-                      {request.designerName && (
-                        <p className="text-sm text-gray-600">Designer: {request.designerName}</p>
-                      )}
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(request.status)}`}>
-                      {getStatusLabel(request.status)}
-                    </span>
+              
+              {/* Request List */}
+              <div className="flex-1 overflow-y-auto">
+                {loading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader className="w-6 h-6 animate-spin text-blue-600" />
                   </div>
-                </div>
-
-                {/* Request Details */}
-                <div className="p-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Left: Chat and Details */}
-                    <div className="space-y-4">
-                      {/* Pricing Information */}
-                      {request.status === 'awaiting_customer_approval' && !request.pricingAgreement && (
-                        <div className="border-2 border-yellow-200 rounded-lg p-4 bg-yellow-50">
-                          <h4 className="font-semibold mb-2 flex items-center gap-2 text-yellow-800">
-                            ⏳ Waiting for Pricing
-                          </h4>
-                          <p className="text-sm text-yellow-700">
-                            The designer is setting up the pricing for your custom design.  
-                            You'll be notified when pricing is available.
-                          </p>
-                        </div>
-                      )}
-                      
-                      {request.pricingAgreement && (
-                        <div className="border-2 border-blue-200 rounded-lg p-4 bg-gradient-to-r from-blue-50 to-purple-50">
-                          <h4 className="font-semibold mb-3 flex items-center gap-2">
-                            💰 Design Fee
-                          </h4>
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-700">Designer's Fee:</span>
-                              <span className="text-2xl font-bold text-blue-600">
-                                ₱{request.pricingAgreement.designFee.toFixed(2)}
+                ) : requests.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">
+                    {statusFilter !== 'all' ? (
+                      <p>No requests with this status</p>
+                    ) : (
+                      <div>
+                        <p className="mb-3">No customization requests yet</p>
+                        <button
+                          onClick={() => router.push('/explore')}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                        >
+                          Start Customizing
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-200">
+                    {requests
+                      .filter(request => {
+                        const matchesSearch = searchQuery === '' || 
+                          request.productName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          request.designerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          request.id.toLowerCase().includes(searchQuery.toLowerCase());
+                        return matchesSearch;
+                      })
+                      .map((request) => {
+                        const isSelected = selectedRequestId === request.id;
+                        return (
+                          <button
+                            key={request.id}
+                            onClick={() => setSelectedRequestId(request.id)}
+                            className={`w-full p-4 text-left hover:bg-gray-100 transition-colors ${
+                              isSelected ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''
+                            }`}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <h3 className="font-semibold text-gray-900 text-sm flex-1 truncate">
+                                {request.productName || 'Untitled Request'}
+                              </h3>
+                              <div className={`w-2 h-2 rounded-full ml-2 flex-shrink-0 ${
+                                request.status === 'completed' ? 'bg-green-500' :
+                                request.status === 'cancelled' ? 'bg-red-500' :
+                                request.status === 'in_progress' || request.status === 'awaiting_customer_approval' ? 'bg-blue-500' :
+                                'bg-yellow-500'
+                              }`} />
+                            </div>
+                            {request.designerName && (
+                              <p className="text-xs text-gray-600 mb-1">Designer: {request.designerName}</p>
+                            )}
+                            <div className="flex items-center justify-between mt-2">
+                              <span className={`text-xs px-2 py-1 rounded ${getStatusColor(request.status)}`}>
+                                {getStatusLabel(request.status)}
+                              </span>
+                              <span className="text-xs text-gray-500 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {request.updatedAt ? (typeof request.updatedAt === 'string' ? new Date(request.updatedAt) : request.updatedAt.toDate ? request.updatedAt.toDate() : new Date()).toLocaleDateString() : 'N/A'}
                               </span>
                             </div>
-                            <div className="text-xs text-gray-600 mt-3 pt-3 border-t border-gray-200">
-                              <p className="mb-1">
-                                <span className="font-semibold">Payment Method:</span> {
-                                  request.paymentDetails?.paymentType === 'upfront' ? 'Upfront (100%)' : 
-                                  request.paymentDetails?.paymentType === 'half_payment' ? 'Half Payment (50/50)' : 'Milestone-based'
-                                }
-                              </p>
-                              <p className="text-gray-500 mt-1">
-                                * Product and printing costs will be added by the shop
-                              </p>
-                            </div>
-                            {!request.pricingAgreement.agreedByCustomer && (
-                              <div className="flex gap-2 mt-3">
-                                <button
-                                  onClick={() => handleAgreePrice(request.id)}
-                                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                                >
-                                  ✓ Agree to Design Fee
-                                </button>
-                                <button
-                                  onClick={() => handleRejectPricing(request.id)}
-                                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                                >
-                                  ✗ Reject & Request New Price
-                                </button>
-                              </div>
-                            )}
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Right Panel - Request Details */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {selectedRequestDetails ? (
+                <>
+                  {/* Detail Header */}
+                  <div className="p-4 border-b border-gray-200 bg-white">
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="text-lg font-bold text-gray-900">
+                        {selectedRequestDetails.productName || 'Customization Request'}
+                      </h2>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedRequestDetails.status)}`}>
+                        {getStatusLabel(selectedRequestDetails.status)}
+                      </span>
+                    </div>
+                    {selectedRequestDetails.designerName && (
+                      <p className="text-xs text-gray-600">Designer: {selectedRequestDetails.designerName}</p>
+                    )}
+                  </div>
+                  
+                  {/* Scrollable Detail Body */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {/* Section 1: Design Fee */}
+                    {selectedRequestDetails.status === 'awaiting_customer_approval' && !selectedRequestDetails.pricingAgreement && (
+                      <div className="border-2 border-yellow-200 rounded-lg p-4 bg-yellow-50">
+                        <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-yellow-800">
+                          ⏳ Waiting for Pricing
+                        </h3>
+                        <p className="text-sm text-yellow-700">
+                          The designer is setting up the pricing for your custom design. You'll be notified when pricing is available.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {selectedRequestDetails.pricingAgreement && (
+                      <div className="border-2 border-blue-200 rounded-lg p-4 bg-gradient-to-r from-blue-50 to-purple-50">
+                        <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                          💰 Design Fee
+                        </h3>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-700 font-medium">Designer's Fee:</span>
+                            <span className="text-xl font-bold text-blue-600">
+                              ₱{selectedRequestDetails.pricingAgreement.designFee.toFixed(2)}
+                            </span>
                           </div>
-                        </div>
-                      )}
-
-                      {/* Payment Status */}
-                      {request.paymentDetails && (
-                        <div className="border rounded-lg p-4">
-                          <h4 className="font-semibold mb-3">Payment Status</h4>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span>Total Amount:</span>
-                              <span>₱{request.paymentDetails.totalAmount.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Paid Amount:</span>
-                              <span className="text-green-600">₱{request.paymentDetails.paidAmount.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between font-bold">
-                              <span>Remaining:</span>
-                              <span className="text-red-600">₱{request.paymentDetails.remainingAmount.toFixed(2)}</span>
-                            </div>
-                            {request.paymentDetails.remainingAmount > 0 && 
-                             request.pricingAgreement?.agreedByCustomer && (
-                              <button
-                                onClick={() => handleInitiatePayment(request.id)}
-                                className="w-full mt-3 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                              >
-                                Make Payment
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      <div className="space-y-2">
-                        {/* Show Review Design button if:
-                            1. Status is awaiting_customer_approval, OR
-                            2. Status is awaiting_pricing but payment is complete and design is uploaded */}
-                        {((request.status === 'awaiting_customer_approval') ||
-                          (request.status === 'awaiting_pricing' && 
-                           request.paymentDetails?.paymentStatus === 'fully_paid' &&
-                           request.designerFinalFile)) && (
-                          <div className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
-                            <h4 className="font-semibold mb-2 flex items-center gap-2 text-blue-800">
-                              🎨 Design Ready for Review
-                            </h4>
-                            <p className="text-sm text-blue-700 mb-3">
-                              The designer has submitted the final design. Please review and provide feedback.
+                          <div className="text-xs text-gray-600 mt-3 pt-3 border-t border-gray-200">
+                            <p className="mb-1">
+                              <span className="font-semibold">Payment Method:</span>{' '}
+                              {selectedRequestDetails.paymentDetails?.paymentType === 'upfront' ? 'Upfront (100%)' : 
+                               selectedRequestDetails.paymentDetails?.paymentType === 'half_payment' ? 'Half Payment (50/50)' : 
+                               'Milestone-based'}
                             </p>
-                            <button
-                              onClick={() => handleViewRequest(request)}
-                              className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold"
-                            >
-                              Review Design
-                            </button>
+                            <p className="text-gray-500 mt-1">
+                              * Product and printing costs will be added by the shop
+                            </p>
                           </div>
-                        )}
-
-                        {/* Select Shop - for approved or ready_for_production */}
-                        {(request.status === 'approved' || request.status === 'ready_for_production') && !request.printingShopId && (
+                          {!selectedRequestDetails.pricingAgreement.agreedByCustomer && (
+                            <div className="flex gap-2 mt-3">
+                              <button
+                                onClick={() => handleAgreePrice(selectedRequestDetails.id)}
+                                className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
+                              >
+                                ✓ Agree to Design Fee
+                              </button>
+                              <button
+                                onClick={() => handleRejectPricing(selectedRequestDetails.id)}
+                                className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
+                              >
+                                ✗ Reject & Request New Price
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Section 2: Payment Status */}
+                    {selectedRequestDetails.paymentDetails && (
+                      <div className="border rounded-lg p-4 bg-white shadow-sm">
+                        <h3 className="font-bold text-lg mb-3">Payment Status</h3>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Amount:</span>
+                            <span className="font-semibold">₱{selectedRequestDetails.paymentDetails.totalAmount.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Paid Amount:</span>
+                            <span className="font-semibold text-green-600">₱{selectedRequestDetails.paymentDetails.paidAmount.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between font-bold text-base pt-2 border-t border-gray-200">
+                            <span>Remaining:</span>
+                            <span className="text-red-600">₱{selectedRequestDetails.paymentDetails.remainingAmount.toFixed(2)}</span>
+                          </div>
+                          {selectedRequestDetails.paymentDetails.remainingAmount > 0 && 
+                           selectedRequestDetails.pricingAgreement?.agreedByCustomer && (
+                            <button
+                              onClick={() => handleInitiatePayment(selectedRequestDetails.id)}
+                              className="w-full mt-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                            >
+                              Make Payment
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Section 3: Actions */}
+                    <div className="border rounded-lg p-4 bg-white shadow-sm">
+                      <h3 className="font-bold text-lg mb-3">Actions</h3>
+                      <div className="space-y-2">
+                        {((selectedRequestDetails.status === 'awaiting_customer_approval') ||
+                          (selectedRequestDetails.status === 'awaiting_pricing' && 
+                           selectedRequestDetails.paymentDetails?.paymentStatus === 'fully_paid' &&
+                           selectedRequestDetails.designerFinalFile)) && (
                           <button
                             onClick={() => {
-                              setSelectedRequest(request);
-                              setShowShopModal(true);
+                              const request = requests.find(r => r.id === selectedRequestDetails.id);
+                              if (request) handleViewRequest(request);
                             }}
-                            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                            className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                          >
+                            Review Design
+                          </button>
+                        )}
+                        
+                        {(selectedRequestDetails.status === 'approved' || selectedRequestDetails.status === 'ready_for_production') && 
+                         !selectedRequestDetails.printingShopId && (
+                          <button
+                            onClick={() => {
+                              const request = requests.find(r => r.id === selectedRequestDetails.id);
+                              if (request) {
+                                setSelectedRequest(request);
+                                setShowShopModal(true);
+                              }
+                            }}
+                            className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
                           >
                             Select Printing Shop
                           </button>
                         )}
-
-                        {/* Create Order - for approved or ready_for_production */}
-                        {(request.status === 'approved' || request.status === 'ready_for_production') && request.printingShopId && !request.orderId && (
+                        
+                        {(selectedRequestDetails.status === 'approved' || selectedRequestDetails.status === 'ready_for_production') && 
+                         selectedRequestDetails.printingShopId && !selectedRequestDetails.orderId && (
                           <button
-                            onClick={() => handleCreateOrder(request.id)}
-                            disabled={creatingOrder === request.id}
-                            className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            onClick={() => handleCreateOrder(selectedRequestDetails.id)}
+                            disabled={creatingOrder === selectedRequestDetails.id}
+                            className="w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium text-sm flex items-center justify-center gap-2"
                           >
-                            {creatingOrder === request.id ? (
+                            {creatingOrder === selectedRequestDetails.id ? (
                               <>
                                 <Loader className="w-4 h-4 animate-spin" />
                                 Creating Order...
@@ -931,179 +988,90 @@ export default function MyCustomizationsPage() {
                             )}
                           </button>
                         )}
-
-                        {request.orderId && (
-                          <div className="bg-green-50 border border-green-200 rounded p-3 space-y-2">
-                            <p className="text-sm text-green-800">
-                              ✓ Order Created: {request.orderId.substring(0, 8)}...
+                        
+                        {selectedRequestDetails.orderId && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                            <p className="text-xs text-green-800 font-medium">
+                              ✓ Order Created: {selectedRequestDetails.orderId.substring(0, 8)}...
                             </p>
                             <div className="flex gap-2">
                               <button
-                                onClick={() => router.push(`/orders/${request.orderId}`)}
-                                className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                                onClick={() => router.push(`/orders/${selectedRequestDetails.orderId}`)}
+                                className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700"
                               >
                                 View Order
                               </button>
                               <button
-                                onClick={() => router.push(`/orders/${request.orderId}/tracking`)}
-                                className="flex-1 px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
+                                onClick={() => router.push(`/orders/${selectedRequestDetails.orderId}/tracking`)}
+                                className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700"
                               >
                                 Track Package
                               </button>
                             </div>
                           </div>
                         )}
-
-                        {request.status === 'ready_for_pickup' && (
+                        
+                        {selectedRequestDetails.status === 'ready_for_pickup' && (
                           <button
-                            onClick={() => handleCompleteTransaction(request.id)}
-                            className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                            onClick={() => handleCompleteTransaction(selectedRequestDetails.id)}
+                            className="w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm"
                           >
                             Confirm Receipt & Complete
                           </button>
                         )}
-
-                        {request.status === 'completed' && (
+                        
+                        {selectedRequestDetails.status === 'completed' && (
                           <button
                             onClick={() => {
-                              setSelectedRequest(request);
-                              setShowReviewForm(true);
+                              const request = requests.find(r => r.id === selectedRequestDetails.id);
+                              if (request) {
+                                setSelectedRequest(request);
+                                setShowReviewForm(true);
+                              }
                             }}
-                            className="w-full px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+                            className="w-full px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm"
                           >
                             Leave Reviews
                           </button>
                         )}
                       </div>
                     </div>
-
-                    {/* Right: Chat or Production */}
-                    <div>
-                      {request.designerId && ['in_progress', 'awaiting_customer_approval', 'approved'].includes(request.status) && (
-                        <div className="border border-gray-200 rounded-lg">
-                          {!expandedChats.has(request.id) ? (
-                            <button
-                              onClick={() => {
-                                setExpandedChats(prev => new Set(prev).add(request.id));
-                              }}
-                              className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center justify-between transition-colors"
-                            >
-                              <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                </svg>
-                                <span className="font-medium text-gray-700">Chat with {request.designerName || 'Designer'}</span>
-                              </div>
-                              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                          ) : (
-                            <div>
-                              <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                                <span className="font-semibold text-gray-700">Chat with {request.designerName || 'Designer'}</span>
-                                <button
-                                  onClick={() => {
-                                    setExpandedChats(prev => {
-                                      const newSet = new Set(prev);
-                                      newSet.delete(request.id);
-                                      return newSet;
-                                    });
-                                  }}
-                                  className="text-gray-500 hover:text-gray-700"
-                                >
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              </div>
-                              <div className="p-4">
-                                <TransactionChat
-                                  customizationRequestId={request.id}
-                                  otherUserId={request.designerId}
-                                  otherUserName={request.designerName || 'Designer'}
-                                  otherUserRole="designer"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {['in_production', 'ready_for_pickup'].includes(request.status) && (
-                        <ProductionTracker request={request} />
-                      )}
-                    </div>
+                    
+                    {/* Section 4: Chat */}
+                    {selectedRequestDetails.designerId && 
+                     ['in_progress', 'awaiting_customer_approval', 'approved'].includes(selectedRequestDetails.status) && (
+                      <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
+                        <TransactionChat
+                          customizationRequestId={selectedRequestDetails.id}
+                          otherUserId={selectedRequestDetails.designerId}
+                          otherUserName={selectedRequestDetails.designerName || 'Designer'}
+                          otherUserRole="designer"
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Production Tracker */}
+                    {['in_production', 'ready_for_pickup'].includes(selectedRequestDetails.status) && (
+                      <div className="border rounded-lg bg-white shadow-sm">
+                        <ProductionTracker request={selectedRequestDetails} />
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-gray-500">
+                  <div className="text-center">
+                    <p className="text-lg mb-2">No request selected</p>
+                    <p className="text-sm">Select a request from the list to view details</p>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-          )}
-
-          {/* Pagination Controls */}
-          {requests.length > 0 && (
-            <div className="mt-8 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                Showing {((currentPage - 1) * 10) + 1} to {Math.min(currentPage * 10, (currentPage - 1) * 10 + requests.length)} {totalCount > 0 && `of ${totalCount > (currentPage - 1) * 10 + requests.length ? `${totalCount}+` : totalCount}`} requests
-              </div>
-              {totalPages > 1 && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    if (currentPage > 1) {
-                      setCurrentPage(currentPage - 1);
-                    }
-                  }}
-                  disabled={currentPage === 1}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`px-3 py-2 rounded-lg ${
-                          currentPage === pageNum
-                            ? 'bg-blue-600 text-white'
-                            : 'border border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-                <button
-                  onClick={() => {
-                    if (currentPage < totalPages) {
-                      setCurrentPage(currentPage + 1);
-                    }
-                  }}
-                  disabled={currentPage >= totalPages}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+          
+        </main>
       </div>
+    </div>
 
       {/* Modals - Customer View */}
       {showReviewModal && selectedRequestDetails && (
@@ -1208,7 +1176,7 @@ export default function MyCustomizationsPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
