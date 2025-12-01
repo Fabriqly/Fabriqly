@@ -198,7 +198,7 @@ export class EmailService {
       return false;
     }
 
-    const verifyUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
+    const verifyUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/verify-email?token=${token}`;
     const firstName = user.firstName || 'there';
 
     const content = `
@@ -259,7 +259,51 @@ export class EmailService {
     }
 
     const customerName = data.customer.firstName || data.customer.displayName || 'there';
-    const orderDate = new Date(data.order.createdAt as any).toLocaleDateString();
+    
+    // Format order date - handle various timestamp formats
+    let orderDate: string;
+    try {
+      let date: Date;
+      const createdAt = data.order.createdAt;
+      
+      if (createdAt instanceof Date) {
+        date = createdAt;
+      } else if (createdAt && typeof createdAt === 'object' && 'toDate' in createdAt && typeof createdAt.toDate === 'function') {
+        date = createdAt.toDate();
+      } else if (createdAt && typeof createdAt === 'object' && 'seconds' in createdAt) {
+        const seconds = (createdAt as any).seconds || 0;
+        const nanoseconds = (createdAt as any).nanoseconds || 0;
+        date = new Date(seconds * 1000 + nanoseconds / 1000000);
+      } else if (createdAt && typeof createdAt === 'object' && '_seconds' in createdAt) {
+        const seconds = (createdAt as any)._seconds || 0;
+        const nanoseconds = (createdAt as any)._nanoseconds || 0;
+        date = new Date(seconds * 1000 + nanoseconds / 1000000);
+      } else {
+        date = new Date(createdAt as any);
+      }
+      
+      // Validate date
+      if (isNaN(date.getTime())) {
+        orderDate = new Date().toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+      } else {
+        orderDate = date.toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+      }
+    } catch (error) {
+      // Fallback to current date if parsing fails
+      orderDate = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    }
     const orderItems = data.order.items.map(item => `
       <tr>
         <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
