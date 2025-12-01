@@ -37,6 +37,7 @@ const nextConfig = {
   // Optimize bundle size
   experimental: {
     optimizeCss: true, // Optimize CSS output
+    instrumentationHook: true, // Enable instrumentation hook for event handlers
   },
   // Compress output
   compress: true,
