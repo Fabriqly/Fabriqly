@@ -6,8 +6,9 @@ import { useSession } from 'next-auth/react';
 import { Notification } from '@/types/notification';
 import { NotificationItem } from './NotificationItem';
 import { Loader } from 'lucide-react';
-import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
+import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 
 interface NotificationDropdownProps {
   onClose?: () => void;
@@ -18,9 +19,51 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [firebaseAuthReady, setFirebaseAuthReady] = useState(false);
+  const [authError, setAuthError] = useState(false);
 
+  // Check Firebase Auth state
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setFirebaseAuthReady(false);
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser && firebaseUser.uid === session.user.id) {
+        setFirebaseAuthReady(true);
+        setAuthError(false);
+      } else if (firebaseUser === null) {
+        // Firebase Auth not synced yet, but we'll try API fallback
+        setFirebaseAuthReady(false);
+      }
+    }, (error) => {
+      console.error('[NotificationDropdown] Firebase Auth error:', error);
+      setAuthError(true);
+      setFirebaseAuthReady(false);
+      // Fallback to API immediately on auth error
+      fetchNotifications();
+    });
+
+    return () => unsubscribe();
+  }, [session?.user?.id]);
+
+  // Set up Firestore listener only after Firebase Auth is ready
+  useEffect(() => {
+    if (!session?.user?.id || !firebaseAuthReady) {
+      // If Firebase Auth not ready, use API fallback
+      if (session?.user?.id && !firebaseAuthReady && !authError) {
+        // Wait a bit for Firebase Auth to sync, then fallback to API
+        const timeout = setTimeout(() => {
+          if (!firebaseAuthReady) {
+            fetchNotifications();
+          }
+        }, 2000);
+        return () => clearTimeout(timeout);
+      }
+      return;
+    }
 
     // Set up real-time listener for recent unread notifications
     const notificationsRef = collection(db, 'notifications');
@@ -43,30 +86,58 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
       setNotifications(notifs);
       setUnreadCount(notifs.length);
       setLoading(false);
-    }, (error) => {
-      console.error('Error listening to notifications:', error);
+    }, (error: any) => {
+      console.error('[NotificationDropdown] Error listening to notifications:', error);
+      // Check if it's a permission error
+      if (error.code === 'permission-denied' || error.code === 'PERMISSION_DENIED') {
+        console.warn('[NotificationDropdown] Permission denied, falling back to API');
+        setAuthError(true);
+      }
       setLoading(false);
       // Fallback to API call on error
       fetchNotifications();
     });
 
     return () => unsubscribe();
-  }, [session?.user?.id]);
+  }, [session?.user?.id, firebaseAuthReady, authError]);
 
   const fetchNotifications = async () => {
+    if (!session?.user?.id) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch('/api/notifications?limit=10&isRead=false');
+      const response = await fetch('/api/notifications?limit=10&isRead=false', {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
       const data = await response.json();
       if (data.success) {
         setNotifications(data.data || []);
         setUnreadCount(data.data?.length || 0);
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('[NotificationDropdown] Error fetching notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setLoading(false);
     }
   };
+
+  // Initial fetch if Firebase Auth is not ready
+  useEffect(() => {
+    if (session?.user?.id && !firebaseAuthReady && !loading) {
+      fetchNotifications();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id, firebaseAuthReady]);
 
   const handleMarkAsRead = async (id: string) => {
     try {

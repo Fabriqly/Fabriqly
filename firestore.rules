@@ -30,11 +30,22 @@ service cloud.firestore {
     
     // Messages collection
     match /messages/{messageId} {
-      // Users can read messages where they are sender or receiver
-      // This works for queries because each document will have senderId/receiverId
+      // Helper function to check if user is participant in conversation
+      function isConversationParticipant() {
+        let conversationId = resource.data.conversationId;
+        if (conversationId == null) {
+          return false;
+        }
+        let conversation = get(/databases/$(database)/documents/conversations/$(conversationId));
+        return conversation != null && request.auth.uid in conversation.data.participants;
+      }
+      
+      // Users can read messages where they are sender, receiver, or participant in conversation
+      // This allows queries by conversationId to work
       allow read: if isAuthenticated() && (
         resource.data.senderId == request.auth.uid ||
-        resource.data.receiverId == request.auth.uid
+        resource.data.receiverId == request.auth.uid ||
+        isConversationParticipant()
       );
       
       // Users can create messages where they are the sender

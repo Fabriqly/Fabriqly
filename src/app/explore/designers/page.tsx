@@ -5,7 +5,7 @@ import { CustomerHeader } from '@/components/layout/CustomerHeader';
 import { DesignerProfile } from '@/types/enhanced-products';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
-import { Filter, SlidersHorizontal, Search, Check, X, Star, Download, Award, MapPin } from 'lucide-react';
+import { Filter, SlidersHorizontal, Search, Check, X, Star, Download, Award } from 'lucide-react';
 
 interface DesignerReviewStats {
   averageRating: number;
@@ -210,11 +210,6 @@ export default function ExploreDesignersPage() {
 }
 
 function DesignerCard({ designer }: { designer: DesignerProfile }) {
-  const [actualRating, setActualRating] = useState<number>(designer.portfolioStats?.averageRating || 0);
-
-  useEffect(() => {
-    // Fetch actual review data
-    const fetchRating = async () => {
   const [reviewStats, setReviewStats] = useState<DesignerReviewStats>({
     averageRating: designer.portfolioStats?.averageRating || 0,
     totalReviews: 0
@@ -227,11 +222,6 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
         const response = await fetch(`/api/reviews/average?type=designer&targetId=${designer.id}`);
         const data = await response.json();
         
-        if (data.success && data.data?.average !== undefined) {
-          setActualRating(data.data.average || 0);
-        }
-      } catch (error) {
-        console.error('Error fetching rating:', error);
         if (data.success) {
           setReviewStats({
             averageRating: data.data.average || 0,
@@ -244,7 +234,6 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
     };
 
     if (designer.id) {
-      fetchRating();
       fetchReviewStats();
     }
   }, [designer.id]);
@@ -254,9 +243,9 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 h-full flex flex-col relative">
         {/* Banner/Thumbnail */}
         <div className="h-32 bg-gradient-to-r from-gray-100 to-gray-200 overflow-hidden rounded-t-xl relative">
-          {designer.portfolioImageUrl ? (
+          {designer.bannerUrl ? (
             <img
-              src={designer.portfolioImageUrl}
+              src={designer.bannerUrl}
               alt={designer.businessName}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
@@ -306,6 +295,7 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
           <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">
             {designer.bio || 'No description available.'}
           </p>
+
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="text-center">
@@ -350,22 +340,13 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
               </div>
               <div className="flex items-center gap-1">
                 <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                <span>{actualRating.toFixed(1)}</span>
+                <span>{reviewStats.averageRating.toFixed(1)} ({reviewStats.totalReviews})</span>
               </div>
             </div>
-            {designer.location && (
-              <div className="flex items-center gap-1 text-gray-400">
-                <MapPin className="w-3 h-3" />
-                <span className="truncate max-w-[80px]">{designer.location}</span>
-              </div>
-            )}
-            <span className="flex items-center gap-1">
-              <Star className="w-4 h-4 text-yellow-400 fill-current" />
-              {reviewStats.averageRating.toFixed(1)} ({reviewStats.totalReviews})
-            </span>
           </div>
         </div>
       </div>
     </Link>
   );
 }
+

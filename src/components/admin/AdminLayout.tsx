@@ -22,7 +22,8 @@ import {
   FileText,
   DollarSign,
   Tag,
-  AlertTriangle
+  AlertTriangle,
+  Database
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -113,6 +114,12 @@ const adminNavigation = [
     href: '/dashboard/admin/analytics',
     icon: BarChart3,
     description: 'System analytics'
+  },
+  {
+    name: 'Backups',
+    href: '/dashboard/admin/backups',
+    icon: Database,
+    description: 'Manage backups and recovery'
   },
   {
     name: 'Settings',

@@ -40,3 +40,8 @@ coverage/
 .sql
 *.bak
 *.tmp
+
+# Backups
+backups/
+*.tar.gz
+*.zip
