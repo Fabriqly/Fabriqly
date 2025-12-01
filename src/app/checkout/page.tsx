@@ -263,17 +263,37 @@ export default function CheckoutPage() {
     
     if (saveToProfile && user?.id) {
       try {
+        // Check if this is the first address (will be set as default)
+        const existingAddressesResponse = await fetch(`/api/users/${user.id}/addresses`);
+        const existingData = await existingAddressesResponse.json();
+        const isFirstAddress = !existingData.data || existingData.data.length === 0;
+        
         const response = await fetch(`/api/users/${user.id}/addresses`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(address),
+          body: JSON.stringify({
+            address: address,
+            setAsDefault: isFirstAddress // Set as default if it's the first address
+          }),
         });
         
+        const responseData = await response.json();
+        
         if (response.ok) {
+          console.log('[Checkout] Address saved successfully:', responseData);
+          // Increment refresh trigger to reload address list
           setAddressRefreshTrigger(prev => prev + 1);
+          // Reopen address list modal so user can see the saved address
+          if (!isSelectingBilling) {
+            setShowAddressListModal(true);
+          }
+        } else {
+          console.error('[Checkout] Error saving address:', responseData.error);
+          alert(`Failed to save address: ${responseData.error || 'Unknown error'}`);
         }
       } catch (error) {
-        console.error('Error saving address:', error);
+        console.error('[Checkout] Error saving address:', error);
+        alert('Failed to save address. Please try again.');
       }
     }
     
