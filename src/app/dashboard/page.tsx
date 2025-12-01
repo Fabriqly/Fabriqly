@@ -10,6 +10,7 @@ import { Product } from '@/types/products';
 import { User, Settings, Palette, DollarSign, TrendingUp, Clock } from 'lucide-react';
 import { FinanceSummary } from '@/services/FinanceService';
 import Link from 'next/link';
+import { EmailVerificationBanner } from '@/components/auth/EmailVerificationBanner';
 
 function DashboardContent() {
   const { user, isCustomer, isDesigner, isBusinessOwner, isAdmin, isLoading } = useAuth();
@@ -104,6 +105,8 @@ function DashboardContent() {
         {/* Main Content */}
         <div className="flex-1">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
+        {/* Email Verification Banner */}
+        <EmailVerificationBanner />
         {/* Welcome Section */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <div className="flex items-center">

@@ -178,6 +178,23 @@ async function handleInvoicePaid(invoiceData: any) {
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         });
+
+        // Send payment confirmation emails (non-blocking)
+        try {
+          const { EmailService } = await import('@/services/EmailService');
+          const orderAmount = invoiceData.amount / validOrders.length; // Split amount if multiple orders
+          EmailService.sendPaymentReceivedEmail(
+            order.id,
+            order.customerId,
+            order.businessOwnerId,
+            orderAmount
+          ).catch((emailError) => {
+            console.error(`Error sending payment email for order ${order.id}:`, emailError);
+          });
+        } catch (emailError) {
+          console.error(`Error setting up payment email for order ${order.id}:`, emailError);
+          // Don't fail payment processing if email fails
+        }
         
         console.log(`[Invoice Paid] Order ${order.id} updated successfully`);
       })

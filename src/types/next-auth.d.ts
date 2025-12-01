@@ -11,6 +11,7 @@ declare module 'next-auth' {
       name?: string;
       image?: string;
       role: UserRole;
+      isVerified?: boolean;
     };
   }
 
@@ -20,6 +21,7 @@ declare module 'next-auth' {
     name?: string;
     image?: string;
     role: UserRole;
+    isVerified?: boolean;
   }
 }
 
@@ -29,6 +31,7 @@ declare module 'next-auth/jwt' {
     sub: string; // Explicitly include sub for user ID
     displayName?: string;
     photoURL?: string;
+    isVerified?: boolean;
   }
 }
 

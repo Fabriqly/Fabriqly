@@ -6,6 +6,7 @@ import { CustomerHeader } from '@/components/layout/CustomerHeader';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { useAuth } from '@/hooks/useAuth';
 import { ProductWithDetails } from '@/types/products';
+import { EmailVerificationBanner } from '@/components/auth/EmailVerificationBanner';
 
 // Dynamically import ProductCard to reduce initial bundle size
 const ProductCard = dynamic(() => import('@/components/products/ProductCard').then(mod => ({ default: mod.ProductCard })), {
@@ -105,6 +106,9 @@ export default function ExplorePage() {
             </div>
           </div>
         )}
+
+        {/* Email Verification Banner */}
+        {user && <EmailVerificationBanner />}
 
         {/* Marketing/Ads Section */}
         <section className="mb-12">

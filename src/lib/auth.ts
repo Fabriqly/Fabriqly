@@ -69,7 +69,8 @@ export const authOptions: NextAuthOptions = {
               userCredential.user.displayName ||
               credentials.email,
             image: userData.photoURL || userCredential.user.photoURL || '',
-            role: userData.role as UserRole
+            role: userData.role as UserRole,
+            isVerified: userData.isVerified ?? false
           };
         } catch (error: any) {
           console.error('Credentials verification error:', error);
@@ -283,6 +284,8 @@ export const authOptions: NextAuthOptions = {
                 if (userData.photoURL) {
                   token.photoURL = userData.photoURL;
                 }
+                // Include isVerified status
+                token.isVerified = userData.isVerified ?? false;
                 
                 await setDoc(
                   userDocRef,
@@ -313,6 +316,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role;
         if (token.displayName) session.user.name = token.displayName;
         if (token.photoURL) session.user.image = token.photoURL;
+        session.user.isVerified = (token as any).isVerified ?? false;
       }
       return session;
     },
