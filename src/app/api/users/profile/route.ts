@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Collections } from '@/services/firebase';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { ActivityService } from '@/services/ActivityService';
@@ -27,18 +25,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const userDocRef = doc(db, Collections.USERS, session.user.id);
-    const userDoc = await getDoc(userDocRef);
+    const userData = await FirebaseAdminService.getDocument(Collections.USERS, session.user.id);
 
-    if (!userDoc.exists()) {
+    if (!userData) {
       console.error('❌ User not found:', session.user.id);
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
-
-    const userData = userDoc.data();
     
     // Remove sensitive data
     const { password, ...profileData } = userData;
@@ -115,18 +110,15 @@ export async function PUT(request: NextRequest) {
     // Auto-generate displayName from firstName and lastName if not provided
     const finalDisplayName = displayName || `${firstName} ${lastName}`.trim();
 
-    const userDocRef = doc(db, Collections.USERS, session.user.id);
-    const userDoc = await getDoc(userDocRef);
+    const currentData = await FirebaseAdminService.getDocument(Collections.USERS, session.user.id);
 
-    if (!userDoc.exists()) {
+    if (!currentData) {
       console.error('❌ User not found in Firestore:', session.user.id);
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
-
-    const currentData = userDoc.data();
     console.log('📄 Current user data:', {
       hasProfile: !!currentData.profile,
       currentDisplayName: currentData.displayName
@@ -163,14 +155,13 @@ export async function PUT(request: NextRequest) {
       hasAddress: !!updateData.profile.address
     });
 
-    // Update in Firestore
-    await updateDoc(userDocRef, updateData);
+    // Update in Firestore using Admin SDK
+    await FirebaseAdminService.updateDocument(Collections.USERS, session.user.id, updateData);
     
     console.log('✅ Firestore update successful');
 
     // Verify the update
-    const updatedDoc = await getDoc(userDocRef);
-    const verifiedData = updatedDoc.data();
+    const verifiedData = await FirebaseAdminService.getDocument(Collections.USERS, session.user.id);
     console.log('🔍 Verified update:', {
       displayName: verifiedData?.displayName,
       firstName: verifiedData?.profile?.firstName,

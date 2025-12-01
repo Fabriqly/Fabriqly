@@ -12,10 +12,14 @@ import {
   CheckCircle, 
   XCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  ArrowUpDown,
+  ArrowDown,
+  ArrowUp
 } from 'lucide-react';
 import Link from 'next/link';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { useSession } from 'next-auth/react';
 
 interface Order {
@@ -37,6 +41,7 @@ interface Order {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  shopName?: string; // Shop/Seller name
 }
 
 interface OrderItem {
@@ -55,6 +60,7 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
   useEffect(() => {
     loadOrders();
@@ -67,7 +73,24 @@ export default function OrdersPage() {
       const data = await response.json();
       
       if (response.ok) {
-        setOrders(data.orders || []);
+        const ordersWithShopNames = await Promise.all(
+          (data.orders || []).map(async (order: Order) => {
+            // Fetch shop name if businessOwnerId exists
+            if (order.businessOwnerId) {
+              try {
+                const shopResponse = await fetch(`/api/shop-profiles/user/${order.businessOwnerId}`);
+                const shopData = await shopResponse.json();
+                if (shopData.success && shopData.data) {
+                  return { ...order, shopName: shopData.data.shopName || shopData.data.businessName };
+                }
+              } catch (error) {
+                console.error('Error fetching shop name:', error);
+              }
+            }
+            return order;
+          })
+        );
+        setOrders(ordersWithShopNames);
       } else {
         setError(data.error || 'Failed to load orders');
       }
@@ -212,93 +235,136 @@ export default function OrdersPage() {
     });
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = searchQuery === '' || 
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.status.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Package className="w-16 h-16 text-gray-300 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-600">Loading orders...</p>
-        </div>
-      </div>
-    );
-  }
+  const filteredOrders = orders
+    .filter(order => {
+      // Enhanced search: Order ID, Shop name, or Product name
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = searchQuery === '' || 
+        order.id.toLowerCase().includes(searchLower) ||
+        (order.shopName && order.shopName.toLowerCase().includes(searchLower)) ||
+        order.items.some(item => 
+          (item.productName && item.productName.toLowerCase().includes(searchLower)) ||
+          item.productId.toLowerCase().includes(searchLower)
+        );
+      
+      // Status filter mapping
+      let statusMatch = false;
+      if (statusFilter === 'all') {
+        statusMatch = true;
+      } else if (statusFilter === 'pending') {
+        statusMatch = order.status === 'pending';
+      } else if (statusFilter === 'processing') {
+        statusMatch = order.status === 'processing' || order.status === 'to_ship';
+      } else if (statusFilter === 'shipped') {
+        statusMatch = order.status === 'shipped';
+      } else if (statusFilter === 'delivered') {
+        statusMatch = order.status === 'delivered';
+      } else if (statusFilter === 'cancelled') {
+        statusMatch = order.status === 'cancelled';
+      }
+      
+      return matchesSearch && statusMatch;
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+    });
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Customer Header with Explore Navbar */}
       <CustomerHeader user={session?.user || null} />
+      
+      <div className="flex gap-8 p-8">
+        {/* Left Sidebar - Floating Navigation Card */}
+        <CustomerNavigationSidebar />
 
-      {/* Page Header */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">My Orders</h1>
-              <p className="text-gray-600 mt-1">
-                Track and manage your orders
-              </p>
+        {/* Right Content Area */}
+        <main className="flex-1">
+          <div className="max-w-4xl">
+            {/* Page Header */}
+            <div className="mb-4">
+              <h1 className="text-3xl font-bold text-gray-900">My Orders</h1>
+              <p className="text-gray-600 mt-2">Track and manage your orders</p>
             </div>
-            <Link href="/explore">
-              <Button>Continue Shopping</Button>
-            </Link>
-          </div>
-        </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filters */}
-        <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Search orders..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
+            {loading ? (
+              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+                <div className="flex flex-col items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                  <p className="text-gray-600">Loading orders...</p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Tab Navigation */}
+                <div className="bg-white rounded-lg shadow-sm mb-4">
+                  <div className="border-b border-gray-200">
+                    <nav className="flex space-x-8 px-6" aria-label="Tabs">
+                      {[
+                        { id: 'all', label: 'All Orders' },
+                        { id: 'pending', label: 'Pending' },
+                        { id: 'processing', label: 'Processing' },
+                        { id: 'shipped', label: 'Shipped' },
+                        { id: 'delivered', label: 'Delivered' },
+                        { id: 'cancelled', label: 'Cancelled' },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setStatusFilter(tab.id)}
+                          className={`
+                            py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                            ${
+                              statusFilter === tab.id
+                                ? 'border-blue-600 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }
+                          `}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </nav>
+                  </div>
+                </div>
 
-            {/* Status Filter */}
-            <div className="md:w-48">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="to_ship">Ready to Ship</option>
-                <option value="shipped">Shipped</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-          </div>
-        </div>
+                {/* Search Bar with Sort */}
+                <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                      <Input
+                        placeholder="You can search by Shop, Order ID or Product name"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10 bg-gray-50 border-gray-200 focus:bg-white"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors group relative"
+                      title={sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}
+                    >
+                      {sortOrder === 'newest' ? (
+                        <ArrowDown className="w-4 h-4 text-gray-600" />
+                      ) : (
+                        <ArrowUp className="w-4 h-4 text-gray-600" />
+                      )}
+                      <span className="text-sm text-gray-600 font-medium">
+                        {sortOrder === 'newest' ? 'Newest' : 'Oldest'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
 
-        {/* Orders List */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-600">{error}</p>
-          </div>
-        )}
+            {/* Orders List */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <p className="text-red-600">{error}</p>
+              </div>
+            )}
 
-        {filteredOrders.length === 0 ? (
+            {filteredOrders.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
             <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-600 mb-2">No orders found</h3>
@@ -456,8 +522,12 @@ export default function OrdersPage() {
                 </div>
               </div>
             ))}
+            </div>
+            )}
+              </>
+            )}
           </div>
-        )}
+        </main>
       </div>
     </div>
   );

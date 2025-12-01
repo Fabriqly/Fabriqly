@@ -5,8 +5,10 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { User, Mail, Phone, MapPin, Calendar, Save, ArrowLeft, Upload, X, Camera } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, Save, Edit, X, Upload, Camera } from 'lucide-react';
 import Link from 'next/link';
+import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 
 interface UserProfile {
   id: string;
@@ -37,6 +39,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -123,13 +126,11 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       setError('Please select a valid image file');
       return;
     }
 
-    // Validate file size (5MB)
     if (file.size > 5 * 1024 * 1024) {
       setError('File size must be less than 5MB');
       return;
@@ -151,7 +152,6 @@ export default function ProfilePage() {
 
       if (response.ok && data.success) {
         setProfilePicture(data.data.url);
-        // Update the profile with the new photo URL
         const updateResponse = await fetch('/api/users/profile', {
           method: 'PUT',
           headers: {
@@ -176,7 +176,6 @@ export default function ProfilePage() {
       setError('Failed to upload profile picture');
     } finally {
       setUploadingPicture(false);
-      // Reset input
       e.target.value = '';
     }
   };
@@ -213,7 +212,6 @@ export default function ProfilePage() {
     }
   };
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -221,7 +219,6 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
-      // Generate displayName from firstName and lastName
       const displayName = `${formData.firstName} ${formData.lastName}`.trim();
       
       const response = await fetch('/api/users/profile', {
@@ -239,12 +236,9 @@ export default function ProfilePage() {
 
       if (response.ok && data.success) {
         setSuccess('Profile updated successfully!');
-        
-        // Refresh the profile data
+        setIsEditMode(false);
         await fetchProfile();
         
-        // Update the NextAuth session to reflect the new name in header/sidebar
-        console.log('🔄 Updating NextAuth session...');
         await update({
           ...session,
           user: {
@@ -252,7 +246,6 @@ export default function ProfilePage() {
             name: displayName
           }
         });
-        console.log('✅ Session updated successfully');
       } else {
         setError(data.error || 'Failed to update profile');
       }
@@ -262,6 +255,28 @@ export default function ProfilePage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCancel = () => {
+    setIsEditMode(false);
+    // Reset form data to original profile data
+    if (profile) {
+      setFormData({
+        firstName: profile.profile?.firstName || '',
+        lastName: profile.profile?.lastName || '',
+        phone: profile.profile?.phone || '',
+        dateOfBirth: profile.profile?.dateOfBirth || '',
+        address: {
+          street: profile.profile?.address?.street || '',
+          city: profile.profile?.address?.city || '',
+          state: profile.profile?.address?.state || '',
+          zipCode: profile.profile?.address?.zipCode || '',
+          country: profile.profile?.address?.country || ''
+        }
+      });
+    }
+    setError('');
+    setSuccess('');
   };
 
   if (status === 'loading' || loading) {
@@ -286,210 +301,350 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <Link href="/dashboard" className="inline-flex items-center text-blue-600 hover:text-blue-800 mb-4">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Edit Profile</h1>
-          <p className="text-gray-600 mt-2">Update your personal information and preferences</p>
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      <CustomerHeader user={session?.user || null} />
+      
+      <div className="flex gap-8 p-8">
+        {/* Left Sidebar - Floating Navigation Card */}
+        <CustomerNavigationSidebar />
 
-        {/* Messages */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
-        )}
+        {/* Right Content Area */}
+        <main className="flex-1">
+          <div className="max-w-4xl">
+            {/* Header */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
+              <p className="text-gray-600 mt-2">View and manage your personal information</p>
+            </div>
 
-        {success && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
-            <p className="text-sm text-green-600">{success}</p>
-          </div>
-        )}
+            {/* Messages */}
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Profile Picture */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-              <Camera className="w-5 h-5 mr-2" />
-              Profile Picture
-            </h2>
-            
-            <div className="flex items-center space-x-6">
-              <div className="relative">
-                {profilePicture ? (
-                  <div className="relative">
-                    <img
-                      src={profilePicture}
-                      alt="Profile"
-                      className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
+            {success && (
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-sm text-green-600">{success}</p>
+              </div>
+            )}
+
+            {isEditMode ? (
+              /* Edit Mode - Form */
+              <form onSubmit={handleSubmit} className="space-y-8">
+                {/* Profile Picture */}
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                    <Camera className="w-5 h-5 mr-2" />
+                    Profile Picture
+                  </h2>
+                  
+                  <div className="flex items-center space-x-6">
+                    <div className="relative">
+                      {profilePicture ? (
+                        <div className="relative">
+                          <img
+                            src={profilePicture}
+                            alt="Profile"
+                            className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleRemoveProfilePicture}
+                            className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                            title="Remove profile picture"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold border-4 border-gray-200">
+                          {profile?.displayName?.charAt(0).toUpperCase() || 'U'}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex-1">
+                      <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors w-fit">
+                        <Upload className="w-4 h-4" />
+                        <span className="text-sm">
+                          {uploadingPicture ? 'Uploading...' : profilePicture ? 'Change Picture' : 'Upload Picture'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProfilePictureUpload}
+                          disabled={uploadingPicture}
+                          className="hidden"
+                        />
+                      </label>
+                      <p className="text-xs text-gray-500 mt-2">
+                        JPG, PNG or GIF. Max size 5MB.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Basic Information */}
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                    <User className="w-5 h-5 mr-2" />
+                    Basic Information
+                  </h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Input
+                      label="First Name"
+                      name="firstName"
+                      value={formData.firstName}
+                      onChange={handleInputChange}
+                      icon={<User size={18} />}
+                      placeholder="Your first name"
+                      required
                     />
-                    <button
-                      type="button"
-                      onClick={handleRemoveProfilePicture}
-                      className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                      title="Remove profile picture"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+
+                    <Input
+                      label="Last Name"
+                      name="lastName"
+                      value={formData.lastName}
+                      onChange={handleInputChange}
+                      icon={<User size={18} />}
+                      placeholder="Your last name"
+                      required
+                    />
+
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Email Address"
+                        type="email"
+                        value={profile.email}
+                        icon={<Mail size={18} />}
+                        disabled
+                        className="bg-gray-50"
+                        placeholder="Email cannot be changed"
+                      />
+                    </div>
+
+                    <Input
+                      label="Phone Number"
+                      name="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      icon={<Phone size={18} />}
+                      placeholder="+1 (555) 000-0000"
+                    />
+
+                    <Input
+                      label="Date of Birth"
+                      name="dateOfBirth"
+                      type="date"
+                      value={formData.dateOfBirth}
+                      onChange={handleInputChange}
+                      icon={<Calendar size={18} />}
+                    />
                   </div>
-                ) : (
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold border-4 border-gray-200">
-                    {profile?.displayName?.charAt(0).toUpperCase() || 'U'}
+                </div>
+
+                {/* Address Information */}
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                    <MapPin className="w-5 h-5 mr-2" />
+                    Address Information
+                  </h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Street Address"
+                        name="address.street"
+                        value={formData.address.street}
+                        onChange={handleInputChange}
+                        placeholder="123 Main Street"
+                      />
+                    </div>
+
+                    <Input
+                      label="City"
+                      name="address.city"
+                      value={formData.address.city}
+                      onChange={handleInputChange}
+                      placeholder="New York"
+                    />
+
+                    <Input
+                      label="State/Province"
+                      name="address.state"
+                      value={formData.address.state}
+                      onChange={handleInputChange}
+                      placeholder="NY"
+                    />
+
+                    <Input
+                      label="ZIP/Postal Code"
+                      name="address.zipCode"
+                      value={formData.address.zipCode}
+                      onChange={handleInputChange}
+                      placeholder="10001"
+                    />
+
+                    <Input
+                      label="Country"
+                      name="address.country"
+                      value={formData.address.country}
+                      onChange={handleInputChange}
+                      placeholder="United States"
+                    />
                   </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCancel}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    loading={saving}
+                    className="px-8 bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Changes
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              /* View Mode - Display Information */
+              <div className="space-y-6">
+                {/* Profile Card with Avatar and Edit Button */}
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-6">
+                      {profilePicture ? (
+                        <img
+                          src={profilePicture}
+                          alt="Profile"
+                          className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
+                        />
+                      ) : (
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold border-4 border-gray-200">
+                          {profile?.displayName?.charAt(0).toUpperCase() || 'U'}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-lg font-semibold text-gray-900">{profile.displayName}</p>
+                        <p className="text-sm text-gray-500">{profile.email}</p>
+                      </div>
+                    </div>
+                    {!isEditMode && (
+                      <Button
+                        onClick={() => setIsEditMode(true)}
+                        className="flex items-center bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit Profile
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Basic Information */}
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                    <User className="w-5 h-5 mr-2" />
+                    Basic Information
+                  </h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">First Name</label>
+                      <p className="text-gray-900">{profile.profile?.firstName || 'Not provided'}</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Last Name</label>
+                      <p className="text-gray-900">{profile.profile?.lastName || 'Not provided'}</p>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Email Address</label>
+                      <p className="text-gray-900">{profile.email}</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Phone Number</label>
+                      <p className="text-gray-900">{profile.profile?.phone || 'Not provided'}</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Date of Birth</label>
+                      <p className="text-gray-900">
+                        {profile.profile?.dateOfBirth 
+                          ? new Date(profile.profile.dateOfBirth).toLocaleDateString()
+                          : 'Not provided'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Address Information */}
+                {profile.profile?.address && (
+                  Object.values(profile.profile.address).some(val => val) && (
+                    <div className="bg-white rounded-lg shadow-sm p-6">
+                      <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                        <MapPin className="w-5 h-5 mr-2" />
+                        Address Information
+                      </h2>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {profile.profile.address.street && (
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-500 mb-1">Street Address</label>
+                            <p className="text-gray-900">{profile.profile.address.street}</p>
+                          </div>
+                        )}
+
+                        {profile.profile.address.city && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-500 mb-1">City</label>
+                            <p className="text-gray-900">{profile.profile.address.city}</p>
+                          </div>
+                        )}
+
+                        {profile.profile.address.state && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-500 mb-1">State/Province</label>
+                            <p className="text-gray-900">{profile.profile.address.state}</p>
+                          </div>
+                        )}
+
+                        {profile.profile.address.zipCode && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-500 mb-1">ZIP/Postal Code</label>
+                            <p className="text-gray-900">{profile.profile.address.zipCode}</p>
+                          </div>
+                        )}
+
+                        {profile.profile.address.country && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-500 mb-1">Country</label>
+                            <p className="text-gray-900">{profile.profile.address.country}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
                 )}
               </div>
-              
-              <div className="flex-1">
-                <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors w-fit">
-                  <Upload className="w-4 h-4" />
-                  <span className="text-sm">
-                    {uploadingPicture ? 'Uploading...' : profilePicture ? 'Change Picture' : 'Upload Picture'}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleProfilePictureUpload}
-                    disabled={uploadingPicture}
-                    className="hidden"
-                  />
-                </label>
-                <p className="text-xs text-gray-500 mt-2">
-                  JPG, PNG or GIF. Max size 5MB.
-                </p>
-              </div>
-            </div>
+            )}
           </div>
-
-          {/* Basic Information */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-              <User className="w-5 h-5 mr-2" />
-              Basic Information
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input
-                label="First Name"
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleInputChange}
-                icon={<User size={18} />}
-                placeholder="Your first name"
-                required
-              />
-
-              <Input
-                label="Last Name"
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleInputChange}
-                icon={<User size={18} />}
-                placeholder="Your last name"
-                required
-              />
-
-              <div className="md:col-span-2">
-                <Input
-                  label="Email Address"
-                  type="email"
-                  value={profile.email}
-                  icon={<Mail size={18} />}
-                  disabled
-                  className="bg-gray-50"
-                  placeholder="Email cannot be changed"
-                />
-              </div>
-
-              <Input
-                label="Phone Number"
-                name="phone"
-                type="tel"
-                value={formData.phone}
-                onChange={handleInputChange}
-                icon={<Phone size={18} />}
-                placeholder="+1 (555) 000-0000"
-              />
-
-              <Input
-                label="Date of Birth"
-                name="dateOfBirth"
-                type="date"
-                value={formData.dateOfBirth}
-                onChange={handleInputChange}
-                icon={<Calendar size={18} />}
-              />
-            </div>
-          </div>
-
-          {/* Address Information */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-              <MapPin className="w-5 h-5 mr-2" />
-              Address Information
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <Input
-                  label="Street Address"
-                  name="address.street"
-                  value={formData.address.street}
-                  onChange={handleInputChange}
-                  placeholder="123 Main Street"
-                />
-              </div>
-
-              <Input
-                label="City"
-                name="address.city"
-                value={formData.address.city}
-                onChange={handleInputChange}
-                placeholder="New York"
-              />
-
-              <Input
-                label="State/Province"
-                name="address.state"
-                value={formData.address.state}
-                onChange={handleInputChange}
-                placeholder="NY"
-              />
-
-              <Input
-                label="ZIP/Postal Code"
-                name="address.zipCode"
-                value={formData.address.zipCode}
-                onChange={handleInputChange}
-                placeholder="10001"
-              />
-
-              <Input
-                label="Country"
-                name="address.country"
-                value={formData.address.country}
-                onChange={handleInputChange}
-                placeholder="United States"
-              />
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <div className="flex justify-end">
-            <Button
-              type="submit"
-              loading={saving}
-              className="px-8"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Save Changes
-            </Button>
-          </div>
-        </form>
+        </main>
       </div>
     </div>
   );

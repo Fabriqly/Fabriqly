@@ -10,13 +10,12 @@ interface ShopListProps {
   selectedSpecialties?: string[];
 }
 
-export default function ShopList({ initialShops = [], selectedSpecialties = [] }: ShopListProps) {
 interface ShopReviewStats {
   averageRating: number;
   totalReviews: number;
 }
 
-export default function ShopList({ initialShops = [], searchTerm = '', category }: ShopListProps) {
+export default function ShopList({ initialShops = [], selectedSpecialties = [] }: ShopListProps) {
   const [shops, setShops] = useState<ShopProfile[]>(initialShops);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,11 +89,6 @@ export default function ShopList({ initialShops = [], searchTerm = '', category 
 }
 
 function ShopCard({ shop }: { shop: ShopProfile }) {
-  const [actualRating, setActualRating] = useState<number>(shop.ratings?.averageRating || 0);
-
-  useEffect(() => {
-    // Fetch actual review data
-    const fetchRating = async () => {
   const [reviewStats, setReviewStats] = useState<ShopReviewStats>({
     averageRating: shop.ratings?.averageRating || 0,
     totalReviews: shop.ratings?.totalReviews || 0
@@ -107,8 +101,7 @@ function ShopCard({ shop }: { shop: ShopProfile }) {
         const response = await fetch(`/api/reviews/average?type=shop&targetId=${shop.id}`);
         const data = await response.json();
         
-        if (data.success && data.data?.average !== undefined) {
-          setActualRating(data.data.average || 0);
+        if (data.success) {
           setReviewStats({
             averageRating: data.data.average || 0,
             totalReviews: data.data.total || 0
@@ -120,7 +113,6 @@ function ShopCard({ shop }: { shop: ShopProfile }) {
     };
 
     if (shop.id) {
-      fetchRating();
       fetchReviewStats();
     }
   }, [shop.id]);
@@ -209,13 +201,8 @@ function ShopCard({ shop }: { shop: ShopProfile }) {
               </div>
               <div className="flex items-center gap-1">
                 <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                <span>{actualRating.toFixed(1)}</span>
+                <span>{reviewStats.averageRating.toFixed(1)} ({reviewStats.totalReviews})</span>
               </div>
-          {/* Stats */}
-          <div className="flex justify-between items-center text-sm text-gray-600 border-t pt-3">
-            <div className="flex gap-4">
-              <span>{shop.shopStats?.totalProducts || 0} Products</span>
-              <span>⭐ {reviewStats.averageRating.toFixed(1)} ({reviewStats.totalReviews} reviews)</span>
             </div>
             {shop.location?.city && (
               <div className="flex items-center gap-1 text-gray-400">
@@ -229,5 +216,3 @@ function ShopCard({ shop }: { shop: ShopProfile }) {
     </Link>
   );
 }
-
-
