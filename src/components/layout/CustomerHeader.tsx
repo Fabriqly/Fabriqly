@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown, Settings, Package } from 'lucide-react';
+import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown, Package } from 'lucide-react';
 import { CartButton } from '@/components/cart/CartButton';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -168,8 +168,8 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                       className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                       onClick={() => setIsDropdownOpen(false)}
                     >
-                      <Settings className="w-4 h-4 mr-3" />
-                      Edit Profile
+                      <User className="w-4 h-4 mr-3" />
+                      My Profile
                     </Link>
                     <button
                       onClick={handleSignOut}
