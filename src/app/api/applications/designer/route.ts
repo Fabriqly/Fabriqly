@@ -150,6 +150,23 @@ export async function POST(request: NextRequest) {
       // Don't fail the request if activity logging fails
     }
 
+    // Send application submitted email (non-blocking)
+    try {
+      const { EmailService } = await import('@/services/EmailService');
+      EmailService.sendApplicationSubmittedEmail({
+        applicationId: application.id,
+        applicantName: session.user.name || session.user.email || 'there',
+        applicantEmail: session.user.email || '',
+        applicationType: 'designer',
+        businessName: body.businessName,
+      }).catch((emailError) => {
+        console.error('Error sending application submitted email:', emailError);
+      });
+    } catch (emailError) {
+      console.error('Error setting up application submitted email:', emailError);
+      // Don't fail application submission if email fails
+    }
+
     return NextResponse.json(
       { 
         success: true, 
