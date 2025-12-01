@@ -102,7 +102,7 @@ export interface Design {
   previewUrl?: string;
   designType: 'template' | 'custom' | 'premium';
   fileFormat: 'svg' | 'png' | 'jpg' | 'pdf' | 'ai' | 'psd';
-  tags: string[];
+  tags?: string[]; // Optional - may not always be present
   isPublic: boolean;
   isFeatured: boolean;
   isActive: boolean;

@@ -11,6 +11,12 @@ interface ShopListProps {
 }
 
 export default function ShopList({ initialShops = [], selectedSpecialties = [] }: ShopListProps) {
+interface ShopReviewStats {
+  averageRating: number;
+  totalReviews: number;
+}
+
+export default function ShopList({ initialShops = [], searchTerm = '', category }: ShopListProps) {
   const [shops, setShops] = useState<ShopProfile[]>(initialShops);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +95,14 @@ function ShopCard({ shop }: { shop: ShopProfile }) {
   useEffect(() => {
     // Fetch actual review data
     const fetchRating = async () => {
+  const [reviewStats, setReviewStats] = useState<ShopReviewStats>({
+    averageRating: shop.ratings?.averageRating || 0,
+    totalReviews: shop.ratings?.totalReviews || 0
+  });
+
+  useEffect(() => {
+    // Fetch actual review data
+    const fetchReviewStats = async () => {
       try {
         const response = await fetch(`/api/reviews/average?type=shop&targetId=${shop.id}`);
         const data = await response.json();
@@ -99,11 +113,20 @@ function ShopCard({ shop }: { shop: ShopProfile }) {
       } catch (error) {
         console.error('Error fetching rating:', error);
         // Keep the default rating from shop.ratings if fetch fails
+        if (data.success) {
+          setReviewStats({
+            averageRating: data.data.average || 0,
+            totalReviews: data.data.total || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching shop review stats:', error);
       }
     };
 
     if (shop.id) {
       fetchRating();
+      fetchReviewStats();
     }
   }, [shop.id]);
 
@@ -193,6 +216,11 @@ function ShopCard({ shop }: { shop: ShopProfile }) {
                 <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
                 <span>{actualRating.toFixed(1)}</span>
               </div>
+          {/* Stats */}
+          <div className="flex justify-between items-center text-sm text-gray-600 border-t pt-3">
+            <div className="flex gap-4">
+              <span>{shop.shopStats?.totalProducts || 0} Products</span>
+              <span>⭐ {reviewStats.averageRating.toFixed(1)} ({reviewStats.totalReviews} reviews)</span>
             </div>
             {shop.location?.city && (
               <div className="flex items-center gap-1 text-gray-400">

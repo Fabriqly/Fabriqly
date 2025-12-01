@@ -31,6 +31,8 @@ interface Order {
   tax: number;
   shippingCost: number;
   totalAmount: number;
+  discountAmount?: number;
+  appliedCouponCode?: string;
   status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled';
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   shippingAddress: any;
@@ -398,6 +400,11 @@ export default function OrdersPage() {
                   
                   <div className="text-right">
                     <p className="text-lg font-semibold">{formatPrice(order.totalAmount)}</p>
+                    {order.discountAmount && order.discountAmount > 0 && (
+                      <p className="text-sm text-green-600">
+                        Discount: -{formatPrice(order.discountAmount)}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500">
                       {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
                     </p>
