@@ -4,17 +4,59 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { Bell } from 'lucide-react';
 import { NotificationDropdown } from './NotificationDropdown';
-import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 
 export function NotificationBell() {
   const { data: session } = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [firebaseAuthReady, setFirebaseAuthReady] = useState(false);
+  const [authError, setAuthError] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Check Firebase Auth state
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setFirebaseAuthReady(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser && firebaseUser.uid === session.user.id) {
+        setFirebaseAuthReady(true);
+        setAuthError(false);
+      } else if (firebaseUser === null) {
+        // Firebase Auth not synced yet, but we'll try API fallback
+        setFirebaseAuthReady(false);
+      }
+    }, (error) => {
+      console.error('[NotificationBell] Firebase Auth error:', error);
+      setAuthError(true);
+      setFirebaseAuthReady(false);
+      // Fallback to API immediately on auth error
+      fetchUnreadCount();
+    });
+
+    return () => unsubscribe();
+  }, [session?.user?.id]);
+
+  // Set up Firestore listener only after Firebase Auth is ready
+  useEffect(() => {
+    if (!session?.user?.id || !firebaseAuthReady) {
+      // If Firebase Auth not ready, use API fallback
+      if (session?.user?.id && !firebaseAuthReady && !authError) {
+        // Wait a bit for Firebase Auth to sync, then fallback to API
+        const timeout = setTimeout(() => {
+          if (!firebaseAuthReady) {
+            fetchUnreadCount();
+          }
+        }, 2000);
+        return () => clearTimeout(timeout);
+      }
+      return;
+    }
 
     // Set up real-time listener for unread notifications
     const notificationsRef = collection(db, 'notifications');
@@ -26,14 +68,19 @@ export function NotificationBell() {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setUnreadCount(snapshot.size);
-    }, (error) => {
-      console.error('Error listening to notifications:', error);
+    }, (error: any) => {
+      console.error('[NotificationBell] Error listening to notifications:', error);
+      // Check if it's a permission error
+      if (error.code === 'permission-denied' || error.code === 'PERMISSION_DENIED') {
+        console.warn('[NotificationBell] Permission denied, falling back to API');
+        setAuthError(true);
+      }
       // Fallback to API call on error
       fetchUnreadCount();
     });
 
     return () => unsubscribe();
-  }, [session?.user?.id]);
+  }, [session?.user?.id, firebaseAuthReady, authError]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -49,16 +96,36 @@ export function NotificationBell() {
   }, [isOpen]);
 
   const fetchUnreadCount = async () => {
+    if (!session?.user?.id) return;
+    
     try {
-      const response = await fetch('/api/notifications/unread-count');
+      const response = await fetch('/api/notifications/unread-count', {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
       const data = await response.json();
       if (data.success) {
         setUnreadCount(data.data.count || 0);
       }
     } catch (error) {
-      console.error('Error fetching unread count:', error);
+      console.error('[NotificationBell] Error fetching unread count:', error);
+      // Set count to 0 on error to avoid showing stale data
+      setUnreadCount(0);
     }
   };
+
+  // Initial fetch if Firebase Auth is not ready
+  useEffect(() => {
+    if (session?.user?.id && !firebaseAuthReady) {
+      fetchUnreadCount();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id, firebaseAuthReady]);
 
   if (!session?.user) {
     return null;
