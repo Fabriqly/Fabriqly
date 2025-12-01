@@ -6,9 +6,9 @@ import { authOptions } from '@/lib/auth';
 const notificationService = new NotificationService();
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 /**
@@ -25,7 +25,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const notification = await notificationService.getNotification(params.id, session.user.id);
+    const { id } = await params;
+    const notification = await notificationService.getNotification(id, session.user.id);
 
     if (!notification) {
       return NextResponse.json(
@@ -64,19 +65,20 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const { id } = await params;
     const body = await request.json();
     const { isRead } = body;
 
     if (isRead === true) {
       // Mark as read
-      const notification = await notificationService.markAsRead(params.id, session.user.id);
+      const notification = await notificationService.markAsRead(id, session.user.id);
       return NextResponse.json({
         success: true,
         data: notification
       });
     } else if (isRead === false) {
       // Mark as unread (update to set isRead to false)
-      const notification = await notificationService.getNotification(params.id, session.user.id);
+      const notification = await notificationService.getNotification(id, session.user.id);
       if (!notification) {
         return NextResponse.json(
           { error: 'Notification not found' },
@@ -85,7 +87,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
       
       // Update to unread
-      const updated = await notificationService['notificationRepo'].update(params.id, {
+      const updated = await notificationService['notificationRepo'].update(id, {
         isRead: false,
         readAt: undefined,
         updatedAt: new Date()
@@ -127,7 +129,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    await notificationService.deleteNotification(params.id, session.user.id);
+    const { id } = await params;
+    await notificationService.deleteNotification(id, session.user.id);
 
     return NextResponse.json({
       success: true,
