@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 import { Loader } from 'lucide-react';
 
@@ -47,11 +48,28 @@ export default function NotificationsPage() {
     );
   }
 
-  // For customers, use customer header
+  // For customers, use customer header with floating sidebar
   return (
     <div className="min-h-screen bg-gray-50">
       <CustomerHeader user={session?.user || null} />
-      <NotificationCenter className="w-full" />
+      
+      <div className="flex gap-8 p-8">
+        {/* Left Sidebar - Floating Navigation Card */}
+        <CustomerNavigationSidebar />
+
+        {/* Right Content Area */}
+        <main className="flex-1">
+          <div className="max-w-4xl">
+            {/* Page Header */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
+              <p className="text-gray-600 mt-2">Stay updated with your activity</p>
+            </div>
+            
+            <NotificationCenter className="w-full" />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

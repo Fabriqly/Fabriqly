@@ -176,8 +176,8 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                       className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                       onClick={() => setIsDropdownOpen(false)}
                     >
-                      <Settings className="w-4 h-4 mr-3" />
-                      Edit Profile
+                      <User className="w-4 h-4 mr-3" />
+                      My Profile
                     </Link>
                     <button
                       onClick={handleSignOut}

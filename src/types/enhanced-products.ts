@@ -470,4 +470,3 @@ export interface ShopAppeal {
   createdAt: Date;
   updatedAt: Date;
 }
-```

@@ -43,7 +43,7 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals = config.externals || [];
-      config.externals.push('undici');
+      config.externals.push('undici', 'adm-zip');
     }
     // Optimize bundle splitting
     if (!isServer) {
