@@ -52,7 +52,8 @@ export async function GET(
         timestamp: h.timestamp?.toDate ? h.timestamp.toDate().toISOString() : h.timestamp
       })),
       createdAt: order.createdAt?.toDate ? order.createdAt.toDate().toISOString() : order.createdAt,
-      updatedAt: order.updatedAt?.toDate ? order.updatedAt.toDate().toISOString() : order.updatedAt
+      updatedAt: order.updatedAt?.toDate ? order.updatedAt.toDate().toISOString() : order.updatedAt,
+      items: order.items || []
     };
 
     return NextResponse.json({ order: serializedOrder });
