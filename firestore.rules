@@ -53,6 +53,7 @@ service cloud.firestore {
         request.resource.data.senderId == request.auth.uid;
       
       // Users can update messages they sent or received (for marking as read, etc.)
+      // Users can update messages they sent or received (for marking as read, etc.)
       allow update: if isAuthenticated() && (
         resource.data.senderId == request.auth.uid ||
         resource.data.receiverId == request.auth.uid

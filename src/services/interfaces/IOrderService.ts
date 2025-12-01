@@ -9,6 +9,7 @@ export interface CreateOrderData {
   paymentMethod: string;
   notes?: string;
   shippingCost?: number;
+  couponCode?: string;
 }
 
 export interface UpdateOrderData {

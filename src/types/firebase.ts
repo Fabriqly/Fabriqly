@@ -84,6 +84,7 @@ export interface Order extends BaseDocument {
   businessOwnerId: string;
   items: OrderItem[];
   subtotal: number;
+  discountAmount?: number;
   tax: number;
   shippingCost: number;
   totalAmount: number;
@@ -97,6 +98,16 @@ export interface Order extends BaseDocument {
   estimatedDelivery?: Date;
   notes?: string;
   statusHistory?: OrderStatusHistory[];
+  appliedDiscounts?: Array<{
+    discountId: string;
+    couponCode?: string;
+    discountType: 'percentage' | 'fixed_amount';
+    discountValue: number;
+    discountAmount: number;
+    scope: 'product' | 'category' | 'order' | 'shipping';
+    targetIds?: string[];
+  }>;
+  appliedCouponCode?: string;
 }
 
 export interface OrderStatusHistory {

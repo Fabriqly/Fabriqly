@@ -152,8 +152,17 @@ export async function POST(request: NextRequest) {
       billingAddress: body.billingAddress,
       paymentMethod: body.paymentMethod,
       notes: body.notes,
-      shippingCost: body.shippingCost || 0
+      shippingCost: body.shippingCost || 0,
+      couponCode: body.couponCode || undefined // Include coupon code for discount application
     };
+
+    console.log('[Orders API] Creating order with data:', {
+      customerId: orderData.customerId,
+      businessOwnerId: orderData.businessOwnerId,
+      itemCount: orderData.items.length,
+      couponCode: orderData.couponCode,
+      shippingCost: orderData.shippingCost
+    });
 
     const order = await orderService.createOrder(orderData);
 

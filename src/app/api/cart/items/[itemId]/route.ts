@@ -7,7 +7,7 @@ import { ResponseBuilder } from '@/utils/ResponseBuilder';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { itemId: string } }
+  { params }: { params: Promise<{ itemId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -16,7 +16,7 @@ export async function PUT(
       return NextResponse.json(ResponseBuilder.error('Authentication required'), { status: 401 });
     }
 
-    const { itemId } = params;
+    const { itemId } = await params;
     const body = await request.json();
     const { quantity } = body;
 
@@ -110,7 +110,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { itemId: string } }
+  { params }: { params: Promise<{ itemId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -119,7 +119,7 @@ export async function DELETE(
       return NextResponse.json(ResponseBuilder.error('Authentication required'), { status: 401 });
     }
 
-    const { itemId } = params;
+    const { itemId } = await params;
 
     const cartRepository = new CartRepository();
     const cart = await cartRepository.removeItemFromCart(session.user.id, itemId);

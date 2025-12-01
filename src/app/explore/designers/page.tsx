@@ -7,6 +7,11 @@ import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Filter, SlidersHorizontal, Search, Check, X, Star, Download, Award, MapPin } from 'lucide-react';
 
+interface DesignerReviewStats {
+  averageRating: number;
+  totalReviews: number;
+}
+
 export default function ExploreDesignersPage() {
   const { user } = useAuth();
   const [designers, setDesigners] = useState<DesignerProfile[]>([]);
@@ -210,6 +215,14 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
   useEffect(() => {
     // Fetch actual review data
     const fetchRating = async () => {
+  const [reviewStats, setReviewStats] = useState<DesignerReviewStats>({
+    averageRating: designer.portfolioStats?.averageRating || 0,
+    totalReviews: 0
+  });
+
+  useEffect(() => {
+    // Fetch actual review data
+    const fetchReviewStats = async () => {
       try {
         const response = await fetch(`/api/reviews/average?type=designer&targetId=${designer.id}`);
         const data = await response.json();
@@ -219,11 +232,20 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
         }
       } catch (error) {
         console.error('Error fetching rating:', error);
+        if (data.success) {
+          setReviewStats({
+            averageRating: data.data.average || 0,
+            totalReviews: data.data.total || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching designer review stats:', error);
       }
     };
 
     if (designer.id) {
       fetchRating();
+      fetchReviewStats();
     }
   }, [designer.id]);
 
@@ -284,6 +306,21 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
           <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">
             {designer.bio || 'No description available.'}
           </p>
+          {/* Stats */}
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="text-center">
+              <div className="text-xl font-bold text-blue-600">
+                {designer.portfolioStats?.totalDesigns || 0}
+              </div>
+              <div className="text-xs text-gray-500">Designs</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-yellow-600">
+                {reviewStats.averageRating.toFixed(1)}
+              </div>
+              <div className="text-xs text-gray-500">Rating ({reviewStats.totalReviews} reviews)</div>
+            </div>
+          </div>
 
           {/* Specialties */}
           {designer.specialties && designer.specialties.length > 0 && (
@@ -322,6 +359,10 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
                 <span className="truncate max-w-[80px]">{designer.location}</span>
               </div>
             )}
+            <span className="flex items-center gap-1">
+              <Star className="w-4 h-4 text-yellow-400 fill-current" />
+              {reviewStats.averageRating.toFixed(1)} ({reviewStats.totalReviews})
+            </span>
           </div>
         </div>
       </div>
