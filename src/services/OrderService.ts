@@ -341,6 +341,48 @@ export class OrderService implements IOrderService {
         updateData.statusHistory = statusHistory;
       }
 
+      // Handle inventory restoration if order is being cancelled
+      // Only restore if order was previously paid/processing (inventory was decremented)
+      if (data.status === 'cancelled' && existingOrder.status !== 'cancelled') {
+        const shouldRestoreInventory = 
+          existingOrder.paymentStatus === 'paid' || 
+          existingOrder.status === 'processing' || 
+          existingOrder.status === 'to_ship' ||
+          existingOrder.status === 'shipped';
+        
+        if (shouldRestoreInventory && existingOrder.items && existingOrder.items.length > 0) {
+          console.log(`[OrderService] Restoring inventory for cancelled order ${orderId}`);
+          try {
+            const { ProductService } = await import('./ProductService');
+            const { CategoryRepository } = await import('@/repositories/CategoryRepository');
+            
+            const categoryRepository = new CategoryRepository();
+            const productService = new ProductService(this.productRepository, categoryRepository, this.activityRepository);
+            
+            await Promise.all(
+              existingOrder.items.map(async (item: any) => {
+                try {
+                  const result = await productService.incrementStock(
+                    item.productId,
+                    item.quantity,
+                    orderId
+                  );
+                  if (!result) {
+                    console.error(`[OrderService] Failed to restore stock for product ${item.productId} in order ${orderId}`);
+                  }
+                } catch (error) {
+                  console.error(`[OrderService] Error restoring stock for product ${item.productId}:`, error);
+                  // Continue processing other items even if one fails
+                }
+              })
+            );
+          } catch (error) {
+            console.error(`[OrderService] Error restoring inventory for order ${orderId}:`, error);
+            // Don't fail order cancellation if inventory restoration fails
+          }
+        }
+      }
+
       // Update order
       const updatedOrder = await this.orderRepository.update(orderId, updateData);
 

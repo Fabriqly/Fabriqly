@@ -400,6 +400,99 @@ export class ProductService implements IProductService {
     return updatedProduct;
   }
 
+  /**
+   * Decrement stock quantity for a product (used when order is successfully paid)
+   * @param productId - Product ID
+   * @param quantity - Quantity to decrement
+   * @param orderId - Order ID for tracking (optional)
+   * @returns Updated product or null if product not found or insufficient stock
+   */
+  async decrementStock(productId: string, quantity: number, orderId?: string): Promise<Product | null> {
+    try {
+      const product = await this.productRepository.findById(productId);
+      if (!product) {
+        console.error(`[ProductService] Product not found: ${productId}`);
+        return null;
+      }
+
+      if (quantity <= 0) {
+        console.error(`[ProductService] Invalid quantity to decrement: ${quantity}`);
+        return null;
+      }
+
+      const currentStock = product.stockQuantity || 0;
+      const newStock = Math.max(0, currentStock - quantity);
+
+      if (newStock < 0) {
+        console.error(`[ProductService] Insufficient stock for product ${productId}. Current: ${currentStock}, Requested: ${quantity}`);
+        return null;
+      }
+
+      const updatedProduct = await this.productRepository.update(productId, { stockQuantity: newStock });
+
+      // Log activity (using system user for automated inventory updates)
+      await this.logProductActivity('product_updated', productId, 'system', {
+        productName: product.name,
+        oldStock: currentStock,
+        newStock: newStock,
+        action: 'stock_decremented',
+        orderId: orderId,
+        quantityDecremented: quantity
+      });
+
+      console.log(`[ProductService] Stock decremented for product ${productId}: ${currentStock} -> ${newStock} (order: ${orderId || 'N/A'})`);
+
+      return updatedProduct;
+    } catch (error) {
+      console.error(`[ProductService] Error decrementing stock for product ${productId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Increment stock quantity for a product (used when order is cancelled)
+   * @param productId - Product ID
+   * @param quantity - Quantity to increment
+   * @param orderId - Order ID for tracking (optional)
+   * @returns Updated product or null if product not found
+   */
+  async incrementStock(productId: string, quantity: number, orderId?: string): Promise<Product | null> {
+    try {
+      const product = await this.productRepository.findById(productId);
+      if (!product) {
+        console.error(`[ProductService] Product not found: ${productId}`);
+        return null;
+      }
+
+      if (quantity <= 0) {
+        console.error(`[ProductService] Invalid quantity to increment: ${quantity}`);
+        return null;
+      }
+
+      const currentStock = product.stockQuantity || 0;
+      const newStock = currentStock + quantity;
+
+      const updatedProduct = await this.productRepository.update(productId, { stockQuantity: newStock });
+
+      // Log activity (using system user for automated inventory updates)
+      await this.logProductActivity('product_updated', productId, 'system', {
+        productName: product.name,
+        oldStock: currentStock,
+        newStock: newStock,
+        action: 'stock_incremented',
+        orderId: orderId,
+        quantityIncremented: quantity
+      });
+
+      console.log(`[ProductService] Stock incremented for product ${productId}: ${currentStock} -> ${newStock} (order: ${orderId || 'N/A'})`);
+
+      return updatedProduct;
+    } catch (error) {
+      console.error(`[ProductService] Error incrementing stock for product ${productId}:`, error);
+      return null;
+    }
+  }
+
   async validateProductData(data: CreateProductData): Promise<ProductValidationResult> {
     const errors: string[] = [];
 
