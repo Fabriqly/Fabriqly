@@ -146,10 +146,48 @@ async function handleInvoicePaid(invoiceData: any) {
 
     // Update all orders payment status
     const { CacheService } = await import('@/services/CacheService');
+    const { ProductService } = await import('@/services/ProductService');
+    const { ProductRepository } = await import('@/repositories/ProductRepository');
+    const { CategoryRepository } = await import('@/repositories/CategoryRepository');
+    
+    const productRepository = new ProductRepository();
+    const categoryRepository = new CategoryRepository();
+    const productService = new ProductService(productRepository, categoryRepository, activityRepository);
     
     await Promise.all(
       validOrders.map(async (order) => {
         console.log(`[Invoice Paid] Updating order ${order.id} payment status to paid`);
+        
+        // Check if inventory was already decremented (to avoid double-decrementing)
+        // We'll check if order status is already 'processing' or payment status is already 'paid'
+        const currentOrder = await orderRepository.findById(order.id);
+        const alreadyProcessed = currentOrder?.paymentStatus === 'paid' || currentOrder?.status === 'processing';
+        
+        if (!alreadyProcessed) {
+          // Decrement inventory for each item in the order
+          if (order.items && order.items.length > 0) {
+            console.log(`[Invoice Paid] Decrementing inventory for order ${order.id}`);
+            await Promise.all(
+              order.items.map(async (item: any) => {
+                try {
+                  const result = await productService.decrementStock(
+                    item.productId,
+                    item.quantity,
+                    order.id
+                  );
+                  if (!result) {
+                    console.error(`[Invoice Paid] Failed to decrement stock for product ${item.productId} in order ${order.id}`);
+                  }
+                } catch (error) {
+                  console.error(`[Invoice Paid] Error decrementing stock for product ${item.productId}:`, error);
+                  // Continue processing other items even if one fails
+                }
+              })
+            );
+          }
+        } else {
+          console.log(`[Invoice Paid] Order ${order.id} already processed, skipping inventory decrement`);
+        }
         
         await orderRepository.updatePaymentStatus(order.id, 'paid');
         await orderRepository.updateOrderStatus(order.id, 'processing');
@@ -178,6 +216,23 @@ async function handleInvoicePaid(invoiceData: any) {
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         });
+
+        // Send payment confirmation emails (non-blocking)
+        try {
+          const { EmailService } = await import('@/services/EmailService');
+          const orderAmount = invoiceData.amount / validOrders.length; // Split amount if multiple orders
+          EmailService.sendPaymentReceivedEmail(
+            order.id,
+            order.customerId,
+            order.businessOwnerId,
+            orderAmount
+          ).catch((emailError) => {
+            console.error(`Error sending payment email for order ${order.id}:`, emailError);
+          });
+        } catch (emailError) {
+          console.error(`Error setting up payment email for order ${order.id}:`, emailError);
+          // Don't fail payment processing if email fails
+        }
         
         console.log(`[Invoice Paid] Order ${order.id} updated successfully`);
       })
@@ -270,6 +325,43 @@ async function handlePaymentRequestSucceeded(paymentData: any) {
     if (!order) {
       console.error('Order not found:', orderId);
       return;
+    }
+
+    // Check if inventory was already decremented (to avoid double-decrementing)
+    const alreadyProcessed = order.paymentStatus === 'paid' || order.status === 'processing';
+    
+    if (!alreadyProcessed) {
+      // Decrement inventory for each item in the order
+      if (order.items && order.items.length > 0) {
+        console.log(`[Payment Request] Decrementing inventory for order ${orderId}`);
+        const { ProductService } = await import('@/services/ProductService');
+        const { ProductRepository } = await import('@/repositories/ProductRepository');
+        const { CategoryRepository } = await import('@/repositories/CategoryRepository');
+        
+        const productRepository = new ProductRepository();
+        const categoryRepository = new CategoryRepository();
+        const productService = new ProductService(productRepository, categoryRepository, activityRepository);
+        
+        await Promise.all(
+          order.items.map(async (item: any) => {
+            try {
+              const result = await productService.decrementStock(
+                item.productId,
+                item.quantity,
+                order.id
+              );
+              if (!result) {
+                console.error(`[Payment Request] Failed to decrement stock for product ${item.productId} in order ${orderId}`);
+              }
+            } catch (error) {
+              console.error(`[Payment Request] Error decrementing stock for product ${item.productId}:`, error);
+              // Continue processing other items even if one fails
+            }
+          })
+        );
+      }
+    } else {
+      console.log(`[Payment Request] Order ${orderId} already processed, skipping inventory decrement`);
     }
 
     // Update order payment status

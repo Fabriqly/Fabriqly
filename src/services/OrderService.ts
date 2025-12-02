@@ -246,6 +246,46 @@ export class OrderService implements IOrderService {
         totalAmount: order.totalAmount
       });
 
+      // Send order created email (non-blocking)
+      try {
+        const { EmailService } = await import('./EmailService');
+        const { FirebaseAdminService } = await import('./firebase-admin');
+        const { Collections } = await import('./firebase');
+        
+        // Get customer and business owner data
+        const [customerDoc, businessOwnerDoc] = await Promise.all([
+          FirebaseAdminService.getDocument(Collections.USERS, data.customerId),
+          FirebaseAdminService.getDocument(Collections.USERS, data.businessOwnerId),
+        ]);
+        
+        if (customerDoc) {
+          const customer = {
+            email: customerDoc.email,
+            firstName: customerDoc.profile?.firstName,
+            lastName: customerDoc.profile?.lastName,
+            displayName: customerDoc.displayName || `${customerDoc.profile?.firstName || ''} ${customerDoc.profile?.lastName || ''}`.trim() || customerDoc.email,
+          };
+          
+          const businessOwner = businessOwnerDoc ? {
+            email: businessOwnerDoc.email,
+            firstName: businessOwnerDoc.profile?.firstName,
+            lastName: businessOwnerDoc.profile?.lastName,
+            displayName: businessOwnerDoc.displayName || `${businessOwnerDoc.profile?.firstName || ''} ${businessOwnerDoc.profile?.lastName || ''}`.trim() || businessOwnerDoc.email,
+          } : undefined;
+          
+          EmailService.sendOrderCreatedEmail({
+            order,
+            customer,
+            businessOwner,
+          }).catch((emailError) => {
+            console.error('Error sending order created email:', emailError);
+          });
+        }
+      } catch (emailError) {
+        console.error('Error setting up order created email:', emailError);
+        // Don't fail order creation if email fails
+      }
+
       // Clear relevant caches
       await CacheService.invalidate(`orders:customer:${data.customerId}`);
       await CacheService.invalidate(`orders:business:${data.businessOwnerId}`);
@@ -301,6 +341,48 @@ export class OrderService implements IOrderService {
         updateData.statusHistory = statusHistory;
       }
 
+      // Handle inventory restoration if order is being cancelled
+      // Only restore if order was previously paid/processing (inventory was decremented)
+      if (data.status === 'cancelled' && existingOrder.status !== 'cancelled') {
+        const shouldRestoreInventory = 
+          existingOrder.paymentStatus === 'paid' || 
+          existingOrder.status === 'processing' || 
+          existingOrder.status === 'to_ship' ||
+          existingOrder.status === 'shipped';
+        
+        if (shouldRestoreInventory && existingOrder.items && existingOrder.items.length > 0) {
+          console.log(`[OrderService] Restoring inventory for cancelled order ${orderId}`);
+          try {
+            const { ProductService } = await import('./ProductService');
+            const { CategoryRepository } = await import('@/repositories/CategoryRepository');
+            
+            const categoryRepository = new CategoryRepository();
+            const productService = new ProductService(this.productRepository, categoryRepository, this.activityRepository);
+            
+            await Promise.all(
+              existingOrder.items.map(async (item: any) => {
+                try {
+                  const result = await productService.incrementStock(
+                    item.productId,
+                    item.quantity,
+                    orderId
+                  );
+                  if (!result) {
+                    console.error(`[OrderService] Failed to restore stock for product ${item.productId} in order ${orderId}`);
+                  }
+                } catch (error) {
+                  console.error(`[OrderService] Error restoring stock for product ${item.productId}:`, error);
+                  // Continue processing other items even if one fails
+                }
+              })
+            );
+          } catch (error) {
+            console.error(`[OrderService] Error restoring inventory for order ${orderId}:`, error);
+            // Don't fail order cancellation if inventory restoration fails
+          }
+        }
+      }
+
       // Update order
       const updatedOrder = await this.orderRepository.update(orderId, updateData);
 
@@ -338,6 +420,44 @@ export class OrderService implements IOrderService {
       // Update shop stats when order is marked as delivered
       if (data.status && data.status === 'delivered') {
         await this.updateShopStatsForDeliveredOrder(updatedOrder);
+      }
+
+      // Send status change emails (non-blocking)
+      if (data.status && data.status !== existingOrder.status) {
+        try {
+          const { EmailService } = await import('./EmailService');
+          
+          if (data.status === 'shipped') {
+            EmailService.sendOrderShippedEmail(
+              orderId,
+              existingOrder.customerId,
+              updatedOrder.trackingNumber,
+              updatedOrder.carrier
+            ).catch((emailError) => {
+              console.error('Error sending order shipped email:', emailError);
+            });
+          } else if (data.status === 'delivered') {
+            EmailService.sendOrderDeliveredEmail(
+              orderId,
+              existingOrder.customerId,
+              existingOrder.businessOwnerId
+            ).catch((emailError) => {
+              console.error('Error sending order delivered email:', emailError);
+            });
+          } else if (data.status === 'cancelled') {
+            EmailService.sendOrderCancelledEmail(
+              orderId,
+              existingOrder.customerId,
+              existingOrder.businessOwnerId,
+              data.notes // Use notes as cancellation reason if provided
+            ).catch((emailError) => {
+              console.error('Error sending order cancelled email:', emailError);
+            });
+          }
+        } catch (emailError) {
+          console.error('Error setting up status change email:', emailError);
+          // Don't fail order update if email fails
+        }
       }
 
       // Clear relevant caches
