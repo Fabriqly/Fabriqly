@@ -851,3 +851,5 @@ When creating your visual ERD diagram, consider:
 This documentation provides a complete overview of all entities and their relationships in the Fabriqly system for your capstone paper.
 
 
+
+

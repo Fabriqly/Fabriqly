@@ -23,12 +23,16 @@ export class NotificationService {
 
   /**
    * Create a single notification
+   * @param data Notification data
+   * @param bypassPreferences If true, skip user preferences check (for testing/admin use)
    */
-  async createNotification(data: CreateNotificationData): Promise<Notification> {
+  async createNotification(data: CreateNotificationData, bypassPreferences: boolean = false): Promise<Notification> {
     // Check user preferences (default to enabled if not set)
-    const shouldCreate = await this.shouldCreateNotification(data.userId, data.type);
-    if (!shouldCreate) {
-      throw new Error('Notification creation disabled by user preferences');
+    if (!bypassPreferences) {
+      const shouldCreate = await this.shouldCreateNotification(data.userId, data.type);
+      if (!shouldCreate) {
+        throw new Error('Notification creation disabled by user preferences');
+      }
     }
 
     const notificationData = {

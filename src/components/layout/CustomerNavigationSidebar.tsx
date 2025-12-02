@@ -3,13 +3,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { User, Package, MessageCircle, Bell } from 'lucide-react';
+import { User, Package, MessageCircle, Bell, Settings } from 'lucide-react';
 
 const navigationItems = [
   { href: '/profile', icon: User, label: 'My Profile' },
   { href: '/orders', icon: Package, label: 'My Orders' },
   { href: '/my-customizations', icon: MessageCircle, label: 'My Customizations' },
   { href: '/notifications', icon: Bell, label: 'Notifications' },
+  { href: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 export function CustomerNavigationSidebar() {

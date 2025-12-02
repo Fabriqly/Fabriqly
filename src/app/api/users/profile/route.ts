@@ -38,9 +38,26 @@ export async function GET(request: NextRequest) {
     // Remove sensitive data
     const { password, ...profileData } = userData;
     
+    // Ensure profile object exists with at least empty firstName and lastName
+    if (!profileData.profile) {
+      profileData.profile = {
+        firstName: '',
+        lastName: ''
+      };
+    } else {
+      // Ensure firstName and lastName exist (even if empty)
+      profileData.profile = {
+        firstName: profileData.profile.firstName || '',
+        lastName: profileData.profile.lastName || '',
+        ...profileData.profile
+      };
+    }
+    
     console.log('✅ Profile fetched successfully:', {
       userId: session.user.id,
       hasProfile: !!profileData.profile,
+      firstName: profileData.profile.firstName,
+      lastName: profileData.profile.lastName,
       displayName: profileData.displayName
     });
 

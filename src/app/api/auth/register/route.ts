@@ -4,6 +4,9 @@ import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
 import { AuthErrorHandler, AuthErrorCode } from '@/lib/auth-errors';
 import { authLogger } from '@/lib/auth-logging';
+import { EmailService } from '@/services/EmailService';
+import { Timestamp } from 'firebase-admin/firestore';
+import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -95,9 +98,35 @@ export async function POST(request: NextRequest) {
       // Don't fail the registration if activity logging fails
     }
 
+    // Send verification email
+    try {
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours expiry
+
+      // Store token in Firestore
+      await FirebaseAdminService.createDocument('emailVerificationTokens', {
+        userId: user.uid,
+        token,
+        email: user.email,
+        expiresAt: Timestamp.fromDate(expiresAt),
+        used: false,
+        createdAt: Timestamp.now(),
+      });
+
+      // Send verification email (non-blocking)
+      EmailService.sendVerificationEmail(user.uid, token).catch((emailError) => {
+        console.error('❌ Error sending verification email:', emailError);
+        // Don't fail registration if email fails
+      });
+    } catch (verificationError) {
+      console.error('❌ Error setting up email verification:', verificationError);
+      // Don't fail registration if verification setup fails
+    }
+
     return NextResponse.json({ 
       success: true, 
-      message: 'Account created successfully. Please sign in.',
+      message: 'Account created successfully. Please check your email to verify your account.',
       user: {
         uid: user.uid,
         email: user.email,

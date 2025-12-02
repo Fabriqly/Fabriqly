@@ -171,6 +171,65 @@ export class BackupService {
   }
 
   /**
+   * Recursively list all files in a Supabase Storage folder
+   */
+  private static async listAllFilesRecursive(
+    bucket: string,
+    folderPath: string = '',
+    allFiles: Array<{ name: string; path: string }> = []
+  ): Promise<Array<{ name: string; path: string }>> {
+    let offset = 0;
+    const limit = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data: items, error } = await supabaseAdmin!.storage
+        .from(bucket)
+        .list(folderPath, {
+          limit,
+          offset,
+          sortBy: { column: 'name', order: 'asc' }
+        });
+
+      if (error) {
+        console.error(`[BackupService] Error listing folder ${folderPath}:`, error);
+        break;
+      }
+
+      if (!items || items.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      for (const item of items) {
+        const itemPath = folderPath ? `${folderPath}/${item.name}` : item.name;
+        
+        // In Supabase Storage, folders don't have an id field
+        // Files have an id field and metadata
+        if (!item.id) {
+          // It's a folder (or directory), recurse into it
+          await this.listAllFilesRecursive(bucket, itemPath, allFiles);
+        } else {
+          // It's a file, add it to the list
+          allFiles.push({
+            name: item.name,
+            path: itemPath
+          });
+        }
+      }
+
+      // Check if there are more items to fetch
+      if (items.length < limit) {
+        hasMore = false;
+      } else {
+        offset += limit;
+      }
+    }
+
+    return allFiles;
+  }
+
+  /**
    * Backup Supabase Storage files
    */
   static async backupSupabaseStorage(backupId: string): Promise<void> {
@@ -187,54 +246,53 @@ export class BackupService {
         const bucketPath = path.join(backupPath, bucket);
         await fs.mkdir(bucketPath, { recursive: true });
 
-        // List all files in the bucket
-        const { data: files, error: listError } = await supabaseAdmin.storage
-          .from(bucket)
-          .list(undefined, {
-            limit: 1000,
-            offset: 0,
-            sortBy: { column: 'name', order: 'asc' }
-          });
+        // Recursively list all files in the bucket (including subdirectories)
+        console.log(`[BackupService] Listing all files in bucket ${bucket}...`);
+        const allFiles = await this.listAllFilesRecursive(bucket);
 
-        if (listError) {
-          console.error(`[BackupService] Error listing files in bucket ${bucket}:`, listError);
-          continue;
-        }
-
-        if (!files || files.length === 0) {
+        if (allFiles.length === 0) {
           console.log(`[BackupService] No files found in bucket ${bucket}`);
           continue;
         }
 
+        console.log(`[BackupService] Found ${allFiles.length} files in bucket ${bucket}`);
+
         // Download each file
-        for (const file of files) {
-          if (file.id) {
-            try {
-              const { data: fileData, error: downloadError } = await supabaseAdmin.storage
-                .from(bucket)
-                .download(file.name);
+        let downloadedCount = 0;
+        let errorCount = 0;
 
-              if (downloadError) {
-                console.error(`[BackupService] Error downloading ${file.name}:`, downloadError);
-                continue;
-              }
+        for (const file of allFiles) {
+          try {
+            const { data: fileData, error: downloadError } = await supabaseAdmin.storage
+              .from(bucket)
+              .download(file.path);
 
-              // Create directory structure if needed
-              const fileDir = path.dirname(path.join(bucketPath, file.name));
-              await fs.mkdir(fileDir, { recursive: true });
-
-              // Save file
-              const buffer = Buffer.from(await fileData.arrayBuffer());
-              await fs.writeFile(path.join(bucketPath, file.name), buffer);
-
-              console.log(`[BackupService] Downloaded: ${file.name}`);
-            } catch (error: any) {
-              console.error(`[BackupService] Error processing file ${file.name}:`, error);
+            if (downloadError) {
+              console.error(`[BackupService] Error downloading ${file.path}:`, downloadError);
+              errorCount++;
+              continue;
             }
+
+            // Create directory structure if needed
+            const localFilePath = path.join(bucketPath, file.path);
+            const fileDir = path.dirname(localFilePath);
+            await fs.mkdir(fileDir, { recursive: true });
+
+            // Save file
+            const buffer = Buffer.from(await fileData.arrayBuffer());
+            await fs.writeFile(localFilePath, buffer);
+
+            downloadedCount++;
+            if (downloadedCount % 10 === 0) {
+              console.log(`[BackupService] Downloaded ${downloadedCount}/${allFiles.length} files...`);
+            }
+          } catch (error: any) {
+            console.error(`[BackupService] Error processing file ${file.path}:`, error);
+            errorCount++;
           }
         }
 
-        console.log(`[BackupService] Backed up ${files.length} files from bucket ${bucket}`);
+        console.log(`[BackupService] Backed up ${downloadedCount} files from bucket ${bucket} (${errorCount} errors)`);
       } catch (error: any) {
         console.error(`[BackupService] Error backing up bucket ${bucket}:`, error);
         // Continue with other buckets even if one fails
