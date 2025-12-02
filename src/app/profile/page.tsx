@@ -5,10 +5,27 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { User, Mail, Phone, MapPin, Calendar, Save, Edit, X, Upload, Camera } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, Save, Edit, X, Upload, Camera, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
 import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
+import { ShippingAddressModal } from '@/components/customization/ShippingAddressModal';
+
+interface ShippingAddress {
+  id: string;
+  firstName: string;
+  lastName: string;
+  address1: string;
+  address2?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  phone: string;
+  isDefault?: boolean;
+  createdAt?: any;
+  updatedAt?: any;
+}
 
 interface UserProfile {
   id: string;
@@ -29,6 +46,7 @@ interface UserProfile {
       country: string;
     };
   };
+  shippingAddresses?: ShippingAddress[];
 }
 
 export default function ProfilePage() {
@@ -57,6 +75,9 @@ export default function ProfilePage() {
   });
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [uploadingPicture, setUploadingPicture] = useState(false);
+  const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [showAddAddressModal, setShowAddAddressModal] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -90,6 +111,10 @@ export default function ProfilePage() {
             country: data.data.profile?.address?.country || ''
           }
         });
+        // Fetch shipping addresses if user is authenticated
+        if (session?.user?.id) {
+          await fetchShippingAddresses();
+        }
       } else {
         setError(data.error || 'Failed to load profile');
       }
@@ -97,6 +122,58 @@ export default function ProfilePage() {
       setError('Failed to load profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchShippingAddresses = async () => {
+    if (!session?.user?.id) return;
+    
+    try {
+      setLoadingAddresses(true);
+      const response = await fetch(`/api/users/${session.user.id}/addresses`);
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setShippingAddresses(data.data || []);
+      } else {
+        console.error('Failed to load shipping addresses:', data.error);
+        setShippingAddresses([]);
+      }
+    } catch (err) {
+      console.error('Error fetching shipping addresses:', err);
+      setShippingAddresses([]);
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
+
+  const handleAddAddress = async (address: any, saveToProfile: boolean) => {
+    if (!session?.user?.id) return;
+
+    try {
+      const response = await fetch(`/api/users/${session.user.id}/addresses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          address: address,
+          setAsDefault: shippingAddresses.length === 0 // Set as default if it's the first address
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSuccess('Shipping address added successfully!');
+        setShowAddAddressModal(false);
+        await fetchShippingAddresses(); // Refresh the addresses list
+      } else {
+        setError(data.error || 'Failed to add shipping address');
+      }
+    } catch (err) {
+      console.error('Error adding shipping address:', err);
+      setError('Failed to add shipping address');
     }
   };
 
@@ -151,22 +228,50 @@ export default function ProfilePage() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setProfilePicture(data.data.url);
+        const photoURL = data.data.url;
+        setProfilePicture(photoURL);
+        
+        // Use existing profile data if formData fields are empty
+        const firstName = formData.firstName || profile?.profile?.firstName || '';
+        const lastName = formData.lastName || profile?.profile?.lastName || '';
+        const phone = formData.phone || profile?.profile?.phone || '';
+        const dateOfBirth = formData.dateOfBirth || profile?.profile?.dateOfBirth || '';
+        const address = formData.address || profile?.profile?.address || {};
+        const displayName = firstName && lastName 
+          ? `${firstName} ${lastName}`.trim() 
+          : profile?.displayName || '';
+        
         const updateResponse = await fetch('/api/users/profile', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            ...formData,
-            displayName: `${formData.firstName} ${formData.lastName}`.trim(),
-            photoURL: data.data.url
+            firstName: firstName,
+            lastName: lastName,
+            phone: phone,
+            dateOfBirth: dateOfBirth,
+            address: address,
+            displayName: displayName,
+            photoURL: photoURL
           }),
         });
 
         if (updateResponse.ok) {
+          const updateData = await updateResponse.json();
+          // Update profile picture state from the response
+          if (updateData.data?.photoURL) {
+            setProfilePicture(updateData.data.photoURL);
+          }
+          // Also update profile state
+          if (updateData.data) {
+            setProfile(prev => prev ? { ...prev, photoURL: updateData.data.photoURL } : null);
+          }
           setSuccess('Profile picture updated successfully!');
           await fetchProfile();
+        } else {
+          const errorData = await updateResponse.json();
+          setError(errorData.error || 'Failed to update profile picture');
         }
       } else {
         setError(data.error?.message || 'Failed to upload profile picture');
@@ -221,6 +326,9 @@ export default function ProfilePage() {
     try {
       const displayName = `${formData.firstName} ${formData.lastName}`.trim();
       
+      // Include photoURL if it exists (from profilePicture state or profile)
+      const photoURL = profilePicture || profile?.photoURL;
+      
       const response = await fetch('/api/users/profile', {
         method: 'PUT',
         headers: {
@@ -228,7 +336,8 @@ export default function ProfilePage() {
         },
         body: JSON.stringify({
           ...formData,
-          displayName
+          displayName,
+          ...(photoURL && { photoURL })
         }),
       });
 
@@ -342,10 +451,10 @@ export default function ProfilePage() {
                   
                   <div className="flex items-center space-x-6">
                     <div className="relative">
-                      {profilePicture ? (
+                      {(profilePicture || profile?.photoURL) ? (
                         <div className="relative">
                           <img
-                            src={profilePicture}
+                            src={profilePicture || profile?.photoURL || ''}
                             alt="Profile"
                             className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
                           />
@@ -526,9 +635,9 @@ export default function ProfilePage() {
                 <div className="bg-white rounded-lg shadow-sm p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-6">
-                      {profilePicture ? (
+                      {(profilePicture || profile?.photoURL) ? (
                         <img
-                          src={profilePicture}
+                          src={profilePicture || profile?.photoURL || ''}
                           alt="Profile"
                           className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
                         />
@@ -641,11 +750,89 @@ export default function ProfilePage() {
                     </div>
                   )
                 )}
+
+                {/* Shipping Addresses */}
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                      <MapPin className="w-5 h-5 mr-2" />
+                      Shipping Addresses
+                    </h2>
+                    <Button
+                      onClick={() => setShowAddAddressModal(true)}
+                      className="flex items-center bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Address
+                    </Button>
+                  </div>
+                  
+                  {loadingAddresses ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  ) : shippingAddresses.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500">No shipping addresses saved yet.</p>
+                      <p className="text-sm text-gray-400 mt-2">Click "Add Address" to add your first shipping address.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {shippingAddresses.map((address) => (
+                        <div
+                          key={address.id}
+                          className={`border rounded-lg p-4 ${
+                            address.isDefault
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <p className="font-semibold text-gray-900">
+                                  {address.firstName} {address.lastName}
+                                </p>
+                                {address.isDefault && (
+                                  <span className="px-2 py-1 text-xs font-medium bg-blue-500 text-white rounded">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600">
+                                {address.address1}
+                                {address.address2 && `, ${address.address2}`}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                {address.city}, {address.state} {address.zipCode}
+                              </p>
+                              <p className="text-sm text-gray-600">{address.country}</p>
+                              <p className="text-sm text-gray-600 mt-1">Phone: {address.phone}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
         </main>
       </div>
+
+      {/* Add Address Modal */}
+      {showAddAddressModal && (
+        <ShippingAddressModal
+          onSubmit={handleAddAddress}
+          onClose={() => {
+            setShowAddAddressModal(false);
+            setError('');
+          }}
+          userName={`${profile?.profile?.firstName || ''} ${profile?.profile?.lastName || ''}`.trim() || profile?.displayName}
+          userId={session?.user?.id}
+        />
+      )}
     </div>
   );
 }

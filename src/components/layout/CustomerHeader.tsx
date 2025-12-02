@@ -8,7 +8,7 @@ import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown, S
 import { CartButton } from '@/components/cart/CartButton';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { signOut } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import LogoName from '@/../public/LogoName.png';
 
@@ -23,9 +23,11 @@ interface CustomerHeaderProps {
 
 export function CustomerHeader({ user }: CustomerHeaderProps) {
   const pathname = usePathname();
+  const { data: session, update } = useSession();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [profilePhotoURL, setProfilePhotoURL] = useState<string | null>(null);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +38,22 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
   const handleSignOut = () => {
     signOut({ callbackUrl: '/login' });
   };
+
+  // Fetch profile photoURL if user is logged in
+  useEffect(() => {
+    if (user && session?.user?.id) {
+      fetch('/api/users/profile')
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data?.photoURL) {
+            setProfilePhotoURL(data.data.photoURL);
+          }
+        })
+        .catch(err => {
+          console.error('Error fetching profile photo:', err);
+        });
+    }
+  }, [user, session?.user?.id]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -102,9 +120,9 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                   className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 rounded-lg px-3 py-2 transition-colors"
                 >
-                  {(user.image || user.photoURL) ? (
+                  {(profilePhotoURL || user.image || user.photoURL) ? (
                     <img
-                      src={user.image || user.photoURL || ''}
+                      src={profilePhotoURL || user.image || user.photoURL || ''}
                       alt={user.name || 'User'}
                       className="w-6 h-6 rounded-full object-cover border border-white/20"
                     />
@@ -123,9 +141,9 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
                     <div className="px-4 py-2 border-b border-gray-100 flex items-center space-x-3">
-                      {(user.image || user.photoURL) ? (
+                      {(profilePhotoURL || user.image || user.photoURL) ? (
                         <img
-                          src={user.image || user.photoURL || ''}
+                          src={profilePhotoURL || user.image || user.photoURL || ''}
                           alt={user.name || 'User'}
                           className="w-10 h-10 rounded-full object-cover"
                         />
