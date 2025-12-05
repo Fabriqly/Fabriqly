@@ -243,7 +243,7 @@ export default function PromotionsPage() {
       <DashboardHeader user={user} />
       <div className="flex flex-1">
         <DashboardSidebar user={user} />
-        <main className="flex-1">
+        <main className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
             <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-between mb-6">
