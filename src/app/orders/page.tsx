@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { useSession } from 'next-auth/react';
 
@@ -529,6 +530,8 @@ export default function OrdersPage() {
           </div>
         </main>
       </div>
+      
+      <ScrollToTop />
     </div>
   );
 }

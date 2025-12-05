@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { Button } from '@/components/ui/Button';
 import { Clock, CheckCircle, XCircle, FileText, Store } from 'lucide-react';
 
@@ -331,6 +332,8 @@ export default function MyApplicationsPage() {
           </div>
         )}
       </div>
+      
+      <ScrollToTop />
     </div>
   );
 }

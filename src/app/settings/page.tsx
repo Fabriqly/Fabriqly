@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Bell, Mail, MessageSquare, Moon, Sun, Save, Loader } from 'lucide-react';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 
@@ -181,6 +182,8 @@ export default function SettingsPage() {
           </div>
         </main>
       </div>
+      
+      <ScrollToTop />
     </div>
   );
 }
