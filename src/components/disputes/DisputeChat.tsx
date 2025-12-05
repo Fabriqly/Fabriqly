@@ -453,7 +453,7 @@ function DisputeChat({
   };
 
   return (
-    <div className="flex flex-col h-[600px]">
+    <div className="flex flex-col h-[calc(100vh-200px)] min-h-[600px] max-h-[800px]">
       {/* Header */}
       <div className="p-4 border-b bg-gray-50">
         <div className="flex items-center justify-between">

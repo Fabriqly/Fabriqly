@@ -5,14 +5,25 @@ import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { Palette, Plus, RefreshCw, Download } from 'lucide-react';
+import { useRef, useCallback, useState } from 'react';
 
 
 export default function BusinessProductsPage() {
   const { user, isLoading } = useAuth(true);
+  const refreshProductsRef = useRef<(() => void) | null>(null);
+  const [productCount, setProductCount] = useState(0);
+  const [draftCount, setDraftCount] = useState(0);
 
-  const handleRefresh = () => {
-    window.location.reload();
-  };
+  const handleRefresh = useCallback(() => {
+    if (refreshProductsRef.current) {
+      refreshProductsRef.current();
+    }
+  }, []);
+
+  const handleProductCountChange = useCallback((count: number, draftCount: number) => {
+    setProductCount(count);
+    setDraftCount(draftCount);
+  }, []);
 
   const handleExport = () => {
     // Export functionality - you can implement this based on your needs
@@ -40,45 +51,68 @@ export default function BusinessProductsPage() {
         <DashboardSidebar user={user} />
 
         {/* Main Content */}
-        <div className="flex-1">
+        <div className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
-            {/* Page Header with Manage Colors Button */}
+            {/* Page Header */}
             <div className="mb-6">
-              <div className="flex items-center justify-between">
+              {/* Title Section with Products Counter */}
+              <div className="flex items-start justify-between mb-4 md:mb-0">
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">Products</h1>
                   <p className="text-gray-600">Manage your products and colors</p>
                 </div>
-                <div className="flex items-center space-x-3">
+                {/* Products Counter - Right side, aligned with header */}
+                <div className="hidden md:block text-right">
+                  <div className="text-sm text-gray-600">
+                    {productCount} products
+                    {draftCount > 0 && (
+                      <span className="ml-2 text-orange-600">
+                        ({draftCount} draft{draftCount !== 1 ? 's' : ''})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Action Buttons - Stack on mobile, horizontal on desktop */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-end gap-2 md:gap-3">
+                <div className="flex items-center gap-2 md:gap-3">
                   <Button
                     onClick={handleRefresh}
                     variant="outline"
-                    className="flex items-center"
+                    size="sm"
+                    className="flex items-center justify-center flex-1 md:flex-initial"
                   >
                     <RefreshCw className="w-4 h-4" />
+                    <span className="ml-2 md:hidden">Refresh</span>
                   </Button>
                   <Button
                     onClick={handleExport}
                     variant="outline"
-                    className="flex items-center"
+                    size="sm"
+                    className="flex items-center justify-center flex-1 md:flex-initial"
                   >
-                    <Download className="w-4 h-4 mr-2" />
-                    Export
+                    <Download className="w-4 h-4" />
+                    <span className="ml-2">Export</span>
                   </Button>
+                </div>
+                <div className="flex items-center gap-2 md:gap-3">
                   <Button
                     onClick={() => window.location.href = '/dashboard/products/colors'}
                     variant="outline"
-                    className="flex items-center"
+                    size="sm"
+                    className="flex items-center justify-center flex-1 md:flex-initial"
                   >
-                    <Palette className="w-4 h-4 mr-2" />
-                    Manage Colors
+                    <Palette className="w-4 h-4" />
+                    <span className="ml-2">Manage Colors</span>
                   </Button>
                   <Button
                     onClick={() => window.location.href = '/dashboard/products/create'}
-                    className="flex items-center"
+                    size="sm"
+                    className="flex items-center justify-center flex-1 md:flex-initial"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Product
+                    <Plus className="w-4 h-4" />
+                    <span className="ml-2">Add Product</span>
                   </Button>
                 </div>
               </div>
@@ -88,6 +122,10 @@ export default function BusinessProductsPage() {
             <ProductList 
               businessOwnerId={user?.id}
               showCreateButton={false}
+              onRefreshReady={(refreshFn) => {
+                refreshProductsRef.current = refreshFn;
+              }}
+              onProductCountChange={handleProductCountChange}
             />
           </div>
         </div>
