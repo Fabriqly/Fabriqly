@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 
 interface Order {
@@ -514,6 +515,8 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </div>
+      
+      <ScrollToTop />
     </div>
   );
 }

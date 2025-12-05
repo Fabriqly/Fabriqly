@@ -18,6 +18,7 @@ import { DesignerWorkModal } from '@/components/customization/DesignerWorkModal'
 import { PricingAgreementForm } from '@/components/customization/PricingAgreementForm';
 import { Loader, Search, Clock, MessageCircle } from 'lucide-react';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 
@@ -1176,6 +1177,8 @@ export default function MyCustomizationsPage() {
           </div>
         </div>
       )}
+      
+      <ScrollToTop />
     </>
   );
 }

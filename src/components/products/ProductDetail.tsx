@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { 
   ProductWithDetails, 
   ProductVariant 
@@ -448,8 +449,12 @@ export function ProductDetail() {
       try {
         const referrerUrl = new URL(document.referrer);
         const referrerPathname = referrerUrl.pathname;
+        const referrerQuery = referrerUrl.searchParams.get('q') || referrerUrl.searchParams.get('query') || '';
         
-        if (referrerPathname.startsWith('/explore/merchandise')) {
+        if (referrerPathname === '/search' || referrerPathname.startsWith('/search')) {
+          const searchPath = referrerQuery ? `/search?q=${encodeURIComponent(referrerQuery)}` : '/search';
+          return { label: 'Search', path: searchPath };
+        } else if (referrerPathname.startsWith('/explore/merchandise')) {
           return { label: 'Merchandise', path: '/explore/merchandise' };
         } else if (referrerPathname.startsWith('/explore/shops')) {
           return { label: 'Shops', path: '/explore/shops' };
@@ -627,7 +632,9 @@ export function ProductDetail() {
 
             {/* Description */}
             <div>
-              <p className="text-sm text-slate-600 leading-relaxed">{product.description}</p>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {product.shortDescription || product.description}
+              </p>
             </div>
 
             {/* Variants */}
@@ -1151,6 +1158,8 @@ export function ProductDetail() {
           </div>
         </div>
       )}
+      
+      <ScrollToTop />
     </div>
   );
 }

@@ -163,11 +163,17 @@ export function ProductCard({
               // Store referrer page for breadcrumb navigation
               if (typeof window !== 'undefined') {
                 const pathname = window.location.pathname;
+                const searchParams = new URLSearchParams(window.location.search);
                 let referrer = 'products'; // default
                 let referrerLabel = 'Products';
                 let referrerPath = '/products';
                 
-                if (pathname.startsWith('/explore/merchandise')) {
+                if (pathname === '/search' || pathname.startsWith('/search')) {
+                  const query = searchParams.get('q') || searchParams.get('query') || '';
+                  referrer = 'search';
+                  referrerLabel = 'Search';
+                  referrerPath = query ? `/search?q=${encodeURIComponent(query)}` : '/search';
+                } else if (pathname.startsWith('/explore/merchandise')) {
                   referrer = 'merchandise';
                   referrerLabel = 'Merchandise';
                   referrerPath = '/explore/merchandise';
@@ -260,11 +266,17 @@ export function ProductCard({
               // Store referrer page for breadcrumb navigation
               if (typeof window !== 'undefined') {
                 const pathname = window.location.pathname;
+                const searchParams = new URLSearchParams(window.location.search);
                 let referrer = 'products'; // default
                 let referrerLabel = 'Products';
                 let referrerPath = '/products';
                 
-                if (pathname.startsWith('/explore/merchandise')) {
+                if (pathname === '/search' || pathname.startsWith('/search')) {
+                  const query = searchParams.get('q') || searchParams.get('query') || '';
+                  referrer = 'search';
+                  referrerLabel = 'Search';
+                  referrerPath = query ? `/search?q=${encodeURIComponent(query)}` : '/search';
+                } else if (pathname.startsWith('/explore/merchandise')) {
                   referrer = 'merchandise';
                   referrerLabel = 'Merchandise';
                   referrerPath = '/explore/merchandise';
@@ -336,8 +348,8 @@ export function ProductCard({
             </div>
           )}
 
-          {/* Price and Add to Cart */}
-          <div className="flex items-center justify-between gap-2">
+          {/* Price and Add to Cart - Anchored to bottom */}
+          <div className="flex items-center justify-between gap-2 mt-auto pt-2">
             {/* Price */}
             <div className="flex items-center space-x-2 flex-1 min-w-0">
               <span className="text-lg font-bold text-indigo-600">
