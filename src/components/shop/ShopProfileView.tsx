@@ -3,6 +3,7 @@
 import { ShopProfile } from '@/types/shop-profile';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { Dialog } from '@headlessui/react';
 import { ShopReviewSection } from '@/components/reviews/ShopReviewSection';
 import { ProductCard } from '@/components/products/ProductCard';
 import { Product } from '@/types/products';
@@ -21,7 +22,10 @@ import {
   CheckCircle2,
   Store,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Filter,
+  X,
+  Check
 } from 'lucide-react';
 
 interface ShopProfileViewProps {
@@ -41,6 +45,7 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [productTags, setProductTags] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const itemsPerPage = 9;
 
   useEffect(() => {
@@ -563,8 +568,19 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
                   </span>
                 </div>
 
-                {/* Filter Tabs */}
-                <div className="flex flex-wrap gap-2 overflow-x-auto pb-2">
+                {/* Mobile Filter Button */}
+                <div className="lg:hidden mb-3">
+                  <button 
+                    onClick={() => setMobileFilterOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-gray-700 font-medium hover:bg-gray-50 w-full justify-center"
+                  >
+                    <Filter className="w-4 h-4" />
+                    Filter & Sort
+                  </button>
+                </div>
+
+                {/* Filter Tabs - Desktop Only */}
+                <div className="hidden lg:flex flex-wrap gap-2 overflow-x-auto pb-2">
                   {categories.map((category) => (
                     <button
                       key={category}
@@ -678,6 +694,85 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
                   )}
                 </>
               )}
+
+              {/* Mobile Filter Drawer */}
+              <Dialog open={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)} className="relative z-50">
+              <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+              
+              <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
+                <Dialog.Panel className="w-screen max-w-md transform transition-transform">
+                  <div className="flex h-full flex-col bg-white shadow-xl">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                      <h2 className="text-lg font-semibold text-gray-900">Filter & Sort</h2>
+                      <button
+                        onClick={() => setMobileFilterOpen(false)}
+                        className="text-gray-400 hover:text-gray-500"
+                      >
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto px-6 py-4">
+                      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2 text-gray-900 font-semibold">
+                            <Filter className="w-4 h-4" />
+                            <h2>Categories</h2>
+                          </div>
+                          {selectedCategory !== 'all' && (
+                            <button 
+                              onClick={() => {
+                                setSelectedCategory('all');
+                                setMobileFilterOpen(false);
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                            >
+                              Clear
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-0.5 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                          {categories.map((category) => {
+                            const isSelected = selectedCategory === category;
+                            return (
+                              <button
+                                key={category}
+                                onClick={() => {
+                                  setSelectedCategory(category);
+                                  setMobileFilterOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between group ${
+                                  isSelected
+                                    ? 'bg-blue-50 text-blue-700 font-medium'
+                                    : 'text-gray-600 hover:bg-gray-50'
+                                }`}
+                              >
+                                <span className="truncate">{category === 'all' ? 'All Products' : category}</span>
+                                {isSelected && <Check className="w-3.5 h-3.5" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
+                      <button
+                        onClick={() => setMobileFilterOpen(false)}
+                        className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        Apply Filters
+                      </button>
+                    </div>
+                  </div>
+                </Dialog.Panel>
+              </div>
+            </Dialog>
             </div>
           )}
 
