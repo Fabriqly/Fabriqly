@@ -16,11 +16,80 @@ import { CustomizationReviewModal } from '@/components/customization/Customizati
 import { DesignerPendingRequests } from '@/components/customization/DesignerPendingRequests';
 import { DesignerWorkModal } from '@/components/customization/DesignerWorkModal';
 import { PricingAgreementForm } from '@/components/customization/PricingAgreementForm';
-import { Loader, Search, Clock, MessageCircle } from 'lucide-react';
+import { CustomizationListSkeleton, CustomizationChatSkeleton, CustomizationPanelSkeleton } from '@/components/customization/CustomizationSkeleton';
+import { Loader, Search, Clock, MessageCircle, ChevronLeft, Info, X, ChevronDown, Check } from 'lucide-react';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
 import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
+import { Dialog, Listbox } from '@headlessui/react';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
+
+// Status Filter Options
+const statusOptions = [
+  { value: 'all', label: 'All Status' },
+  { value: 'pending_designer_review', label: 'Pending' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'awaiting_customer_approval', label: 'Awaiting Approval' },
+  { value: 'ready_for_production', label: 'Ready for Production' },
+  { value: 'completed', label: 'Completed' },
+];
+
+// Custom Status Filter Dropdown Component
+interface StatusFilterDropdownProps {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function StatusFilterDropdown({ value, onChange }: StatusFilterDropdownProps) {
+  const selectedOption = statusOptions.find(opt => opt.value === value) || statusOptions[0];
+
+  return (
+    <Listbox value={value} onChange={onChange}>
+      {({ open }) => (
+        <div className="relative">
+          <Listbox.Button className="relative w-full cursor-pointer rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-sm border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors hover:border-gray-400">
+            <span className="block truncate text-sm text-gray-900 font-medium">{selectedOption.label}</span>
+            <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+              <ChevronDown 
+                className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} 
+                aria-hidden="true" 
+              />
+            </span>
+          </Listbox.Button>
+
+          <Listbox.Options className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm border border-gray-200">
+            {statusOptions.map((option) => (
+              <Listbox.Option
+                key={option.value}
+                value={option.value}
+                className={({ active }) =>
+                  `relative cursor-pointer select-none py-2.5 pl-3 pr-9 transition-colors ${
+                    active ? 'bg-blue-50 text-blue-900' : 'text-gray-900'
+                  } ${
+                    value === option.value ? 'bg-blue-100 text-blue-900 font-medium' : ''
+                  }`
+                }
+              >
+                {({ selected }) => (
+                  <>
+                    <span className={`block truncate text-sm ${selected ? 'font-medium' : 'font-normal'}`}>
+                      {option.label}
+                    </span>
+                    {selected && (
+                      <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-blue-600">
+                        <Check className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                    )}
+                  </>
+                )}
+              </Listbox.Option>
+            ))}
+          </Listbox.Options>
+        </div>
+      )}
+    </Listbox>
+  );
+}
 
 export default function MyCustomizationsPage() {
   const { data: session, status } = useSession();
@@ -53,6 +122,155 @@ export default function MyCustomizationsPage() {
   const [expandedChats, setExpandedChats] = useState<Set<string>>(new Set());
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showInfoDrawer, setShowInfoDrawer] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Helper function to get critical actions for sticky banner
+  const getCriticalActions = () => {
+    if (!selectedRequestDetails) return [];
+    const actions = [];
+
+    // Design Fee Agreement
+    if (selectedRequestDetails.pricingAgreement && !selectedRequestDetails.pricingAgreement.agreedByCustomer) {
+      actions.push({
+        type: 'pricing',
+        primary: {
+          label: '✓ Agree to Design Fee',
+          onClick: () => handleAgreePrice(selectedRequestDetails.id),
+          className: 'bg-green-600 hover:bg-green-700'
+        },
+        secondary: {
+          label: '✗ Reject',
+          onClick: () => handleRejectPricing(selectedRequestDetails.id),
+          className: 'bg-red-600 hover:bg-red-700'
+        }
+      });
+    }
+
+    // Payment
+    if (selectedRequestDetails.paymentDetails && 
+        (selectedRequestDetails.paymentDetails.remainingAmount ?? 0) > 0 && 
+        selectedRequestDetails.pricingAgreement?.agreedByCustomer) {
+      actions.push({
+        type: 'payment',
+        primary: {
+          label: 'Make Payment',
+          onClick: () => handleInitiatePayment(selectedRequestDetails.id),
+          className: 'bg-blue-600 hover:bg-blue-700'
+        }
+      });
+    }
+
+    // Review Design
+    if ((selectedRequestDetails.status === 'awaiting_customer_approval') ||
+        (selectedRequestDetails.status === 'awaiting_pricing' && 
+         selectedRequestDetails.paymentDetails?.paymentStatus === 'fully_paid' &&
+         selectedRequestDetails.designerFinalFile)) {
+      actions.push({
+        type: 'review',
+        primary: {
+          label: 'Review Design',
+          onClick: () => {
+            const request = requests.find(r => r.id === selectedRequestDetails.id);
+            if (request) handleViewRequest(request);
+          },
+          className: 'bg-blue-600 hover:bg-blue-700'
+        }
+      });
+    }
+
+    // Select Shop
+    if ((selectedRequestDetails.status === 'approved' || selectedRequestDetails.status === 'ready_for_production') && 
+        !selectedRequestDetails.printingShopId) {
+      actions.push({
+        type: 'shop',
+        primary: {
+          label: 'Select Printing Shop',
+          onClick: () => {
+            const request = requests.find(r => r.id === selectedRequestDetails.id);
+            if (request) {
+              setSelectedRequest(request);
+              setShowShopModal(true);
+            }
+          },
+          className: 'bg-blue-600 hover:bg-blue-700'
+        }
+      });
+    }
+
+    // Create Order
+    if ((selectedRequestDetails.status === 'approved' || selectedRequestDetails.status === 'ready_for_production') && 
+        selectedRequestDetails.printingShopId && !selectedRequestDetails.orderId) {
+      actions.push({
+        type: 'order',
+        primary: {
+          label: creatingOrder === selectedRequestDetails.id ? 'Creating Order...' : 'Create Order & Proceed',
+          onClick: () => handleCreateOrder(selectedRequestDetails.id),
+          disabled: creatingOrder === selectedRequestDetails.id,
+          className: 'bg-green-600 hover:bg-green-700 disabled:bg-gray-400'
+        }
+      });
+    }
+
+    // View Order
+    if (selectedRequestDetails.orderId) {
+      actions.push({
+        type: 'view_order',
+        primary: {
+          label: 'View Order',
+          onClick: () => router.push(`/orders/${selectedRequestDetails.orderId}`),
+          className: 'bg-blue-600 hover:bg-blue-700'
+        },
+        secondary: {
+          label: 'Track Package',
+          onClick: () => router.push(`/orders/${selectedRequestDetails.orderId}/tracking`),
+          className: 'bg-purple-600 hover:bg-purple-700'
+        }
+      });
+    }
+
+    // Complete Transaction
+    if (selectedRequestDetails.status === 'ready_for_pickup') {
+      actions.push({
+        type: 'complete',
+        primary: {
+          label: 'Confirm Receipt & Complete',
+          onClick: () => handleCompleteTransaction(selectedRequestDetails.id),
+          className: 'bg-green-600 hover:bg-green-700'
+        }
+      });
+    }
+
+    // Leave Reviews
+    if (selectedRequestDetails.status === 'completed') {
+      actions.push({
+        type: 'review',
+        primary: {
+          label: 'Leave Reviews',
+          onClick: () => {
+            const request = requests.find(r => r.id === selectedRequestDetails.id);
+            if (request) {
+              setSelectedRequest(request);
+              setShowReviewForm(true);
+            }
+          },
+          className: 'bg-purple-600 hover:bg-purple-700'
+        }
+      });
+    }
+
+    return actions;
+  };
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -712,21 +930,28 @@ export default function MyCustomizationsPage() {
 }
 
   // For customers, use customer header with explore navbar
+  const criticalActions = getCriticalActions();
+  const showMobileDetail = isMobile && selectedRequestId;
+  const showMobileList = isMobile && !selectedRequestId;
+
   return (
     <>
     <div className="min-h-screen bg-gray-50">
       <CustomerHeader user={session?.user || null} />
       
-      <div className="flex gap-8 p-8">
-        {/* Left Sidebar - Floating Navigation Card */}
-        <CustomerNavigationSidebar />
+      {/* Mobile: Horizontal Tab Bar */}
+      <CustomerNavigationSidebar variant="mobile" />
+      
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+        {/* Desktop: Vertical Sidebar */}
+        <CustomerNavigationSidebar variant="desktop" />
 
         {/* Right Content Area */}
-        <main className="flex-1">
+        <main className="flex-1 w-full">
           {/* Split View Container */}
-          <div className="h-[calc(100vh-theme(spacing.32))] flex border border-gray-200 rounded-lg bg-white overflow-hidden">
+          <div className={`${isMobile ? 'h-[calc(100vh-theme(spacing.24))]' : 'h-[calc(100vh-theme(spacing.32))]'} flex border border-gray-200 rounded-lg bg-white overflow-hidden`}>
             {/* Left Sidebar - Request List */}
-            <div className="w-80 border-r border-gray-200 flex flex-col bg-gray-50">
+            <div className={`${showMobileDetail ? 'hidden' : 'flex'} md:flex w-full md:w-80 border-r border-gray-200 flex-col bg-gray-50`}>
               {/* Sidebar Header */}
               <div className="p-4 border-b border-gray-200 bg-white">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">My Customizations</h2>
@@ -743,27 +968,17 @@ export default function MyCustomizationsPage() {
                   />
                 </div>
                 
-                {/* Filter */}
-                <select
+                {/* Custom Filter Dropdown */}
+                <StatusFilterDropdown
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                >
-                  <option value="all">All Status</option>
-                  <option value="pending_designer_review">Pending</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="awaiting_customer_approval">Awaiting Approval</option>
-                  <option value="ready_for_production">Ready for Production</option>
-                  <option value="completed">Completed</option>
-                </select>
+                  onChange={setStatusFilter}
+                />
               </div>
               
               {/* Request List */}
               <div className="flex-1 overflow-y-auto">
                 {loading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <Loader className="w-6 h-6 animate-spin text-blue-600" />
-                  </div>
+                  <CustomizationListSkeleton />
                 ) : requests.length === 0 ? (
                   <div className="p-4 text-center text-gray-500 text-sm">
                     {statusFilter !== 'all' ? (
@@ -795,7 +1010,10 @@ export default function MyCustomizationsPage() {
                         return (
                           <button
                             key={request.id}
-                            onClick={() => setSelectedRequestId(request.id)}
+                            onClick={() => {
+                              setSelectedRequestId(request.id);
+                              // On mobile, this will trigger the detail view
+                            }}
                             className={`w-full p-4 text-left hover:bg-gray-100 transition-colors ${
                               isSelected ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''
                             }`}
@@ -832,221 +1050,290 @@ export default function MyCustomizationsPage() {
             </div>
             
             {/* Right Panel - Request Details */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {selectedRequestDetails ? (
+            <div className={`${showMobileList ? 'hidden' : 'flex'} md:flex flex-1 flex-col overflow-hidden`}>
+              {loading && !selectedRequestDetails ? (
+                <div className="flex-1 flex flex-col">
+                  {isMobile ? (
+                    <CustomizationChatSkeleton />
+                  ) : (
+                    <>
+                      <div className="p-4 border-b border-gray-200 bg-white">
+                        <div className="h-6 bg-gray-200 rounded w-48 animate-pulse"></div>
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-4">
+                        <CustomizationPanelSkeleton />
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : selectedRequestDetails ? (
                 <>
-                  {/* Detail Header */}
-                  <div className="p-4 border-b border-gray-200 bg-white">
-                    <div className="flex items-center justify-between mb-2">
-                      <h2 className="text-lg font-bold text-gray-900">
-                        {selectedRequestDetails.productName || 'Customization Request'}
-                      </h2>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedRequestDetails.status)}`}>
-                        {getStatusLabel(selectedRequestDetails.status)}
-                      </span>
+                  {/* Mobile: Sticky Action Banner */}
+                  {isMobile && criticalActions.length > 0 && (
+                    <div className="sticky top-0 z-10 bg-white border-b border-gray-200 p-3 shadow-sm">
+                      <div className="space-y-2">
+                        {criticalActions.map((action, idx) => (
+                          <div key={idx} className="flex gap-2">
+                            <button
+                              onClick={action.primary.onClick}
+                              disabled={action.primary.disabled}
+                              className={`flex-1 px-3 py-2 text-white rounded-lg font-medium text-sm transition-colors ${action.primary.className} disabled:opacity-50 disabled:cursor-not-allowed`}
+                            >
+                              {action.primary.label}
+                            </button>
+                            {action.secondary && (
+                              <button
+                                onClick={action.secondary.onClick}
+                                className={`flex-1 px-3 py-2 text-white rounded-lg font-medium text-sm transition-colors ${action.secondary.className}`}
+                              >
+                                {action.secondary.label}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    {selectedRequestDetails.designerName && (
-                      <p className="text-xs text-gray-600">Designer: {selectedRequestDetails.designerName}</p>
-                    )}
+                  )}
+
+                  {/* Detail Header */}
+                  <div className="p-3 md:p-4 border-b border-gray-200 bg-white">
+                    <div className="flex items-center gap-2 md:gap-0 md:justify-between mb-2">
+                      {/* Mobile: Back Button */}
+                      {isMobile && (
+                        <button
+                          onClick={() => setSelectedRequestId(null)}
+                          className="p-1 hover:bg-gray-100 rounded-lg transition-colors md:hidden"
+                        >
+                          <ChevronLeft className="w-5 h-5 text-gray-700" />
+                        </button>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h2 className="text-base md:text-lg font-bold text-gray-900 truncate">
+                          {selectedRequestDetails.productName || 'Customization Request'}
+                        </h2>
+                        {selectedRequestDetails.designerName && (
+                          <p className="text-xs text-gray-600 truncate">Designer: {selectedRequestDetails.designerName}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-medium ${getStatusColor(selectedRequestDetails.status)}`}>
+                          {getStatusLabel(selectedRequestDetails.status)}
+                        </span>
+                        {/* Mobile: Info Icon */}
+                        {isMobile && (
+                          <button
+                            onClick={() => setShowInfoDrawer(true)}
+                            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                          >
+                            <Info className="w-5 h-5 text-gray-600" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   
                   {/* Scrollable Detail Body */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {/* Section 1: Design Fee */}
-                    {selectedRequestDetails.status === 'awaiting_customer_approval' && !selectedRequestDetails.pricingAgreement && (
-                      <div className="border-2 border-yellow-200 rounded-lg p-4 bg-yellow-50">
-                        <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-yellow-800">
-                          ⏳ Waiting for Pricing
-                        </h3>
-                        <p className="text-sm text-yellow-700">
-                          The designer is setting up the pricing for your custom design. You'll be notified when pricing is available.
-                        </p>
-                      </div>
-                    )}
-                    
-                    {selectedRequestDetails.pricingAgreement && (
-                      <div className="border-2 border-blue-200 rounded-lg p-4 bg-gradient-to-r from-blue-50 to-purple-50">
-                        <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                          💰 Design Fee
-                        </h3>
+                  <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-0' : 'p-3 md:p-4'} ${isMobile ? '' : 'space-y-3 md:space-y-4'}`}>
+                    {/* Desktop: Show all sections */}
+                    <div className="hidden md:block space-y-4">
+                      {/* Section 1: Design Fee */}
+                      {selectedRequestDetails.status === 'awaiting_customer_approval' && !selectedRequestDetails.pricingAgreement && (
+                        <div className="border-2 border-yellow-200 rounded-lg p-4 bg-yellow-50">
+                          <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-yellow-800">
+                            ⏳ Waiting for Pricing
+                          </h3>
+                          <p className="text-sm text-yellow-700">
+                            The designer is setting up the pricing for your custom design. You'll be notified when pricing is available.
+                          </p>
+                        </div>
+                      )}
+                      
+                      {selectedRequestDetails.pricingAgreement && (
+                        <div className="border-2 border-blue-200 rounded-lg p-4 bg-gradient-to-r from-blue-50 to-purple-50">
+                          <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                            💰 Design Fee
+                          </h3>
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-700 font-medium">Designer's Fee:</span>
+                              <span className="text-xl font-bold text-blue-600">
+                                ₱{selectedRequestDetails.pricingAgreement.designFee.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-600 mt-3 pt-3 border-t border-gray-200">
+                              <p className="mb-1">
+                                <span className="font-semibold">Payment Method:</span>{' '}
+                                {selectedRequestDetails.paymentDetails?.paymentType === 'upfront' ? 'Upfront (100%)' : 
+                                 selectedRequestDetails.paymentDetails?.paymentType === 'half_payment' ? 'Half Payment (50/50)' : 
+                                 'Milestone-based'}
+                              </p>
+                              <p className="text-gray-500 mt-1">
+                                * Product and printing costs will be added by the shop
+                              </p>
+                            </div>
+                            {!selectedRequestDetails.pricingAgreement.agreedByCustomer && (
+                              <div className="flex gap-2 mt-3">
+                                <button
+                                  onClick={() => handleAgreePrice(selectedRequestDetails.id)}
+                                  className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
+                                >
+                                  ✓ Agree to Design Fee
+                                </button>
+                                <button
+                                  onClick={() => handleRejectPricing(selectedRequestDetails.id)}
+                                  className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
+                                >
+                                  ✗ Reject & Request New Price
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Section 2: Payment Status */}
+                      {selectedRequestDetails.paymentDetails && (
+                        <div className="border rounded-lg p-4 bg-white shadow-sm">
+                          <h3 className="font-bold text-lg mb-3">Payment Status</h3>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Total Amount:</span>
+                              <span className="font-semibold">₱{selectedRequestDetails.paymentDetails.totalAmount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Paid Amount:</span>
+                              <span className="font-semibold text-green-600">₱{selectedRequestDetails.paymentDetails.paidAmount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-base pt-2 border-t border-gray-200">
+                              <span>Remaining:</span>
+                              <span className="text-red-600">₱{selectedRequestDetails.paymentDetails.remainingAmount.toFixed(2)}</span>
+                            </div>
+                            {selectedRequestDetails.paymentDetails.remainingAmount > 0 && 
+                             selectedRequestDetails.pricingAgreement?.agreedByCustomer && (
+                              <button
+                                onClick={() => handleInitiatePayment(selectedRequestDetails.id)}
+                                className="w-full mt-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                              >
+                                Make Payment
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Section 3: Actions */}
+                      <div className="border rounded-lg p-4 bg-white shadow-sm">
+                        <h3 className="font-bold text-lg mb-3">Actions</h3>
                         <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-gray-700 font-medium">Designer's Fee:</span>
-                            <span className="text-xl font-bold text-blue-600">
-                              ₱{selectedRequestDetails.pricingAgreement.designFee.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-600 mt-3 pt-3 border-t border-gray-200">
-                            <p className="mb-1">
-                              <span className="font-semibold">Payment Method:</span>{' '}
-                              {selectedRequestDetails.paymentDetails?.paymentType === 'upfront' ? 'Upfront (100%)' : 
-                               selectedRequestDetails.paymentDetails?.paymentType === 'half_payment' ? 'Half Payment (50/50)' : 
-                               'Milestone-based'}
-                            </p>
-                            <p className="text-gray-500 mt-1">
-                              * Product and printing costs will be added by the shop
-                            </p>
-                          </div>
-                          {!selectedRequestDetails.pricingAgreement.agreedByCustomer && (
-                            <div className="flex gap-2 mt-3">
-                              <button
-                                onClick={() => handleAgreePrice(selectedRequestDetails.id)}
-                                className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
-                              >
-                                ✓ Agree to Design Fee
-                              </button>
-                              <button
-                                onClick={() => handleRejectPricing(selectedRequestDetails.id)}
-                                className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
-                              >
-                                ✗ Reject & Request New Price
-                              </button>
+                          {((selectedRequestDetails.status === 'awaiting_customer_approval') ||
+                            (selectedRequestDetails.status === 'awaiting_pricing' && 
+                             selectedRequestDetails.paymentDetails?.paymentStatus === 'fully_paid' &&
+                             selectedRequestDetails.designerFinalFile)) && (
+                            <button
+                              onClick={() => {
+                                const request = requests.find(r => r.id === selectedRequestDetails.id);
+                                if (request) handleViewRequest(request);
+                              }}
+                              className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                            >
+                              Review Design
+                            </button>
+                          )}
+                          
+                          {(selectedRequestDetails.status === 'approved' || selectedRequestDetails.status === 'ready_for_production') && 
+                           !selectedRequestDetails.printingShopId && (
+                            <button
+                              onClick={() => {
+                                const request = requests.find(r => r.id === selectedRequestDetails.id);
+                                if (request) {
+                                  setSelectedRequest(request);
+                                  setShowShopModal(true);
+                                }
+                              }}
+                              className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                            >
+                              Select Printing Shop
+                            </button>
+                          )}
+                          
+                          {(selectedRequestDetails.status === 'approved' || selectedRequestDetails.status === 'ready_for_production') && 
+                           selectedRequestDetails.printingShopId && !selectedRequestDetails.orderId && (
+                            <button
+                              onClick={() => handleCreateOrder(selectedRequestDetails.id)}
+                              disabled={creatingOrder === selectedRequestDetails.id}
+                              className="w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium text-sm flex items-center justify-center gap-2"
+                            >
+                              {creatingOrder === selectedRequestDetails.id ? (
+                                <>
+                                  <Loader className="w-4 h-4 animate-spin" />
+                                  Creating Order...
+                                </>
+                              ) : (
+                                'Create Order & Proceed to Production'
+                              )}
+                            </button>
+                          )}
+                          
+                          {selectedRequestDetails.orderId && (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                              <p className="text-xs text-green-800 font-medium">
+                                ✓ Order Created: {selectedRequestDetails.orderId.substring(0, 8)}...
+                              </p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => router.push(`/orders/${selectedRequestDetails.orderId}`)}
+                                  className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700"
+                                >
+                                  View Order
+                                </button>
+                                <button
+                                  onClick={() => router.push(`/orders/${selectedRequestDetails.orderId}/tracking`)}
+                                  className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700"
+                                >
+                                  Track Package
+                                </button>
+                              </div>
                             </div>
                           )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Section 2: Payment Status */}
-                    {selectedRequestDetails.paymentDetails && (
-                      <div className="border rounded-lg p-4 bg-white shadow-sm">
-                        <h3 className="font-bold text-lg mb-3">Payment Status</h3>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Total Amount:</span>
-                            <span className="font-semibold">₱{selectedRequestDetails.paymentDetails.totalAmount.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Paid Amount:</span>
-                            <span className="font-semibold text-green-600">₱{selectedRequestDetails.paymentDetails.paidAmount.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between font-bold text-base pt-2 border-t border-gray-200">
-                            <span>Remaining:</span>
-                            <span className="text-red-600">₱{selectedRequestDetails.paymentDetails.remainingAmount.toFixed(2)}</span>
-                          </div>
-                          {selectedRequestDetails.paymentDetails.remainingAmount > 0 && 
-                           selectedRequestDetails.pricingAgreement?.agreedByCustomer && (
+                          
+                          {selectedRequestDetails.status === 'ready_for_pickup' && (
                             <button
-                              onClick={() => handleInitiatePayment(selectedRequestDetails.id)}
-                              className="w-full mt-3 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                              onClick={() => handleCompleteTransaction(selectedRequestDetails.id)}
+                              className="w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm"
                             >
-                              Make Payment
+                              Confirm Receipt & Complete
+                            </button>
+                          )}
+                          
+                          {selectedRequestDetails.status === 'completed' && (
+                            <button
+                              onClick={() => {
+                                const request = requests.find(r => r.id === selectedRequestDetails.id);
+                                if (request) {
+                                  setSelectedRequest(request);
+                                  setShowReviewForm(true);
+                                }
+                              }}
+                              className="w-full px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm"
+                            >
+                              Leave Reviews
                             </button>
                           )}
                         </div>
                       </div>
-                    )}
-                    
-                    {/* Section 3: Actions */}
-                    <div className="border rounded-lg p-4 bg-white shadow-sm">
-                      <h3 className="font-bold text-lg mb-3">Actions</h3>
-                      <div className="space-y-2">
-                        {((selectedRequestDetails.status === 'awaiting_customer_approval') ||
-                          (selectedRequestDetails.status === 'awaiting_pricing' && 
-                           selectedRequestDetails.paymentDetails?.paymentStatus === 'fully_paid' &&
-                           selectedRequestDetails.designerFinalFile)) && (
-                          <button
-                            onClick={() => {
-                              const request = requests.find(r => r.id === selectedRequestDetails.id);
-                              if (request) handleViewRequest(request);
-                            }}
-                            className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
-                          >
-                            Review Design
-                          </button>
-                        )}
-                        
-                        {(selectedRequestDetails.status === 'approved' || selectedRequestDetails.status === 'ready_for_production') && 
-                         !selectedRequestDetails.printingShopId && (
-                          <button
-                            onClick={() => {
-                              const request = requests.find(r => r.id === selectedRequestDetails.id);
-                              if (request) {
-                                setSelectedRequest(request);
-                                setShowShopModal(true);
-                              }
-                            }}
-                            className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
-                          >
-                            Select Printing Shop
-                          </button>
-                        )}
-                        
-                        {(selectedRequestDetails.status === 'approved' || selectedRequestDetails.status === 'ready_for_production') && 
-                         selectedRequestDetails.printingShopId && !selectedRequestDetails.orderId && (
-                          <button
-                            onClick={() => handleCreateOrder(selectedRequestDetails.id)}
-                            disabled={creatingOrder === selectedRequestDetails.id}
-                            className="w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium text-sm flex items-center justify-center gap-2"
-                          >
-                            {creatingOrder === selectedRequestDetails.id ? (
-                              <>
-                                <Loader className="w-4 h-4 animate-spin" />
-                                Creating Order...
-                              </>
-                            ) : (
-                              'Create Order & Proceed to Production'
-                            )}
-                          </button>
-                        )}
-                        
-                        {selectedRequestDetails.orderId && (
-                          <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
-                            <p className="text-xs text-green-800 font-medium">
-                              ✓ Order Created: {selectedRequestDetails.orderId.substring(0, 8)}...
-                            </p>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => router.push(`/orders/${selectedRequestDetails.orderId}`)}
-                                className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700"
-                              >
-                                View Order
-                              </button>
-                              <button
-                                onClick={() => router.push(`/orders/${selectedRequestDetails.orderId}/tracking`)}
-                                className="flex-1 px-3 py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700"
-                              >
-                                Track Package
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {selectedRequestDetails.status === 'ready_for_pickup' && (
-                          <button
-                            onClick={() => handleCompleteTransaction(selectedRequestDetails.id)}
-                            className="w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm"
-                          >
-                            Confirm Receipt & Complete
-                          </button>
-                        )}
-                        
-                        {selectedRequestDetails.status === 'completed' && (
-                          <button
-                            onClick={() => {
-                              const request = requests.find(r => r.id === selectedRequestDetails.id);
-                              if (request) {
-                                setSelectedRequest(request);
-                                setShowReviewForm(true);
-                              }
-                            }}
-                            className="w-full px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm"
-                          >
-                            Leave Reviews
-                          </button>
-                        )}
-                      </div>
                     </div>
                     
-                    {/* Section 4: Chat */}
+                    {/* Section 4: Chat - Full screen on mobile */}
                     {selectedRequestDetails.designerId && 
                      ['in_progress', 'awaiting_customer_approval', 'approved'].includes(selectedRequestDetails.status) && (
-                      <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
+                      <div className={`${isMobile ? 'h-full' : 'border rounded-lg'} bg-white ${isMobile ? '' : 'shadow-sm'} overflow-hidden`}>
                         <TransactionChat
                           customizationRequestId={selectedRequestDetails.id}
                           otherUserId={selectedRequestDetails.designerId}
                           otherUserName={selectedRequestDetails.designerName || 'Designer'}
                           otherUserRole="designer"
+                          isMobile={isMobile}
+                          onBack={() => isMobile && setSelectedRequestId(null)}
                         />
                       </div>
                     )}
@@ -1178,6 +1465,92 @@ export default function MyCustomizationsPage() {
         </div>
       )}
       
+      {/* Mobile: Bottom Drawer for Info Panel */}
+      {isMobile && selectedRequestDetails && (
+        <Dialog open={showInfoDrawer} onClose={() => setShowInfoDrawer(false)} className="relative z-50">
+          <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+          <div className="fixed inset-x-0 bottom-0 flex max-h-[90vh] flex-col rounded-t-xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 p-4">
+              <h3 className="text-lg font-semibold text-gray-900">Request Details</h3>
+              <button
+                onClick={() => setShowInfoDrawer(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Design Fee */}
+              {selectedRequestDetails.status === 'awaiting_customer_approval' && !selectedRequestDetails.pricingAgreement && (
+                <div className="border-2 border-yellow-200 rounded-lg p-4 bg-yellow-50">
+                  <h3 className="font-bold text-base mb-2 flex items-center gap-2 text-yellow-800">
+                    ⏳ Waiting for Pricing
+                  </h3>
+                  <p className="text-sm text-yellow-700">
+                    The designer is setting up the pricing for your custom design. You'll be notified when pricing is available.
+                  </p>
+                </div>
+              )}
+              
+              {selectedRequestDetails.pricingAgreement && (
+                <div className="border-2 border-blue-200 rounded-lg p-4 bg-gradient-to-r from-blue-50 to-purple-50">
+                  <h3 className="font-bold text-base mb-3 flex items-center gap-2">
+                    💰 Design Fee
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-700 font-medium">Designer's Fee:</span>
+                      <span className="text-lg font-bold text-blue-600">
+                        ₱{selectedRequestDetails.pricingAgreement.designFee.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-600 mt-3 pt-3 border-t border-gray-200">
+                      <p className="mb-1">
+                        <span className="font-semibold">Payment Method:</span>{' '}
+                        {selectedRequestDetails.paymentDetails?.paymentType === 'upfront' ? 'Upfront (100%)' : 
+                         selectedRequestDetails.paymentDetails?.paymentType === 'half_payment' ? 'Half Payment (50/50)' : 
+                         'Milestone-based'}
+                      </p>
+                      <p className="text-gray-500 mt-1">
+                        * Product and printing costs will be added by the shop
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Payment Status */}
+              {selectedRequestDetails.paymentDetails && (
+                <div className="border rounded-lg p-4 bg-white shadow-sm">
+                  <h3 className="font-bold text-base mb-3">Payment Status</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Amount:</span>
+                      <span className="font-semibold">₱{selectedRequestDetails.paymentDetails.totalAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Paid Amount:</span>
+                      <span className="font-semibold text-green-600">₱{selectedRequestDetails.paymentDetails.paidAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-base pt-2 border-t border-gray-200">
+                      <span>Remaining:</span>
+                      <span className="text-red-600">₱{selectedRequestDetails.paymentDetails.remainingAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Production Tracker */}
+              {['in_production', 'ready_for_pickup'].includes(selectedRequestDetails.status) && (
+                <div className="border rounded-lg bg-white shadow-sm">
+                  <ProductionTracker request={selectedRequestDetails} />
+                </div>
+              )}
+            </div>
+          </div>
+        </Dialog>
+      )}
+
       <ScrollToTop />
     </>
   );

@@ -5,6 +5,7 @@ import { Message } from '@/types/firebase';
 import { useSession } from 'next-auth/react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
+import { ChevronLeft } from 'lucide-react';
 
 interface TransactionChatProps {
   customizationRequestId: string;
@@ -12,6 +13,8 @@ interface TransactionChatProps {
   otherUserName: string;
   otherUserRole: 'customer' | 'designer';
   onDesignApproved?: () => void; // Callback when design is approved
+  isMobile?: boolean;
+  onBack?: () => void;
 }
 
 export function TransactionChat({
@@ -19,7 +22,9 @@ export function TransactionChat({
   otherUserId,
   otherUserName,
   otherUserRole,
-  onDesignApproved
+  onDesignApproved,
+  isMobile = false,
+  onBack
 }: TransactionChatProps) {
   const { data: session } = useSession();
   const user = session?.user;
@@ -318,28 +323,44 @@ export function TransactionChat({
   }
 
   return (
-    <div className="flex flex-col h-[600px] bg-white rounded-lg shadow-lg border border-gray-200">
+    <div className={`flex flex-col ${isMobile ? 'h-full' : 'h-[600px]'} bg-white ${isMobile ? '' : 'rounded-lg shadow-lg border border-gray-200'}`}>
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+      <div className={`${isMobile ? 'px-3 py-3' : 'px-6 py-4'} border-b border-gray-200 bg-gray-50 ${isMobile ? '' : 'rounded-t-lg'} sticky top-0 z-10`}>
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              Chat with {otherUserName}
-            </h3>
-            <p className="text-sm text-gray-500">
-              {otherUserRole === 'designer' ? 'Designer' : 'Customer'}
-            </p>
+          <div className="flex items-center gap-2 md:gap-0 flex-1 min-w-0">
+            {isMobile && onBack && (
+              <button
+                onClick={onBack}
+                className="p-1 hover:bg-gray-200 rounded-lg transition-colors flex-shrink-0"
+              >
+                <ChevronLeft className="w-5 h-5 text-gray-700" />
+              </button>
+            )}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {/* Avatar placeholder */}
+              <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                {otherUserName.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className={`${isMobile ? 'text-sm' : 'text-lg'} font-semibold text-gray-900 truncate`}>
+                  {otherUserName}
+                </h3>
+                <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500`}>
+                  {otherUserRole === 'designer' ? 'Designer' : 'Customer'}
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {isConnected ? (
-              <div className="flex items-center gap-1.5 text-xs text-green-600">
+              <div className={`flex items-center gap-1.5 ${isMobile ? 'text-xs' : 'text-xs'} text-green-600`}>
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span>Live</span>
+                <span className="hidden sm:inline">Live</span>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <div className={`flex items-center gap-1.5 ${isMobile ? 'text-xs' : 'text-xs'} text-gray-500`}>
                 <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                <span>Connecting...</span>
+                <span className="hidden sm:inline">Connecting...</span>
               </div>
             )}
           </div>
@@ -347,10 +368,10 @@ export function TransactionChat({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-3' : 'p-6'} space-y-3 md:space-y-4`}>
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <p className="text-gray-500">No messages yet. Start the conversation!</p>
+            <p className={`${isMobile ? 'text-sm' : ''} text-gray-500`}>No messages yet. Start the conversation!</p>
           </div>
         ) : (
           messages.map((message) => {
@@ -364,7 +385,7 @@ export function TransactionChat({
                 className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
               >
                 <div
-                  className={`max-w-[70%] rounded-lg px-4 py-2 ${
+                  className={`${isMobile ? 'max-w-[85%]' : 'max-w-[70%]'} rounded-lg ${isMobile ? 'px-3 py-2' : 'px-4 py-2'} ${
                     isOwn
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-900'
@@ -442,7 +463,7 @@ export function TransactionChat({
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSendMessage} className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg space-y-3">
+      <form onSubmit={handleSendMessage} className={`${isMobile ? 'px-3 py-3 sticky bottom-0 bg-white' : 'px-6 py-4'} border-t border-gray-200 ${isMobile ? '' : 'bg-gray-50 rounded-b-lg'} space-y-2 md:space-y-3`}>
         {/* File upload section */}
         {selectedFile && (
           <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">

@@ -286,9 +286,12 @@ export default function CartPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <CustomerHeader user={user} />
-        <div className="flex gap-8 p-8">
-          <CustomerNavigationSidebar />
-          <main className="flex-1">
+        {/* Mobile: Horizontal Tab Bar */}
+        <CustomerNavigationSidebar variant="mobile" />
+        <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+          {/* Desktop: Vertical Sidebar */}
+          <CustomerNavigationSidebar variant="desktop" />
+          <main className="flex-1 w-full">
             <CartPageSkeleton />
           </main>
         </div>
@@ -300,21 +303,24 @@ export default function CartPage() {
     <div className="min-h-screen bg-gray-50">
       <CustomerHeader user={user} />
       
-      <div className="flex gap-8 p-8">
-        {/* Left Sidebar - Navigation */}
-        <CustomerNavigationSidebar />
+      {/* Mobile: Horizontal Tab Bar */}
+      <CustomerNavigationSidebar variant="mobile" />
+      
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+        {/* Desktop: Vertical Sidebar */}
+        <CustomerNavigationSidebar variant="desktop" />
 
         {/* Right Content Area */}
-        <main className="flex-1">
-          <div className="max-w-7xl">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <main className="flex-1 w-full">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
           {/* Left Column - Cart Items */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 md:space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Shopping Cart</h1>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+              <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">Shopping Cart</h1>
               {state.cart && state.cart.items.length > 0 && (
-                <div className="flex items-center space-x-4">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
                   <div className="flex items-center space-x-2">
                     <input
                       type="checkbox"
@@ -322,14 +328,14 @@ export default function CartPage() {
                       onChange={handleSelectAll}
                       className="rounded border-gray-300"
                     />
-                    <span className="text-sm text-gray-600">
+                    <span className="text-xs md:text-sm text-gray-600">
                       Select All ({selectedItems.size} selected)
                     </span>
                   </div>
                   {selectedItems.size > 0 && (
                     <button
                       onClick={handleBulkDelete}
-                      className="flex items-center space-x-1 text-red-600 hover:text-red-700 text-sm"
+                      className="flex items-center justify-center space-x-1 text-red-600 hover:text-red-700 text-xs md:text-sm px-2 py-1 rounded hover:bg-red-50 transition-colors"
                     >
                       <Trash className="w-4 h-4" />
                       <span>Delete Selected</span>
@@ -341,23 +347,23 @@ export default function CartPage() {
 
             {/* Empty Cart */}
             {!state.cart || state.cart.items.length === 0 ? (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
-                <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-600 mb-2">Your cart is empty</h3>
-                <p className="text-gray-500 mb-6">Add some products to get started!</p>
-                <Link href="/explore">
-                  <Button>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 md:p-12 text-center">
+                <Package className="w-12 h-12 md:w-16 md:h-16 text-gray-300 mx-auto mb-3 md:mb-4" />
+                <h3 className="text-base md:text-lg font-medium text-gray-600 mb-2">Your cart is empty</h3>
+                <p className="text-sm md:text-base text-gray-500 mb-4 md:mb-6">Add some products to get started!</p>
+                <Link href="/explore" className="inline-block">
+                  <Button className="w-full sm:w-auto">
                     Continue Shopping
                   </Button>
                 </Link>
               </div>
             ) : (
               /* Shop Groups */
-              <div className="space-y-6">
+              <div className="space-y-4 md:space-y-6">
                 {groupedItems.map((group, groupIndex) => (
                   <div key={group.businessOwnerId} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     {/* Shop Header */}
-                    <div className="flex items-center space-x-2 px-4 py-2 bg-gray-50 border-b border-gray-200">
+                    <div className="flex items-center space-x-2 px-3 md:px-4 py-2 bg-gray-50 border-b border-gray-200">
                       <input
                         type="checkbox"
                         checked={isShopAllSelected(group)}
@@ -365,16 +371,16 @@ export default function CartPage() {
                         className="rounded border-gray-300 cursor-pointer"
                       />
                       <Store className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         {group.shop?.username ? (
                           <Link 
                             href={`/shops/${group.shop.username}`}
-                            className="font-semibold text-sm text-gray-900 hover:text-blue-600 transition-colors"
+                            className="font-semibold text-xs md:text-sm text-gray-900 hover:text-blue-600 transition-colors truncate block"
                           >
                             {getShopName(group)}
                           </Link>
                         ) : (
-                          <h3 className="font-semibold text-sm text-gray-900">{getShopName(group)}</h3>
+                          <h3 className="font-semibold text-xs md:text-sm text-gray-900 truncate">{getShopName(group)}</h3>
                         )}
                       </div>
                     </div>
@@ -386,7 +392,7 @@ export default function CartPage() {
                         return (
                           <div
                             key={item.id}
-                            className={`flex space-x-4 p-4 ${isInvalid ? 'opacity-60 bg-gray-50' : ''}`}
+                            className={`flex space-x-2 md:space-x-4 p-3 md:p-4 ${isInvalid ? 'opacity-60 bg-gray-50' : ''}`}
                           >
                             {/* Checkbox */}
                             <div className="flex-shrink-0 flex items-start pt-1">
@@ -406,7 +412,7 @@ export default function CartPage() {
                             {/* Product Image */}
                             <div className="flex-shrink-0">
                               <Link href={`/products/${item.productId}`}>
-                                <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
+                                <div className="w-16 h-16 md:w-20 md:h-20 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
                                   {item.product.images && item.product.images.length > 0 ? (
                                     <img
                                       src={item.product.images[0].imageUrl}
@@ -415,7 +421,7 @@ export default function CartPage() {
                                     />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center">
-                                      <Package className="w-6 h-6 text-gray-400" />
+                                      <Package className="w-4 h-4 md:w-6 md:h-6 text-gray-400" />
                                     </div>
                                   )}
                                 </div>
@@ -425,7 +431,7 @@ export default function CartPage() {
                             {/* Product Details */}
                             <div className="flex-1 min-w-0">
                               <Link href={`/products/${item.productId}`}>
-                                <h4 className="font-medium text-sm text-gray-900 truncate hover:text-blue-600 cursor-pointer">
+                                <h4 className="font-medium text-xs md:text-sm text-gray-900 truncate hover:text-blue-600 cursor-pointer">
                                   {item.product.name}
                                 </h4>
                               </Link>
@@ -468,7 +474,7 @@ export default function CartPage() {
                               )}
 
                               {/* Quantity and Price Controls */}
-                              <div className="flex items-center justify-between mt-3">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mt-3">
                                 <div className="flex items-center space-x-2">
                                   <button
                                     onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
@@ -481,7 +487,7 @@ export default function CartPage() {
                                   >
                                     <Minus className="w-4 h-4" />
                                   </button>
-                                  <span className="text-sm font-medium w-8 text-center">
+                                  <span className="text-xs md:text-sm font-medium w-6 md:w-8 text-center">
                                     {item.quantity}
                                   </span>
                                   <button
@@ -497,13 +503,14 @@ export default function CartPage() {
                                   </button>
                                 </div>
                                 
-                                <div className="flex items-center space-x-3">
-                                  <span className="text-sm font-medium">
+                                <div className="flex items-center space-x-2 sm:space-x-3">
+                                  <span className="text-xs md:text-sm font-medium">
                                     {formatPrice(item.totalPrice)}
                                   </span>
                                   <button
                                     onClick={() => removeItem(item.id)}
                                     className="p-1 hover:bg-red-50 text-red-500 rounded"
+                                    aria-label="Remove item"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
