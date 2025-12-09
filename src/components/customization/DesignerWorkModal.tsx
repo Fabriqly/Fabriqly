@@ -107,6 +107,9 @@ export function DesignerWorkModal({ request, onClose, onSubmit, onSetPricing }: 
     setUploading(true);
 
     try {
+      // Note: Designer can upload design without payment requirement
+      // Payment is only required for customer to VIEW the design
+      
       if (!finalFile) {
         throw new Error('Please upload the final design file');
       }
@@ -172,12 +175,12 @@ export function DesignerWorkModal({ request, onClose, onSubmit, onSetPricing }: 
           </div>
 
           {/* Pricing Agreement Status */}
-          {request.status === 'awaiting_customer_approval' && (
+          {(request.status === 'awaiting_customer_approval' || request.status === 'awaiting_pricing') && (
             <div className={`p-4 rounded-lg border ${request.pricingAgreement ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold mb-1">
-                    {request.pricingAgreement ? '✅ Pricing Set' : '⚠️ Pricing Required'}
+                    {request.pricingAgreement ? '✅ Pricing Set' : request.status === 'awaiting_pricing' ? '⚠️ Pricing Rejected - Set New Price' : '⚠️ Pricing Required'}
                   </h3>
                   {request.pricingAgreement ? (
                     <div className="text-sm text-gray-700">
@@ -189,7 +192,9 @@ export function DesignerWorkModal({ request, onClose, onSubmit, onSetPricing }: 
                     </div>
                   ) : (
                     <p className="text-sm text-gray-700">
-                      You must set your design fee before customer can proceed
+                      {request.status === 'awaiting_pricing' 
+                        ? 'Customer rejected previous pricing. Please set a new pricing proposal.'
+                        : 'You must set your design fee before customer can proceed'}
                     </p>
                   )}
                 </div>
@@ -198,7 +203,7 @@ export function DesignerWorkModal({ request, onClose, onSubmit, onSetPricing }: 
                     onClick={onSetPricing}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                   >
-                    Set Pricing
+                    {request.status === 'awaiting_pricing' ? 'Set New Price' : 'Set Pricing'}
                   </button>
                 )}
               </div>
@@ -258,6 +263,21 @@ export function DesignerWorkModal({ request, onClose, onSubmit, onSetPricing }: 
               />
             </div>
           </div>
+
+          {/* Pricing Reminder (Info only, not blocking) */}
+          {request.status === 'in_progress' && !request.pricingAgreement && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <div className="flex-1">
+                  <h4 className="font-semibold text-blue-800 mb-1">💡 Tip: Set Pricing</h4>
+                  <p className="text-sm text-blue-700">
+                    You can set pricing before or after uploading the final design. 
+                    The customer will need to pay before they can view the design.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Final Design File Upload */}

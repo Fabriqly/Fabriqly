@@ -50,7 +50,7 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
     isPublic: true,
     pricing: {
       isFree: true,
-      currency: 'USD'
+      currency: 'PHP'
     }
   });
 
@@ -71,7 +71,7 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
         fileFormat: design.fileFormat,
         tags: design.tags,
         isPublic: design.isPublic,
-        pricing: design.pricing || { isFree: true, currency: 'USD' }
+        pricing: design.pricing || { isFree: true, currency: 'PHP' }
       });
     }
   }, [design]);
@@ -128,8 +128,17 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
       
       const result = await response.json();
       
+      console.log(`Upload response for ${type}:`, result);
+      
       if (!response.ok) {
-        throw new Error(result.error || 'Upload failed');
+        // Handle error response format
+        const errorMessage = result.error?.message || result.error || 'Upload failed';
+        throw new Error(errorMessage);
+      }
+      
+      // Check if result has data property (ResponseBuilder format)
+      if (!result.data) {
+        throw new Error('Invalid response format from server');
       }
       
       console.log(`Upload result for ${type}:`, result.data);
@@ -145,7 +154,8 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
       console.log(`${type} uploaded successfully:`, result.data.url);
     } catch (error: any) {
       console.error(`Error uploading ${type}:`, error);
-      alert(`Failed to upload ${type}: ${error.message}`);
+      const errorMessage = error.message || 'Upload failed. Please try again.';
+      alert(`Failed to upload ${type}: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -361,6 +371,13 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                           src={formData.designFileUrl} 
                           alt="Design preview" 
                           className="mt-2 max-w-full h-32 object-contain border rounded"
+                          onError={(e) => {
+                            console.error('Design image failed to load:', formData.designFileUrl);
+                            e.currentTarget.style.display = 'none';
+                          }}
+                          onLoad={() => {
+                            console.log('Design image loaded successfully:', formData.designFileUrl);
+                          }}
                         />
                       )}
                     </div>
@@ -402,6 +419,13 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                         src={formData.thumbnailUrl} 
                         alt="Thumbnail preview" 
                         className="mt-2 max-w-full h-32 object-contain border rounded"
+                        onError={(e) => {
+                          console.error('Thumbnail image failed to load:', formData.thumbnailUrl);
+                          e.currentTarget.style.display = 'none';
+                        }}
+                        onLoad={() => {
+                          console.log('Thumbnail image loaded successfully:', formData.thumbnailUrl);
+                        }}
                       />
                     </div>
                   )}
@@ -442,6 +466,18 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                         src={formData.previewUrl} 
                         alt="Preview" 
                         className="mt-2 max-w-full h-32 object-contain border rounded"
+                        onError={(e) => {
+                          console.error('Preview image failed to load:', formData.previewUrl);
+                          console.error('This might be because the image is in a private bucket');
+                          // Don't hide, show error message instead
+                          const errorDiv = document.createElement('div');
+                          errorDiv.className = 'text-xs text-red-600 mt-2';
+                          errorDiv.textContent = '⚠️ Image cannot be displayed (may be in private bucket)';
+                          e.currentTarget.parentElement?.appendChild(errorDiv);
+                        }}
+                        onLoad={() => {
+                          console.log('Preview image loaded successfully:', formData.previewUrl);
+                        }}
                       />
                     </div>
                   )}
@@ -495,10 +531,11 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                       Currency
                     </label>
                     <select
-                      value={formData.pricing?.currency || 'USD'}
+                      value={formData.pricing?.currency || 'PHP'}
                       onChange={(e) => handlePricingChange('currency', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
+                      <option value="PHP">PHP</option>
                       <option value="USD">USD</option>
                       <option value="EUR">EUR</option>
                       <option value="GBP">GBP</option>

@@ -35,10 +35,13 @@ export async function GET(
     }
 
     return NextResponse.json({ design });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching design:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: error.message || 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

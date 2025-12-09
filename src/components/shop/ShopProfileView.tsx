@@ -2,7 +2,31 @@
 
 import { ShopProfile } from '@/types/shop-profile';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Dialog } from '@headlessui/react';
+import { ShopReviewSection } from '@/components/reviews/ShopReviewSection';
+import { ProductCard } from '@/components/products/ProductCard';
+import { Product } from '@/types/products';
+import { 
+  MapPin, 
+  Phone, 
+  Mail, 
+  Star, 
+  MessageCircle, 
+  Globe, 
+  Facebook, 
+  Instagram, 
+  Twitter,
+  Clock,
+  Package,
+  CheckCircle2,
+  Store,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  X,
+  Check
+} from 'lucide-react';
 
 interface ShopProfileViewProps {
   shop: ShopProfile;
@@ -11,316 +35,1176 @@ interface ShopProfileViewProps {
 }
 
 export default function ShopProfileView({ shop, showEditButton = false, onEdit }: ShopProfileViewProps) {
-  const [imageError, setImageError] = useState(false);
+  const [activeTab, setActiveTab] = useState<'about' | 'products' | 'contacts' | 'reviews'>('about');
+  const [actualRatings, setActualRatings] = useState({
+    averageRating: shop.ratings?.averageRating || 0,
+    totalReviews: shop.ratings?.totalReviews || 0
+  });
+  const [products, setProducts] = useState<(Product & { category?: any; images?: any[] })[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [productTags, setProductTags] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const itemsPerPage = 9;
 
-  const getBusinessTypeLabel = (type: string) => {
-    switch (type) {
-      case 'individual':
-        return 'Individual';
-      case 'msme':
-        return 'MSME';
-      case 'printing_partner':
-        return 'Printing Partner';
-      default:
-        return type;
+  useEffect(() => {
+    // Fetch actual review data
+    const fetchRatings = async () => {
+      try {
+        const response = await fetch(`/api/reviews/average?type=shop&targetId=${shop.id}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setActualRatings({
+            averageRating: data.data.average || 0,
+            totalReviews: data.data.total || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching ratings:', error);
+      }
+    };
+
+    if (shop.id) {
+      fetchRatings();
+      fetchProducts();
+    }
+  }, [shop.id]);
+
+  const fetchProducts = async () => {
+    try {
+      setLoadingProducts(true);
+      const response = await fetch(`/api/products?shopId=${shop.id}&status=active&limit=50`);
+      const data = await response.json();
+      
+      if (data.success && data.data?.products) {
+        const fetchedProducts = data.data.products.map((product: any) => {
+          // Ensure images array is properly formatted
+          if (!product.images || product.images.length === 0) {
+            // If no images array but has primaryImageUrl, create images array
+            if (product.primaryImageUrl) {
+              product.images = [{
+                imageUrl: product.primaryImageUrl,
+                isPrimary: true,
+                altText: product.name
+              }];
+            } else if (product.imageUrl) {
+              // Fallback for imageUrl field
+              product.images = [{
+                imageUrl: product.imageUrl,
+                isPrimary: true,
+                altText: product.name
+              }];
+            } else {
+              product.images = [];
+            }
+          } else {
+            // Ensure images have required properties
+            product.images = product.images.map((img: any) => ({
+              ...img,
+              imageUrl: img.imageUrl || img.url,
+              isPrimary: img.isPrimary !== undefined ? img.isPrimary : false,
+              altText: img.altText || product.name
+            }));
+          }
+          
+          return product;
+        });
+        
+        setProducts(fetchedProducts);
+        
+        // Extract unique tags from all products
+        const allTags = new Set<string>();
+        fetchedProducts.forEach((product: any) => {
+          if (product.tags && Array.isArray(product.tags)) {
+            product.tags.forEach((tag: string) => {
+              if (tag && tag.trim()) {
+                allTags.add(tag.trim());
+              }
+            });
+          }
+        });
+        setProductTags(Array.from(allTags).sort());
+      } else {
+        // Generate mock products based on specialties
+        generateMockProducts();
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      generateMockProducts();
+    } finally {
+      setLoadingProducts(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
-      pending: { label: 'Pending Approval', className: 'bg-yellow-100 text-yellow-800' },
-      rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
-      suspended: { label: 'Suspended', className: 'bg-gray-100 text-gray-800' },
-    };
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
-    return (
-      <span className={`px-3 py-1 rounded-full text-sm font-medium ${config.className}`}>
-        {config.label}
-      </span>
-    );
+  const generateMockProducts = () => {
+    const mockProducts: any[] = [];
+    const specialties = shop.specialties || ['Screen Printing', 'Heat Transfer', 'Vinyl Printing'];
+    
+    const productTemplates = [
+      { name: 'Custom T-Shirt', basePrice: 599, tags: ['Screen Printing', 'Heat Transfer'] },
+      { name: 'Printed Mug', basePrice: 299, tags: ['Screen Printing', 'Heat Transfer'] },
+      { name: 'Vinyl Stickers', basePrice: 199, tags: ['Vinyl Printing'] },
+      { name: 'Custom Hoodie', basePrice: 1299, tags: ['Screen Printing', 'Heat Transfer'] },
+      { name: 'Tote Bag', basePrice: 399, tags: ['Screen Printing'] },
+      { name: 'Custom Cap', basePrice: 499, tags: ['Embroidery', 'Screen Printing'] }
+    ];
+
+    specialties.forEach((specialty, index) => {
+      const matchingProducts = productTemplates.filter(p => 
+        p.tags.some(t => specialty.toLowerCase().includes(t.toLowerCase()) || 
+        t.toLowerCase().includes(specialty.toLowerCase()))
+      );
+      
+      if (matchingProducts.length > 0) {
+        matchingProducts.slice(0, 2).forEach((template, i) => {
+          mockProducts.push({
+            id: `mock-${specialty}-${index}-${i}`,
+            name: template.name,
+            price: template.basePrice + (Math.random() * 200 - 100),
+            category: { categoryName: specialty },
+            tags: template.tags,
+            status: 'active',
+            stockQuantity: 10,
+            images: [{
+              imageUrl: `https://via.placeholder.com/400?text=${encodeURIComponent(template.name)}`,
+              isPrimary: true,
+              altText: template.name
+            }]
+          });
+        });
+      } else {
+        // Default products if no match
+        mockProducts.push({
+          id: `mock-${specialty}-${index}`,
+          name: `Custom ${specialty} Product`,
+          price: 499 + (Math.random() * 500),
+          category: { categoryName: specialty },
+          tags: [specialty],
+          status: 'active',
+          stockQuantity: 10,
+          images: [{
+            imageUrl: `https://via.placeholder.com/400?text=${encodeURIComponent(`Custom ${specialty} Product`)}`,
+            isPrimary: true,
+            altText: `Custom ${specialty} Product`
+          }]
+        });
+      }
+    });
+
+    // Ensure at least 4 products
+    while (mockProducts.length < 4) {
+      mockProducts.push({
+        id: `mock-default-${mockProducts.length}`,
+        name: `Custom Product ${mockProducts.length + 1}`,
+        price: 399 + (Math.random() * 400),
+        category: { categoryName: specialties[0] || 'Custom' },
+        tags: [specialties[0] || 'Custom'],
+        status: 'active',
+        stockQuantity: 10,
+        images: [{
+          imageUrl: `https://via.placeholder.com/400?text=${encodeURIComponent(`Custom Product ${mockProducts.length + 1}`)}`,
+          isPrimary: true,
+          altText: `Custom Product ${mockProducts.length + 1}`
+        }]
+      });
+    }
+
+    const finalProducts = mockProducts.slice(0, 6);
+    setProducts(finalProducts);
+    
+    // Extract unique tags from mock products
+    const allTags = new Set<string>();
+    finalProducts.forEach((product: any) => {
+      if (product.tags && Array.isArray(product.tags)) {
+        product.tags.forEach((tag: string) => {
+          if (tag && tag.trim()) {
+            allTags.add(tag.trim());
+          }
+        });
+      }
+    });
+    setProductTags(Array.from(allTags).sort());
+  };
+
+  // Use product tags for categories, fallback to shop specialties if no products
+  const categories = productTags.length > 0 
+    ? ['all', ...productTags]
+    : ['all', ...(shop.specialties || [])];
+  
+  const filteredProducts = selectedCategory === 'all' 
+    ? products 
+    : products.filter((p: any) => 
+        p.tags && Array.isArray(p.tags) && p.tags.includes(selectedCategory)
+      );
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+
+  // Reset to page 1 when category changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
-      {/* Banner */}
-      {shop.branding?.bannerUrl && (
-        <div className="w-full h-64 bg-gray-200 rounded-lg overflow-hidden mb-6">
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero Banner Section */}
+      <div className="relative w-full h-48 md:h-64 lg:h-80 overflow-hidden bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-t-xl">
+        {shop.branding?.bannerUrl ? (
           <img
             src={shop.branding.bannerUrl}
             alt={`${shop.shopName} banner`}
             className="w-full h-full object-cover"
-            onError={() => setImageError(true)}
           />
-        </div>
-      )}
-
-      {/* Header Section */}
-      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-        <div className="flex items-start gap-6">
-          {/* Logo */}
-          {shop.branding?.logoUrl && !imageError && (
-            <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 flex-shrink-0">
-              <img
-                src={shop.branding.logoUrl}
-                alt={`${shop.shopName} logo`}
-                className="w-full h-full object-cover"
-                onError={() => setImageError(true)}
-              />
-            </div>
-          )}
-
-          <div className="flex-1">
-            <div className="flex items-start justify-between">
-              <div>
-                <h1 className="text-3xl font-bold mb-1">{shop.shopName}</h1>
-                <p className="text-gray-600 mb-2">@{shop.username}</p>
-                {shop.branding?.tagline && (
-                  <p className="text-lg text-gray-700 italic mb-3">&ldquo;{shop.branding.tagline}&rdquo;</p>
-                )}
-              </div>
-              
-              <div className="flex gap-2 items-center">
-                {getStatusBadge(shop.approvalStatus)}
-                {shop.isVerified && (
-                  <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Verified
-                  </span>
-                )}
-                {showEditButton && onEdit && (
-                  <button
-                    onClick={onEdit}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    Edit Profile
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="flex gap-6 mt-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold">{shop.shopStats.totalProducts}</div>
-                <div className="text-sm text-gray-600">Products</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">{shop.shopStats.totalOrders}</div>
-                <div className="text-sm text-gray-600">Orders</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">{shop.ratings.averageRating.toFixed(1)}</div>
-                <div className="text-sm text-gray-600">Rating</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">{shop.ratings.totalReviews}</div>
-                <div className="text-sm text-gray-600">Reviews</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Description */}
-      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-3">About the Shop</h2>
-        <p className="text-gray-700 whitespace-pre-line">{shop.description}</p>
-        
-        {shop.specialties && shop.specialties.length > 0 && (
-          <div className="mt-4">
-            <h3 className="text-sm font-semibold mb-2">Specialties</h3>
-            <div className="flex flex-wrap gap-2">
-              {shop.specialties.map((specialty, index) => (
-                <span
-                  key={index}
-                  className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm"
-                >
-                  {specialty}
-                </span>
-              ))}
-            </div>
-          </div>
+        ) : (
+          <div className="w-full h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
         )}
       </div>
 
-      {/* Business Details & Contact */}
-      <div className="grid md:grid-cols-2 gap-6 mb-6">
-        {/* Business Details */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-xl font-semibold mb-4">Business Details</h2>
-          <div className="space-y-3">
-            <div>
-              <span className="text-sm text-gray-600">Business Type:</span>
-              <p className="font-medium">{getBusinessTypeLabel(shop.businessDetails.businessType)}</p>
-            </div>
-            <div>
-              <span className="text-sm text-gray-600">Owner:</span>
-              <p className="font-medium">{shop.businessOwnerName}</p>
-            </div>
-            {shop.businessDetails.registeredBusinessId && (
-              <div>
-                <span className="text-sm text-gray-600">Business ID:</span>
-                <p className="font-medium">{shop.businessDetails.registeredBusinessId}</p>
+      {/* Shop Info Card - White Background */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-16 md:-mt-20 relative z-10">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-3 md:p-5">
+          {/* Mobile View - Compact Layout */}
+          <div className="lg:hidden">
+            <div className="flex items-center gap-3 mb-3">
+              {/* Shop Avatar */}
+              <div className="flex-shrink-0">
+                <div className="relative inline-block">
+                  <div className="w-16 h-16 rounded-full border-2 border-white bg-white shadow-md overflow-hidden">
+                    {shop.branding?.logoUrl ? (
+                      <img
+                        src={shop.branding.logoUrl}
+                        alt={`${shop.shopName} logo`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-lg font-bold">
+                        {shop.shopName?.charAt(0) || 'S'}
+                      </div>
+                    )}
+                  </div>
+                  {shop.isVerified && (
+                    <div className="absolute -bottom-0.5 -right-0.5 bg-blue-500 rounded-full p-1 border-2 border-white shadow-sm">
+                      <CheckCircle2 className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Contact Information */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-xl font-semibold mb-4">Contact Information</h2>
-          <div className="space-y-3">
-            <div>
-              <span className="text-sm text-gray-600">Email:</span>
-              <p className="font-medium">{shop.contactInfo.email}</p>
-            </div>
-            {shop.contactInfo.phone && (
-              <div>
-                <span className="text-sm text-gray-600">Phone:</span>
-                <p className="font-medium">{shop.contactInfo.phone}</p>
-              </div>
-            )}
-            {shop.location && (shop.location.city || shop.location.province) && (
-              <div>
-                <span className="text-sm text-gray-600">Location:</span>
-                <p className="font-medium">
-                  {[shop.location.city, shop.location.province].filter(Boolean).join(', ')}
+              {/* Shop Name and Handle */}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg font-bold text-gray-900 truncate">
+                  {shop.shopName}
+                </h1>
+                <p className="text-xs text-gray-600 truncate">
+                  @{shop.username}
                 </p>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
+            </div>
 
-      {/* Customization Policy */}
-      {shop.customizationPolicy && (
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Customization Policy</h2>
-          <div className="space-y-3">
-            {shop.customizationPolicy.turnaroundTime && (
-              <div>
-                <span className="text-sm text-gray-600">Turnaround Time:</span>
-                <p className="font-medium">{shop.customizationPolicy.turnaroundTime}</p>
-              </div>
+            {/* Tagline */}
+            {shop.branding?.tagline && (
+              <p className="text-xs text-gray-700 italic mb-3 px-1">
+                &ldquo;{shop.branding.tagline}&rdquo;
+              </p>
             )}
-            {shop.customizationPolicy.revisionsAllowed !== undefined && (
-              <div>
-                <span className="text-sm text-gray-600">Revisions Allowed:</span>
-                <p className="font-medium">{shop.customizationPolicy.revisionsAllowed}</p>
-              </div>
-            )}
-            {shop.customizationPolicy.rushOrderAvailable && (
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="font-medium">Rush orders available</span>
-              </div>
-            )}
-            {shop.customizationPolicy.customInstructions && (
-              <div>
-                <span className="text-sm text-gray-600">Custom Instructions:</span>
-                <p className="mt-1 text-gray-700">{shop.customizationPolicy.customInstructions}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* Products Section */}
-      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Products</h2>
-          {shop.approvalStatus === 'approved' && (
-            <Link
-              href={`/shops/${shop.username}/products`}
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              View All Products →
-            </Link>
-          )}
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-3xl font-bold text-gray-900">{shop.shopStats.totalProducts}</p>
-            <p className="text-sm text-gray-600">Products Available</p>
-          </div>
-          {shop.approvalStatus === 'approved' && shop.shopStats.totalProducts > 0 && (
-            <Link href={`/shops/${shop.username}/products`}>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                Browse Products
+            {/* Stats Row - Clickable */}
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={() => {
+                  setActiveTab('reviews');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer flex-1"
+              >
+                <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                <span className="font-semibold text-gray-900 text-sm">{actualRatings.averageRating.toFixed(1)}</span>
+                <span className="text-xs text-gray-600">({actualRatings.totalReviews})</span>
               </button>
-            </Link>
-          )}
+              <button
+                onClick={() => {
+                  setActiveTab('products');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer flex-1"
+              >
+                <Package className="w-3.5 h-3.5 text-gray-600" />
+                <span className="font-semibold text-gray-900 text-sm">{shop.shopStats?.totalProducts || 0}</span>
+                <span className="text-xs text-gray-600">Products</span>
+              </button>
+              <button className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors border border-gray-200 flex items-center gap-1.5 text-xs">
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Message</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop View - Original Layout */}
+          <div className="hidden lg:flex flex-col md:flex-row gap-4">
+            {/* Shop Avatar */}
+            <div className="flex-shrink-0">
+              <div className="relative inline-block">
+                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white bg-white shadow-xl overflow-hidden">
+                  {shop.branding?.logoUrl ? (
+                    <img
+                      src={shop.branding.logoUrl}
+                      alt={`${shop.shopName} logo`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xl md:text-2xl font-bold">
+                      {shop.shopName?.charAt(0) || 'S'}
+                    </div>
+                  )}
+                </div>
+                {shop.isVerified && (
+                  <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1.5 border-4 border-white shadow-md">
+                    <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Shop Information */}
+            <div className="flex-1 min-w-0">
+              <div className="mb-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">
+                    {shop.shopName}
+                  </h1>
+                </div>
+                <p className="text-xs md:text-sm text-gray-600 mb-1.5">
+                  @{shop.username}
+                </p>
+                {shop.branding?.tagline && (
+                  <p className="text-xs md:text-sm text-gray-700 italic mb-3">
+                    &ldquo;{shop.branding.tagline}&rdquo;
+                  </p>
+                )}
+              </div>
+              
+              {/* Stats and Message Button */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                    <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                    <span className="font-semibold text-gray-900">{actualRatings.averageRating.toFixed(1)}</span>
+                    <span className="text-sm text-gray-600">({actualRatings.totalReviews})</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                    <Package className="w-4 h-4 text-gray-600" />
+                    <span className="font-semibold text-gray-900">{shop.shopStats?.totalProducts || 0}</span>
+                    <span className="text-sm text-gray-600">Products</span>
+                  </div>
+                </div>
+                <button className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition-colors border border-gray-200 flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4" />
+                  Message
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Social Media & Links */}
-      {(shop.socialMedia || shop.website) && (
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-xl font-semibold mb-4">Connect With Us</h2>
-          <div className="flex flex-wrap gap-3">
-            {shop.website && (
-              <Link
-                href={shop.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
-                </svg>
-                Website
-              </Link>
-            )}
-            {shop.socialMedia?.facebook && (
-              <Link
-                href={shop.socialMedia.facebook}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
-              >
-                Facebook
-              </Link>
-            )}
-            {shop.socialMedia?.instagram && (
-              <Link
-                href={shop.socialMedia.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-md"
-              >
-                Instagram
-              </Link>
-            )}
-            {shop.socialMedia?.tiktok && (
-              <Link
-                href={shop.socialMedia.tiktok}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-black hover:bg-gray-800 text-white rounded-md"
-              >
-                TikTok
-              </Link>
-            )}
-            {shop.socialMedia?.twitter && (
-              <Link
-                href={shop.socialMedia.twitter}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-blue-400 hover:bg-blue-500 text-white rounded-md"
-              >
-                Twitter
-              </Link>
-            )}
+      {/* Tabs - Mobile View Only */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 lg:hidden mt-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('about')}
+              className={`flex-1 px-2 py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 ${
+                activeTab === 'about'
+                  ? 'border-blue-600 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              About
+            </button>
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`flex-1 px-2 py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 ${
+                activeTab === 'products'
+                  ? 'border-blue-600 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Products
+            </button>
+            <button
+              onClick={() => setActiveTab('contacts')}
+              className={`flex-1 px-2 py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 ${
+                activeTab === 'contacts'
+                  ? 'border-blue-600 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Contacts
+            </button>
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`flex-1 px-2 py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 ${
+                activeTab === 'reviews'
+                  ? 'border-blue-600 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Reviews
+            </button>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Main Content - Split Layout */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        {/* Mobile View - Tab Content */}
+        <div className="lg:hidden">
+          {activeTab === 'about' && (
+            <div className="space-y-4">
+              {/* About Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <Store className="w-4 h-4 text-blue-600" />
+                  About the Shop
+                </h2>
+                <p className="text-gray-700 leading-relaxed mb-3 whitespace-pre-line">
+                  {shop.description || 'No description available.'}
+                </p>
+                
+                {shop.specialties && shop.specialties.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-1.5">Specialties</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {shop.specialties.map((specialty, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100"
+                        >
+                          {specialty}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Business Details Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h2 className="text-lg font-bold text-gray-900 mb-3">Business Details</h2>
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-sm text-gray-600">Business Type</span>
+                    <p className="font-medium text-gray-900 capitalize">
+                      {shop.businessDetails.businessType.replace('_', ' ')}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-600">Owner</span>
+                    <p className="font-medium text-gray-900">{shop.businessOwnerName}</p>
+                  </div>
+                  {shop.businessDetails.registeredBusinessId && (
+                    <div>
+                      <span className="text-sm text-gray-600">Business ID</span>
+                      <p className="font-medium text-gray-900">{shop.businessDetails.registeredBusinessId}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Customization Policy Card */}
+              {shop.customizationPolicy && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                  <h2 className="text-lg font-bold text-gray-900 mb-3">Customization Policy</h2>
+                  <div className="space-y-2">
+                    {shop.customizationPolicy.turnaroundTime && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-400" />
+                        <div>
+                          <span className="text-sm text-gray-600">Turnaround Time</span>
+                          <p className="font-medium text-gray-900">{shop.customizationPolicy.turnaroundTime}</p>
+                        </div>
+                      </div>
+                    )}
+                    {shop.customizationPolicy.revisionsAllowed !== undefined && (
+                      <div>
+                        <span className="text-sm text-gray-600">Revisions Allowed</span>
+                        <p className="font-medium text-gray-900">{shop.customizationPolicy.revisionsAllowed}</p>
+                      </div>
+                    )}
+                    {shop.customizationPolicy.rushOrderAvailable && (
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span className="text-sm font-medium">Rush orders available</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'products' && (
+            <div>
+              {/* Product Catalog Header */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-xl font-bold text-gray-900">Products</h2>
+                  <span className="text-sm text-gray-600">
+                    {filteredProducts.length > 0 
+                      ? totalPages > 1
+                        ? `Showing ${startIndex + 1}-${Math.min(endIndex, filteredProducts.length)} of ${filteredProducts.length} products`
+                        : `${filteredProducts.length} ${filteredProducts.length === 1 ? 'product' : 'products'}`
+                      : '0 products'}
+                  </span>
+                </div>
+
+                {/* Mobile Filter Button */}
+                <div className="lg:hidden mb-3">
+                  <button 
+                    onClick={() => setMobileFilterOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-gray-700 font-medium hover:bg-gray-50 w-full justify-center"
+                  >
+                    <Filter className="w-4 h-4" />
+                    Filter & Sort
+                  </button>
+                </div>
+
+                {/* Filter Tabs - Desktop Only */}
+                <div className="hidden lg:flex flex-wrap gap-2 overflow-x-auto pb-2">
+                  {categories.map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                        selectedCategory === category
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {category === 'all' ? 'All Products' : category}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Product Grid - 2 columns on mobile */}
+              {loadingProducts ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 animate-pulse">
+                      <div className="aspect-square bg-gray-200 rounded-lg mb-3"></div>
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-1.5"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+                  <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1.5">No Products Found</h3>
+                  <p className="text-gray-600">
+                    {selectedCategory === 'all' 
+                      ? 'This shop doesn\'t have any products yet.' 
+                      : `No products found in the "${selectedCategory}" category.`}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    {paginatedProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        variant="customer"
+                        showActions={false}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="mt-6 flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                          currentPage === 1
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                        }`}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                          if (
+                            page === 1 ||
+                            page === totalPages ||
+                            (page >= currentPage - 1 && page <= currentPage + 1)
+                          ) {
+                            return (
+                              <button
+                                key={page}
+                                onClick={() => handlePageChange(page)}
+                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-w-[40px] ${
+                                  currentPage === page
+                                    ? 'bg-blue-600 text-white shadow-md'
+                                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                                }`}
+                              >
+                                {page}
+                              </button>
+                            );
+                          } else if (page === currentPage - 2 || page === currentPage + 2) {
+                            return (
+                              <span key={page} className="px-2 text-gray-400">
+                                ...
+                              </span>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                          currentPage === totalPages
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                        }`}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Mobile Filter Drawer */}
+              <Dialog open={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)} className="relative z-50">
+              <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+              
+              <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
+                <Dialog.Panel className="w-screen max-w-md transform transition-transform">
+                  <div className="flex h-full flex-col bg-white shadow-xl">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                      <h2 className="text-lg font-semibold text-gray-900">Filter & Sort</h2>
+                      <button
+                        onClick={() => setMobileFilterOpen(false)}
+                        className="text-gray-400 hover:text-gray-500"
+                      >
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto px-6 py-4">
+                      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2 text-gray-900 font-semibold">
+                            <Filter className="w-4 h-4" />
+                            <h2>Categories</h2>
+                          </div>
+                          {selectedCategory !== 'all' && (
+                            <button 
+                              onClick={() => {
+                                setSelectedCategory('all');
+                                setMobileFilterOpen(false);
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                            >
+                              Clear
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-0.5 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                          {categories.map((category) => {
+                            const isSelected = selectedCategory === category;
+                            return (
+                              <button
+                                key={category}
+                                onClick={() => {
+                                  setSelectedCategory(category);
+                                  setMobileFilterOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between group ${
+                                  isSelected
+                                    ? 'bg-blue-50 text-blue-700 font-medium'
+                                    : 'text-gray-600 hover:bg-gray-50'
+                                }`}
+                              >
+                                <span className="truncate">{category === 'all' ? 'All Products' : category}</span>
+                                {isSelected && <Check className="w-3.5 h-3.5" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
+                      <button
+                        onClick={() => setMobileFilterOpen(false)}
+                        className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        Apply Filters
+                      </button>
+                    </div>
+                  </div>
+                </Dialog.Panel>
+              </div>
+            </Dialog>
+            </div>
+          )}
+
+          {activeTab === 'contacts' && (
+            <div className="space-y-4">
+              {/* Contact Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h2 className="text-lg font-bold text-gray-900 mb-3">Contact Information</h2>
+                <div className="space-y-2">
+                  <div className="flex gap-3">
+                    <div className="flex-shrink-0 pt-0.5">
+                      <Mail className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600 block">Email</span>
+                      <a href={`mailto:${shop.contactInfo.email}`} className="font-medium text-gray-900 hover:text-blue-600">
+                        {shop.contactInfo.email}
+                      </a>
+                    </div>
+                  </div>
+                  {shop.contactInfo.phone && (
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 pt-0.5">
+                        <Phone className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600 block">Phone</span>
+                        <a href={`tel:${shop.contactInfo.phone}`} className="font-medium text-gray-900 hover:text-blue-600">
+                          {shop.contactInfo.phone}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {shop.location && (shop.location.city || shop.location.province) && (
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 pt-0.5">
+                        <MapPin className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600 block">Location</span>
+                        <p className="font-medium text-gray-900">
+                          {[shop.location.city, shop.location.province].filter(Boolean).join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Social Media Card */}
+              {(shop.socialMedia || shop.website) && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                  <h2 className="text-lg font-bold text-gray-900 mb-3">Connect With Us</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {shop.website && (
+                      <a
+                        href={shop.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                      >
+                        <Globe className="w-4 h-4" />
+                        Website
+                      </a>
+                    )}
+                    {shop.socialMedia?.facebook && (
+                      <a
+                        href={shop.socialMedia.facebook}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                      >
+                        <Facebook className="w-4 h-4" />
+                        Facebook
+                      </a>
+                    )}
+                    {shop.socialMedia?.instagram && (
+                      <a
+                        href={shop.socialMedia.instagram}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                      >
+                        <Instagram className="w-4 h-4" />
+                        Instagram
+                      </a>
+                    )}
+                    {shop.socialMedia?.twitter && (
+                      <a
+                        href={shop.socialMedia.twitter}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-blue-400 hover:bg-blue-500 text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                      >
+                        <Twitter className="w-4 h-4" />
+                        Twitter
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'reviews' && (
+            <div>
+              <ShopReviewSection shop={shop} />
+            </div>
+          )}
+        </div>
+
+        {/* Desktop View - Split Layout */}
+        <div className="hidden lg:grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5">
+          {/* Left Sidebar - Shop Info (4 columns on desktop) */}
+          <aside className="lg:col-span-4 space-y-4">
+            {/* About Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <Store className="w-4 h-4 text-blue-600" />
+                About the Shop
+              </h2>
+              <p className="text-gray-700 leading-relaxed mb-3 whitespace-pre-line">
+                {shop.description || 'No description available.'}
+              </p>
+              
+              {shop.specialties && shop.specialties.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-1.5">Specialties</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {shop.specialties.map((specialty, index) => (
+                      <span
+                        key={index}
+                        className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100"
+                      >
+                        {specialty}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Business Details Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <h2 className="text-lg font-bold text-gray-900 mb-3">Business Details</h2>
+              <div className="space-y-2">
+                <div>
+                  <span className="text-sm text-gray-600">Business Type</span>
+                  <p className="font-medium text-gray-900 capitalize">
+                    {shop.businessDetails.businessType.replace('_', ' ')}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-600">Owner</span>
+                  <p className="font-medium text-gray-900">{shop.businessOwnerName}</p>
+                </div>
+                {shop.businessDetails.registeredBusinessId && (
+                  <div>
+                    <span className="text-sm text-gray-600">Business ID</span>
+                    <p className="font-medium text-gray-900">{shop.businessDetails.registeredBusinessId}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Contact Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <h2 className="text-lg font-bold text-gray-900 mb-3">Contact Information</h2>
+              <div className="space-y-2">
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 pt-0.5">
+                    <Mail className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-600 block">Email</span>
+                    <a href={`mailto:${shop.contactInfo.email}`} className="font-medium text-gray-900 hover:text-blue-600">
+                      {shop.contactInfo.email}
+                    </a>
+                  </div>
+                </div>
+                {shop.contactInfo.phone && (
+                  <div className="flex gap-3">
+                    <div className="flex-shrink-0 pt-0.5">
+                      <Phone className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600 block">Phone</span>
+                      <a href={`tel:${shop.contactInfo.phone}`} className="font-medium text-gray-900 hover:text-blue-600">
+                        {shop.contactInfo.phone}
+                      </a>
+                    </div>
+                  </div>
+                )}
+                {shop.location && (shop.location.city || shop.location.province) && (
+                  <div className="flex gap-3">
+                    <div className="flex-shrink-0 pt-0.5">
+                      <MapPin className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600 block">Location</span>
+                      <p className="font-medium text-gray-900">
+                        {[shop.location.city, shop.location.province].filter(Boolean).join(', ')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Customization Policy Card */}
+            {shop.customizationPolicy && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h2 className="text-lg font-bold text-gray-900 mb-3">Customization Policy</h2>
+                <div className="space-y-2">
+                  {shop.customizationPolicy.turnaroundTime && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-gray-400" />
+                      <div>
+                        <span className="text-sm text-gray-600">Turnaround Time</span>
+                        <p className="font-medium text-gray-900">{shop.customizationPolicy.turnaroundTime}</p>
+                      </div>
+                    </div>
+                  )}
+                  {shop.customizationPolicy.revisionsAllowed !== undefined && (
+                    <div>
+                      <span className="text-sm text-gray-600">Revisions Allowed</span>
+                      <p className="font-medium text-gray-900">{shop.customizationPolicy.revisionsAllowed}</p>
+                    </div>
+                  )}
+                  {shop.customizationPolicy.rushOrderAvailable && (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span className="text-sm font-medium">Rush orders available</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Social Media Card */}
+            {(shop.socialMedia || shop.website) && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h2 className="text-lg font-bold text-gray-900 mb-3">Connect With Us</h2>
+                <div className="flex flex-wrap gap-2">
+                  {shop.website && (
+                    <a
+                      href={shop.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                    >
+                      <Globe className="w-4 h-4" />
+                      Website
+                    </a>
+                  )}
+                  {shop.socialMedia?.facebook && (
+                    <a
+                      href={shop.socialMedia.facebook}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                    >
+                      <Facebook className="w-4 h-4" />
+                      Facebook
+                    </a>
+                  )}
+                  {shop.socialMedia?.instagram && (
+                    <a
+                      href={shop.socialMedia.instagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                    >
+                      <Instagram className="w-4 h-4" />
+                      Instagram
+                    </a>
+                  )}
+                  {shop.socialMedia?.twitter && (
+                    <a
+                      href={shop.socialMedia.twitter}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-blue-400 hover:bg-blue-500 text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                    >
+                      <Twitter className="w-4 h-4" />
+                      Twitter
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </aside>
+
+          {/* Right Main Content - Product Catalog (8 columns on desktop) */}
+          <main className="lg:col-span-8">
+            {/* Product Catalog Header */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xl font-bold text-gray-900">Products</h2>
+                <span className="text-sm text-gray-600">
+                  {filteredProducts.length > 0 
+                    ? totalPages > 1
+                      ? `Showing ${startIndex + 1}-${Math.min(endIndex, filteredProducts.length)} of ${filteredProducts.length} products`
+                      : `${filteredProducts.length} ${filteredProducts.length === 1 ? 'product' : 'products'}`
+                    : '0 products'}
+                </span>
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex flex-wrap gap-2 overflow-x-auto pb-2">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(category)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                      selectedCategory === category
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {category === 'all' ? 'All Products' : category}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Product Grid */}
+            {loadingProducts ? (
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 animate-pulse">
+                    <div className="aspect-square bg-gray-200 rounded-lg mb-3"></div>
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-1.5"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-1.5">No Products Found</h3>
+                <p className="text-gray-600">
+                  {selectedCategory === 'all' 
+                    ? 'This shop doesn\'t have any products yet.' 
+                    : `No products found in the "${selectedCategory}" category.`}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {paginatedProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      variant="customer"
+                      showActions={false}
+                    />
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="mt-6 flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                        currentPage === 1
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                      }`}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                        // Show first page, last page, current page, and pages around current
+                        if (
+                          page === 1 ||
+                          page === totalPages ||
+                          (page >= currentPage - 1 && page <= currentPage + 1)
+                        ) {
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => handlePageChange(page)}
+                              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-w-[40px] ${
+                                currentPage === page
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        } else if (page === currentPage - 2 || page === currentPage + 2) {
+                          return (
+                            <span key={page} className="px-2 text-gray-400">
+                              ...
+                            </span>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                        currentPage === totalPages
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                      }`}
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </main>
+        </div>
+
+        {/* Reviews Section - Desktop Only */}
+        <div className="hidden lg:block mt-4">
+          <ShopReviewSection shop={shop} />
+        </div>
+      </div>
     </div>
   );
 }
-
-

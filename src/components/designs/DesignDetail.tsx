@@ -4,6 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { DesignWithDetails } from '@/types/enhanced-products';
 import { Button } from '@/components/ui/Button';
+import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { RatingDisplay } from '@/components/reviews/RatingDisplay';
+import { Review } from '@/types/firebase';
 import { 
   Download, 
   Heart, 
@@ -17,8 +20,14 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
-  X
+  X,
+  ArrowLeft,
+  Image as ImageIcon,
+  MessageSquare
 } from 'lucide-react';
+import { DesignReviewSection } from '@/components/reviews/DesignReviewSection';
+import { useAuth } from '@/hooks/useAuth';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 
 interface DesignDetailProps {
   design: DesignWithDetails;
@@ -40,9 +49,116 @@ export function DesignDetail({
   onClose
 }: DesignDetailProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [showFullDescription, setShowFullDescription] = useState(false);
+  const [averageRating, setAverageRating] = useState(0);
+  const [totalReviews, setTotalReviews] = useState(0);
+  const [activeTab, setActiveTab] = useState<'details' | 'reviews'>('details');
+  const [reviews, setReviews] = useState<Review[]>([]);
+
+  // Helper function to extract storage path from Supabase URL
+  const extractStoragePath = (url: string): { path: string; bucket: string } | null => {
+    try {
+      // Supabase URL format: https://[project].supabase.co/storage/v1/object/public/[bucket]/[path]
+      // or: https://[project].supabase.co/storage/v1/object/sign/[bucket]/[path]?...
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/').filter(p => p); // Remove empty strings
+      
+      // Find the bucket index (usually after 'public' or 'sign')
+      const bucketIndex = pathParts.findIndex(part => part === 'public' || part === 'sign');
+      if (bucketIndex === -1 || bucketIndex + 1 >= pathParts.length) {
+        return null;
+      }
+      
+      const bucket = pathParts[bucketIndex + 1];
+      let path = pathParts.slice(bucketIndex + 2).join('/');
+      
+      // IMPORTANT: Do NOT remove "designs/" or "products/" prefix from path
+      // These are actual folder names in the bucket structure, not bucket name prefixes
+      // Files are uploaded with folder: "designs/{timestamp}" so the path is "designs/1765198037779/1765198037779.jpg"
+      // The Edge Function needs the full path including the "designs/" folder prefix
+      
+      // Only remove bucket name if it's actually a duplicate (shouldn't happen with current upload structure)
+      // e.g., if path is "designs-private/designs/..." and bucket is "designs-private", remove the duplicate
+      if (path.startsWith(bucket + '/')) {
+        path = path.substring(bucket.length + 1);
+        console.log(`Removed duplicate bucket prefix, new path: ${path}`);
+      }
+      
+      // Determine the actual bucket
+      // If it's a signed URL, it's definitely private
+      // If it's public URL, check if bucket name contains '-private'
+      const isSignedUrl = pathParts.includes('sign');
+      let actualBucket = bucket;
+      
+      // If it's a public URL but we want watermarking, try private bucket first
+      // But also allow fallback to public bucket
+      if (!isSignedUrl) {
+        // For designs, try private bucket first, but we'll fallback in WatermarkedImage
+        if (bucket === 'designs' || bucket === 'products') {
+          actualBucket = bucket + '-private';
+        } else {
+          actualBucket = bucket;
+        }
+      }
+      
+      return { path, bucket: actualBucket };
+    } catch (e) {
+      console.error('Error extracting storage path:', e);
+      return null;
+    }
+  };
+
+  // Convert image URLs to storage info for WatermarkedImage
+  const getImageStorageInfo = (url: string | undefined) => {
+    if (!url) return null;
+    
+    // Try to extract path from URL
+    const storageInfo = extractStoragePath(url);
+    if (storageInfo) {
+      // Ensure path includes "designs/" prefix if it's missing
+      // Some older files might be stored without the prefix
+      let finalPath = storageInfo.path;
+      if (storageInfo.bucket === 'designs-private' || storageInfo.bucket === 'designs') {
+        // If path doesn't start with "designs/" and looks like a timestamp path, add it
+        if (!finalPath.startsWith('designs/') && /^\d+\//.test(finalPath)) {
+          finalPath = `designs/${finalPath}`;
+          console.log(`[DesignDetail] Added designs/ prefix: ${storageInfo.path} -> ${finalPath}`);
+        }
+      }
+      
+      console.log(`[DesignDetail] Storage info: bucket=${storageInfo.bucket}, path=${finalPath}, originalUrl=${url.substring(0, 100)}...`);
+      
+      return {
+        ...storageInfo,
+        path: finalPath
+      };
+    }
+    
+    // If we can't extract, assume it's in designs-private bucket
+    // Extract filename from URL
+    try {
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/');
+      const fileName = pathParts[pathParts.length - 1];
+      if (fileName) {
+        // Try to find the folder structure from the URL
+        const folderIndex = pathParts.findIndex(part => part === 'designs');
+        if (folderIndex !== -1 && folderIndex + 1 < pathParts.length) {
+          const folder = pathParts.slice(folderIndex + 1, -1).join('/');
+          return {
+            path: folder ? `${folder}/${fileName}` : fileName,
+            bucket: 'designs-private' // Default to private bucket
+          };
+        }
+      }
+    } catch (e) {
+      // URL parsing failed
+    }
+    
+    return null;
+  };
 
   const images = [
     design.thumbnailUrl,
@@ -50,10 +166,44 @@ export function DesignDetail({
     design.designFileUrl
   ].filter(Boolean);
 
+  useEffect(() => {
+    loadRatingStats();
+    loadReviews();
+  }, [design.id]);
+
+  const loadRatingStats = async () => {
+    try {
+      const response = await fetch(`/api/reviews/average?type=design&targetId=${design.id}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setAverageRating(data.data.average || 0);
+        setTotalReviews(data.data.total || 0);
+      }
+    } catch (error) {
+      console.error('Error loading rating stats:', error);
+    }
+  };
+
+  const loadReviews = async () => {
+    try {
+      const response = await fetch(`/api/reviews?designId=${design.id}&reviewType=design`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setReviews(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+    }
+  };
+
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-PH', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'PHP',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(price);
   };
 
@@ -115,141 +265,239 @@ export function DesignDetail({
     setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
-  return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          {showNavigation && (
-            <Button
-              variant="outline"
-              onClick={() => router.back()}
-              className="flex items-center space-x-2"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span>Back</span>
-            </Button>
-          )}
-          <h1 className="text-2xl font-bold text-gray-900">{design.designName}</h1>
-        </div>
+  // Get breadcrumb information
+  const getBreadcrumbInfo = () => {
+    if (typeof window === 'undefined') {
+      return { label: 'Designs', path: '/explore/designs' };
+    }
+
+    const referrer = sessionStorage.getItem(`design_${design.id}_referrer`);
+    const referrerLabel = sessionStorage.getItem(`design_${design.id}_referrerLabel`);
+    const referrerPath = sessionStorage.getItem(`design_${design.id}_referrerPath`);
+
+    if (referrer && referrerLabel && referrerPath) {
+      return { label: referrerLabel, path: referrerPath };
+    }
+
+    if (typeof document !== 'undefined' && document.referrer) {
+      try {
+        const referrerUrl = new URL(document.referrer);
+        const referrerPathname = referrerUrl.pathname;
         
-        {onClose && (
+        if (referrerPathname.startsWith('/explore/designs')) {
+          return { label: 'Designs', path: '/explore/designs' };
+        } else if (referrerPathname.startsWith('/explore')) {
+          return { label: 'Explore', path: '/explore' };
+        }
+      } catch (e) {
+        // Invalid URL, use default
+      }
+    }
+
+    return { label: 'Designs', path: '/explore/designs' };
+  };
+
+  const breadcrumbInfo = getBreadcrumbInfo();
+  const currentImage = images[currentImageIndex];
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      {/* Customer Header */}
+      <CustomerHeader user={user} />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Back Button and Breadcrumb */}
+        <div className="mb-6">
           <Button
+            onClick={() => router.back()}
             variant="outline"
-            onClick={onClose}
-            className="flex items-center space-x-2"
+            className="mb-4 flex items-center space-x-2 text-sm"
           >
-            <X className="w-4 h-4" />
-            <span>Close</span>
+            <ArrowLeft className="w-4 h-4" />
+            <span>Go Back</span>
           </Button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Image Gallery */}
-        <div className="space-y-4">
-          <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden relative">
-            {images[currentImageIndex] ? (
-              <img
-                src={images[currentImageIndex]}
-                alt={design.designName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400">
-                <FileText className="w-16 h-16" />
-              </div>
-            )}
-
-            {/* Image Navigation */}
-            {images.length > 1 && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={prevImage}
-                  className="absolute left-2 top-1/2 transform -translate-y-1/2"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={nextImage}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </>
-            )}
-
-            {/* Badges */}
-            <div className="absolute top-4 left-4 flex flex-col space-y-2">
-              {design.isFeatured && (
-                <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full flex items-center">
-                  <Star className="w-3 h-3 mr-1 fill-current" />
-                  Featured
-                </span>
-              )}
-              {design.pricing?.isFree && (
-                <span className="bg-green-600 text-white text-xs px-2 py-1 rounded-full">
-                  Free
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Thumbnail Navigation */}
-          {images.length > 1 && (
-            <div className="flex space-x-2">
-              {images.map((image, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentImageIndex(index)}
-                  className={`w-16 h-16 rounded-lg overflow-hidden border-2 ${
-                    index === currentImageIndex
-                      ? 'border-blue-500'
-                      : 'border-gray-200'
-                  }`}
-                >
-                  <img
-                    src={image}
-                    alt={`${design.designName} ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
+          
+          <nav className="flex items-center space-x-2 text-sm">
+            <button 
+              onClick={() => router.push(breadcrumbInfo.path)}
+              className="text-slate-500 hover:text-indigo-600 transition-colors"
+            >
+              {breadcrumbInfo.label}
+            </button>
+            <span className="text-slate-400">/</span>
+            <span className="text-slate-900 font-medium">{design.designName}</span>
+          </nav>
         </div>
 
-        {/* Design Information */}
-        <div className="space-y-6">
-          {/* Basic Info */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">
-                {design.designName}
-              </h2>
-              {!design.pricing?.isFree && design.pricing?.price && (
-                <div className="text-2xl font-bold text-gray-900">
-                  {formatPrice(design.pricing.price)}
+        {/* Design Hero Section - 12 Column Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-12">
+          {/* Left Column - Images (Span 7) */}
+          <div className="lg:col-span-7 space-y-4">
+            {/* Main Image */}
+            <div className="aspect-[3/2] max-h-[400px] bg-white rounded-xl overflow-hidden relative border border-slate-200">
+              {currentImage ? (() => {
+                const storageInfo = getImageStorageInfo(currentImage);
+                if (storageInfo) {
+                  return (
+                    <WatermarkedImage
+                      storagePath={storageInfo.path}
+                      storageBucket={storageInfo.bucket}
+                      designId={design.id}
+                      alt={design.designName}
+                      className="w-full h-full object-contain"
+                      fallbackSrc={currentImage}
+                    />
+                  );
+                }
+                // Fallback to regular img if we can't extract storage info
+                return (
+                  <img
+                    src={currentImage}
+                    alt={design.designName}
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      console.error('Design image failed to load:', currentImage);
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                );
+              })() : (
+                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                  <ImageIcon className="w-24 h-24" />
                 </div>
               )}
+
+              {images.length > 1 && (
+                <>
+                  <button
+                    onClick={prevImage}
+                    className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 hover:bg-opacity-100 rounded-full p-2 shadow-lg border border-slate-200"
+                  >
+                    <ChevronLeft className="w-5 h-5 text-slate-700" />
+                  </button>
+                  <button
+                    onClick={nextImage}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 hover:bg-opacity-100 rounded-full p-2 shadow-lg border border-slate-200"
+                  >
+                    <ChevronRight className="w-5 h-5 text-slate-700" />
+                  </button>
+                </>
+              )}
+
+              {/* Badges */}
+              <div className="absolute top-4 left-4 flex flex-col space-y-2">
+                {design.isFeatured && (
+                  <span className="bg-yellow-500 text-white text-sm px-3 py-1 rounded-full flex items-center">
+                    <Star className="w-3 h-3 mr-1 fill-current" />
+                    Featured
+                  </span>
+                )}
+                {design.pricing?.isFree && (
+                  <span className="bg-green-600 text-white text-sm px-3 py-1 rounded-full">
+                    Free
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center space-x-4 text-sm text-gray-600 mb-4">
-              <div className="flex items-center space-x-1">
-                <User className="w-4 h-4" />
-                <span>by {design.designer.businessName}</span>
+            {/* Thumbnail Images */}
+            {images.length > 1 && (
+              <div className="flex flex-row gap-2 overflow-x-auto pb-2">
+                {images.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentImageIndex(index)}
+                    className={`w-20 h-20 rounded-lg overflow-hidden border-2 flex-shrink-0 ${
+                      index === currentImageIndex 
+                        ? 'border-indigo-600 ring-2 ring-indigo-200' 
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {(() => {
+                      const storageInfo = getImageStorageInfo(image);
+                      if (storageInfo) {
+                        return (
+                          <WatermarkedImage
+                            storagePath={storageInfo.path}
+                            storageBucket={storageInfo.bucket}
+                            designId={design.id}
+                            alt={`${design.designName} ${index + 1}`}
+                            className="w-full h-full object-cover"
+                            fallbackSrc={image}
+                          />
+                        );
+                      }
+                      return (
+                        <img
+                          src={image}
+                          alt={`${design.designName} ${index + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            console.error('Thumbnail image failed to load:', image);
+                          }}
+                        />
+                      );
+                    })()}
+                  </button>
+                ))}
               </div>
-              <div className="flex items-center space-x-1">
-                <Calendar className="w-4 h-4" />
-                <span>{formatDate(design.createdAt)}</span>
+            )}
+          </div>
+
+          {/* Right Column - Design Details (Span 5) */}
+          <div className="lg:col-span-5 space-y-6">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h1 className="text-2xl md:text-3xl font-bold text-slate-900">{design.designName}</h1>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleLike}
+                    className={`p-2 rounded-full transition-colors ${
+                      isLiked 
+                        ? 'text-red-600 bg-red-50' 
+                        : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                    }`}
+                  >
+                    <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+                  </button>
+                  <button
+                    onClick={handleShare}
+                    className="p-2 rounded-full text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                  >
+                    <Share2 className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4 mb-4">
+                <RatingDisplay 
+                  rating={averageRating} 
+                  totalReviews={totalReviews}
+                  size="md"
+                  showNumber={true}
+                  showTotal={true}
+                />
+                <span className="text-sm text-slate-600">Format: {design.fileFormat.toUpperCase()}</span>
+              </div>
+
+              <div className="mb-4">
+                {design.pricing?.isFree ? (
+                  <div className="text-3xl font-bold text-green-600">Free</div>
+                ) : design.pricing?.price ? (
+                  <div className="text-3xl font-bold text-slate-900">
+                    {formatPrice(design.pricing.price)}
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            <div className="flex items-center space-x-4 text-sm text-gray-600 mb-4">
+            {/* Description */}
+            <div>
+              <p className="text-sm text-slate-600 leading-relaxed">{design.description}</p>
+            </div>
+
+            {/* Stats */}
+            <div className="flex items-center space-x-6 text-sm text-slate-600">
               <div className="flex items-center space-x-1">
                 <Eye className="w-4 h-4" />
                 <span>{design.viewCount} views</span>
@@ -263,141 +511,151 @@ export function DesignDetail({
                 <span>{design.likesCount} likes</span>
               </div>
             </div>
-          </div>
 
-          {/* Description */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Description</h3>
-            <div className="text-gray-600">
-              {showFullDescription ? (
-                <p>{design.description}</p>
-              ) : (
-                <p>
-                  {design.description.length > 200
-                    ? `${design.description.substring(0, 200)}...`
-                    : design.description}
-                </p>
-              )}
-              {design.description.length > 200 && (
-                <button
-                  onClick={() => setShowFullDescription(!showFullDescription)}
-                  className="text-blue-600 hover:text-blue-700 text-sm mt-2"
-                >
-                  {showFullDescription ? 'Show less' : 'Show more'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Tags */}
-          {design.tags.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Tags</h3>
-              <div className="flex flex-wrap gap-2">
-                {design.tags.map((tag, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700"
-                  >
-                    <Tag className="w-3 h-3 mr-1" />
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Design Details */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Design Details</h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-600">Type:</span>
-                <span className="ml-2 font-medium capitalize">{design.designType}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Format:</span>
-                <span className="ml-2 font-medium uppercase">{design.fileFormat}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Category:</span>
-                <span className="ml-2 font-medium">{design.category.categoryName}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">Status:</span>
-                <span className="ml-2 font-medium">
-                  {design.isPublic ? 'Public' : 'Private'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex space-x-4">
-            <Button
-              onClick={handleDownload}
-              loading={loading}
-              className="flex-1 flex items-center justify-center space-x-2"
-            >
-              <Download className="w-4 h-4" />
-              <span>
+            {/* Actions */}
+            <div className="space-y-3">
+              <Button
+                onClick={handleDownload}
+                loading={loading}
+                disabled={loading}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                <Download className="w-4 h-4 mr-2" />
                 {design.pricing?.isFree ? 'Download Free' : 'Download'}
-              </span>
-            </Button>
-            
-            <Button
-              variant="outline"
-              onClick={handleLike}
-              className={`flex items-center space-x-2 ${
-                isLiked ? 'text-red-600 border-red-600' : ''
-              }`}
-            >
-              <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-              <span>{isLiked ? 'Liked' : 'Like'}</span>
-            </Button>
-            
-            <Button
-              variant="outline"
-              onClick={handleShare}
-              className="flex items-center space-x-2"
-            >
-              <Share2 className="w-4 h-4" />
-              <span>Share</span>
-            </Button>
+              </Button>
+            </div>
+
+            {/* Designer Info */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center">
+                    <User className="w-8 h-8 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">
+                      {design.designer.businessName}
+                    </h3>
+                    {design.designer.isVerified && (
+                      <span className="text-xs text-green-600 font-medium">Verified Designer</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {design.designer.bio && (
+                <p className="text-sm text-slate-600 mt-3">{design.designer.bio}</p>
+              )}
+              <div className="flex items-center space-x-4 mt-3 text-sm text-slate-600">
+                <span>{design.designer.portfolioStats.totalDesigns} designs</span>
+                <span>{design.designer.portfolioStats.totalDownloads} downloads</span>
+              </div>
+              {design.designer.website && (
+                <a
+                  href={design.designer.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-indigo-600 hover:text-indigo-700 text-sm mt-3"
+                >
+                  <ExternalLink className="w-3 h-3 mr-1" />
+                  Visit Website
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs System */}
+        <div className="mb-12">
+          {/* Tab Headers */}
+          <div className="border-b border-slate-200 mb-6">
+            <div className="flex space-x-8">
+              <button
+                onClick={() => setActiveTab('details')}
+                className={`pb-4 px-1 text-sm font-medium transition-colors border-b-2 ${
+                  activeTab === 'details'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300'
+                }`}
+              >
+                Design Details
+              </button>
+              <button
+                onClick={() => setActiveTab('reviews')}
+                className={`pb-4 px-1 text-sm font-medium transition-colors border-b-2 ${
+                  activeTab === 'reviews'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300'
+                }`}
+              >
+                Customer Reviews ({totalReviews})
+              </button>
+            </div>
           </div>
 
-          {/* Designer Info */}
-          <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">About the Designer</h3>
-            <div className="flex items-start space-x-4">
-              <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                <User className="w-6 h-6 text-gray-600" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-gray-900">{design.designer.businessName}</h4>
-                {design.designer.bio && (
-                  <p className="text-sm text-gray-600 mt-1">{design.designer.bio}</p>
-                )}
-                <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
-                  <span>{design.designer.portfolioStats.totalDesigns} designs</span>
-                  <span>{design.designer.portfolioStats.totalDownloads} downloads</span>
-                  {design.designer.isVerified && (
-                    <span className="text-green-600 font-medium">Verified</span>
+          {/* Tab Content */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            {activeTab === 'details' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Column - Details (2/3) */}
+                <div className="lg:col-span-2">
+                  <h3 className="text-lg font-bold border-l-4 border-indigo-600 pl-2 mb-4 text-slate-900">
+                    Design Information
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm font-medium text-slate-700">Type:</span>
+                      <span className="text-sm text-slate-600 capitalize">{design.designType}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm font-medium text-slate-700">Format:</span>
+                      <span className="text-sm text-slate-600 uppercase">{design.fileFormat}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm font-medium text-slate-700">Category:</span>
+                      <span className="text-sm text-slate-600">{design.category.categoryName}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm font-medium text-slate-700">Status:</span>
+                      <span className="text-sm text-slate-600">
+                        {design.isPublic ? 'Public' : 'Private'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-slate-100">
+                      <span className="text-sm font-medium text-slate-700">Created:</span>
+                      <span className="text-sm text-slate-600">{formatDate(design.createdAt)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column - Tags (1/3) */}
+                <div className="lg:col-span-1 space-y-6">
+                  {/* Tags Cloud */}
+                  {design.tags && design.tags.length > 0 && (
+                    <div>
+                      <h4 className="text-lg font-bold border-l-4 border-indigo-600 pl-2 mb-3 text-slate-900">
+                        Tags
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {design.tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-sm"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
-                {design.designer.website && (
-                  <a
-                    href={design.designer.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-blue-600 hover:text-blue-700 text-sm mt-2"
-                  >
-                    <ExternalLink className="w-3 h-3 mr-1" />
-                    Visit Website
-                  </a>
-                )}
               </div>
-            </div>
+            )}
+
+            {activeTab === 'reviews' && (
+              <div>
+                <DesignReviewSection design={design} />
+              </div>
+            )}
           </div>
         </div>
       </div>

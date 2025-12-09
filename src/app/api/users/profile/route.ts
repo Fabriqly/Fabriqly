@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Collections } from '@/services/firebase';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 import { ActivityService } from '@/services/ActivityService';
 import { ServiceContainer } from '@/container/ServiceContainer';
+import { unstable_cache } from 'next/cache';
+
+// Cache profile fetches in the Next.js data cache (shared across lambdas)
+const cachedGetProfile = unstable_cache(
+  async (userId: string) => {
+    return FirebaseAdminService.getDocument(Collections.USERS, userId);
+  },
+  ['user-profile-cache'],
+  {
+    revalidate: 300, // 5 minutes
+    tags: ['user-profile'],
+  }
+);
 
 // GET - Get user profile
 export async function GET(request: NextRequest) {
@@ -27,25 +38,60 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const userDocRef = doc(db, Collections.USERS, session.user.id);
-    const userDoc = await getDoc(userDocRef);
+    // If session already has the core fields, avoid Firestore entirely
+    const sessionProfile = {
+      id: session.user.id,
+      displayName: (session.user as any)?.displayName ?? session.user.name ?? '',
+      photoURL: (session.user as any)?.photoURL ?? (session.user as any)?.image ?? '',
+      role: (session.user as any)?.role ?? '',
+      email: session.user.email ?? '',
+    };
 
-    if (!userDoc.exists()) {
+    // If we have displayName and role, return early to save reads
+    if (sessionProfile.displayName || sessionProfile.photoURL || sessionProfile.role) {
+      console.log('✅ Using session-embedded profile, no Firestore read');
+      return NextResponse.json({
+        success: true,
+        data: sessionProfile,
+        fromCache: true,
+        source: 'session',
+      });
+    }
+
+    // Otherwise fetch from Firestore with caching
+    const userData = await cachedGetProfile(session.user.id);
+
+    if (!userData) {
       console.error('❌ User not found:', session.user.id);
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
-
-    const userData = userDoc.data();
     
     // Remove sensitive data
     const { password, ...profileData } = userData;
     
+    // Ensure profile object exists with at least empty firstName and lastName
+    if (!profileData.profile) {
+      profileData.profile = {
+        firstName: '',
+        lastName: ''
+      };
+    } else {
+      // Ensure firstName and lastName exist (even if empty)
+      profileData.profile = {
+        firstName: profileData.profile.firstName || '',
+        lastName: profileData.profile.lastName || '',
+        ...profileData.profile
+      };
+    }
+    
     console.log('✅ Profile fetched successfully:', {
       userId: session.user.id,
       hasProfile: !!profileData.profile,
+      firstName: profileData.profile.firstName,
+      lastName: profileData.profile.lastName,
       displayName: profileData.displayName
     });
 
@@ -99,7 +145,8 @@ export async function PUT(request: NextRequest) {
       lastName,
       phone,
       dateOfBirth,
-      address
+      address,
+      photoURL
     } = body;
 
     // Validate required fields
@@ -114,25 +161,22 @@ export async function PUT(request: NextRequest) {
     // Auto-generate displayName from firstName and lastName if not provided
     const finalDisplayName = displayName || `${firstName} ${lastName}`.trim();
 
-    const userDocRef = doc(db, Collections.USERS, session.user.id);
-    const userDoc = await getDoc(userDocRef);
+    const currentData = await FirebaseAdminService.getDocument(Collections.USERS, session.user.id);
 
-    if (!userDoc.exists()) {
+    if (!currentData) {
       console.error('❌ User not found in Firestore:', session.user.id);
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
-
-    const currentData = userDoc.data();
     console.log('📄 Current user data:', {
       hasProfile: !!currentData.profile,
       currentDisplayName: currentData.displayName
     });
 
     // Prepare update data with proper structure
-    const updateData = {
+    const updateData: any = {
       displayName: finalDisplayName,
       profile: {
         ...currentData.profile,
@@ -151,20 +195,24 @@ export async function PUT(request: NextRequest) {
       updatedAt: new Date().toISOString()
     };
 
+    // Update photoURL if provided
+    if (photoURL !== undefined) {
+      updateData.photoURL = photoURL;
+    }
+
     console.log('💾 Updating Firestore with data:', {
       displayName: updateData.displayName,
       profileKeys: Object.keys(updateData.profile),
       hasAddress: !!updateData.profile.address
     });
 
-    // Update in Firestore
-    await updateDoc(userDocRef, updateData);
+    // Update in Firestore using Admin SDK
+    await FirebaseAdminService.updateDocument(Collections.USERS, session.user.id, updateData);
     
     console.log('✅ Firestore update successful');
 
     // Verify the update
-    const updatedDoc = await getDoc(userDocRef);
-    const verifiedData = updatedDoc.data();
+    const verifiedData = await FirebaseAdminService.getDocument(Collections.USERS, session.user.id);
     console.log('🔍 Verified update:', {
       displayName: verifiedData?.displayName,
       firstName: verifiedData?.profile?.firstName,

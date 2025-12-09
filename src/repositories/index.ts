@@ -10,3 +10,6 @@ export { CartRepository } from './CartRepository';
 export { ActivityRepository } from './ActivityRepository';
 export { UserLikeRepository } from './UserLikeRepository';
 export { CustomizationRepository } from './CustomizationRepository';
+export { NotificationRepository } from './NotificationRepository';
+export { DiscountRepository } from './DiscountRepository';
+export { CouponRepository } from './CouponRepository';

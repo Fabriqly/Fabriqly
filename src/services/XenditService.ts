@@ -7,12 +7,15 @@ const xenditClient = new Xendit({
 });
 
 // Initialize Xendit services
-const { Invoice, PaymentRequest, PaymentMethod, Disbursement } = xenditClient;
+const { Invoice, PaymentRequest, PaymentMethod, Payout } = xenditClient;
+// Payout is the service for disbursements in Xendit SDK v7.0.0
+const Disbursement = Payout;
 
 console.log('Xendit services initialized:', {
   Invoice: !!Invoice,
   PaymentRequest: !!PaymentRequest,
   PaymentMethod: !!PaymentMethod,
+  Payout: !!Payout,
   Disbursement: !!Disbursement
 });
 
@@ -462,8 +465,8 @@ export class XenditService {
       {
         type: 'ewallet',
         name: 'E-Wallet',
-        description: 'Pay using digital wallets like OVO, DANA, GoPay',
-        supported_currencies: ['IDR'],
+        description: 'Pay using digital wallets like PayMaya or GCash',
+        supported_currencies: ['IDR', 'PHP'],
       },
       {
         type: 'retail_outlet',
@@ -492,20 +495,54 @@ export class XenditService {
         account_holder_name: data.accountHolderName
       });
 
-      console.log('Disbursement service available:', !!Disbursement);
+      // Check if Payout service is available (Payout = Disbursement in Xendit SDK v7.0.0)
+      if (!Payout) {
+        console.error('Payout service not found. Available xenditClient properties:', Object.keys(xenditClient));
+        throw AppError.badRequest(
+          'Payout service is not available in the Xendit SDK. Please check your xendit-node package version (current: 7.0.0).'
+        );
+      }
 
-      const disbursement = await Disbursement.createDisbursement({
-        data: {
-          externalId: data.externalId,
-          amount: data.amount,
-          bankCode: data.bankCode,
-          accountHolderName: data.accountHolderName,
-          accountNumber: data.accountNumber,
-          description: data.description,
-          emailTo: data.emailTo,
-          emailCc: data.emailCc,
-          emailBcc: data.emailBcc,
-        }
+      // Use Payout service similar to Invoice service
+      // In Xendit SDK v7.0.0, Payout is used like: Payout.createPayout({ data: {...} })
+      console.log('Payout service available, creating payout...');
+
+      // Follow the exact same pattern as Invoice.createInvoice
+      // Xendit requires idempotencyKey to prevent duplicate payouts
+      const idempotencyKey = data.externalId || `payout-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      
+      // Build payout data following Invoice pattern (camelCase for SDK)
+      const payoutData: any = {
+        externalId: data.externalId,
+        amount: data.amount,
+        bankCode: data.bankCode,
+        accountHolderName: data.accountHolderName,
+        accountNumber: data.accountNumber,
+        description: data.description,
+      };
+
+      // Add optional email fields if provided
+      if (data.emailTo && data.emailTo.length > 0) {
+        payoutData.emailTo = data.emailTo;
+      }
+      if (data.emailCc && data.emailCc.length > 0) {
+        payoutData.emailCc = data.emailCc;
+      }
+      if (data.emailBcc && data.emailBcc.length > 0) {
+        payoutData.emailBcc = data.emailBcc;
+      }
+
+      console.log('Creating payout with:', {
+        idempotencyKey,
+        payoutDataKeys: Object.keys(payoutData)
+      });
+
+      // Follow Invoice pattern exactly: Service.createMethod({ data: {...} })
+      // For Payout, idempotencyKey might be passed as a second parameter or in options
+      // Try the same structure as Invoice first
+      const disbursement = await (Payout as any).createPayout({
+        idempotencyKey: idempotencyKey,
+        data: payoutData
       });
 
       console.log('Disbursement created successfully:', disbursement.id);
@@ -544,10 +581,16 @@ export class XenditService {
    */
   async getDisbursement(disbursementId: string): Promise<DisbursementResult> {
     try {
-      console.log('Getting disbursement:', disbursementId);
+      // Check if Payout service is available
+      if (!Payout) {
+        throw AppError.badRequest('Payout service is not available in the Xendit SDK.');
+      }
 
-      const disbursement = await Disbursement.getDisbursementById({
-        disbursementId: disbursementId
+      console.log('Getting payout:', disbursementId);
+
+      // Use standard Xendit SDK pattern (same as Invoice.getInvoiceById)
+      const disbursement = await (Payout as any).getPayoutById({
+        id: disbursementId
       });
 
       return {

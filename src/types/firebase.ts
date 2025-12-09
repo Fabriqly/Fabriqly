@@ -84,6 +84,7 @@ export interface Order extends BaseDocument {
   businessOwnerId: string;
   items: OrderItem[];
   subtotal: number;
+  discountAmount?: number;
   tax: number;
   shippingCost: number;
   totalAmount: number;
@@ -97,6 +98,16 @@ export interface Order extends BaseDocument {
   estimatedDelivery?: Date;
   notes?: string;
   statusHistory?: OrderStatusHistory[];
+  appliedDiscounts?: Array<{
+    discountId: string;
+    couponCode?: string;
+    discountType: 'percentage' | 'fixed_amount';
+    discountValue: number;
+    discountAmount: number;
+    scope: 'product' | 'category' | 'order' | 'shipping';
+    targetIds?: string[];
+  }>;
+  appliedCouponCode?: string;
 }
 
 export interface OrderStatusHistory {
@@ -161,10 +172,21 @@ export interface ShopStats {
 }
 
 // Review types
+export interface ReviewReply {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorRole: 'shop_owner' | 'designer' | 'admin';
+  comment: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 export interface Review extends BaseDocument {
   productId?: string;
   shopId?: string;
   designerId?: string;
+  designId?: string;
   customizationRequestId?: string;
   customerId: string;
   customerName?: string;
@@ -172,7 +194,8 @@ export interface Review extends BaseDocument {
   comment: string;
   images?: string[];
   isVerified: boolean;
-  reviewType: 'product' | 'shop' | 'designer' | 'customization';
+  reviewType: 'product' | 'shop' | 'designer' | 'design' | 'customization';
+  reply?: ReviewReply;
 }
 
 // Message types

@@ -1,7 +1,7 @@
 import { Inter } from 'next/font/google';
 import { SessionProvider } from '@/components/auth/SessionProvider';
+import { FirebaseAuthProvider } from '@/components/auth/FirebaseAuthProvider';
 import { CartProvider } from '@/contexts/CartContext';
-import { CartSidebar } from '@/components/cart/CartSidebar';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -20,10 +20,11 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <SessionProvider>
-          <CartProvider>
-            {children}
-            <CartSidebar />
-          </CartProvider>
+          <FirebaseAuthProvider>
+            <CartProvider>
+              {children}
+            </CartProvider>
+          </FirebaseAuthProvider>
         </SessionProvider>
       </body>
     </html>

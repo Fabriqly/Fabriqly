@@ -34,7 +34,15 @@ export function cleanFirestoreData(data: any): any {
     } 
     // Handle arrays
     else if (Array.isArray(value)) {
-      const cleanedArray = value.filter(item => item !== undefined);
+      const cleanedArray = value
+        .filter(item => item !== undefined)
+        .map(item => {
+          // Recursively clean objects within arrays
+          if (item && typeof item === 'object' && !Array.isArray(item)) {
+            return cleanFirestoreData(item);
+          }
+          return item;
+        });
       if (cleanedArray.length > 0) {
         cleaned[key] = cleanedArray;
       }

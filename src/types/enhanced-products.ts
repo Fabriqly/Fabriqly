@@ -9,6 +9,8 @@ export interface DesignerProfile {
   businessName: string;
   userId: string; // Links to users collection
   bio?: string;
+  profileImageUrl?: string;
+  bannerUrl?: string;
   website?: string;
   socialMedia?: {
     instagram?: string;
@@ -100,7 +102,7 @@ export interface Design {
   previewUrl?: string;
   designType: 'template' | 'custom' | 'premium';
   fileFormat: 'svg' | 'png' | 'jpg' | 'pdf' | 'ai' | 'psd';
-  tags: string[];
+  tags?: string[]; // Optional - may not always be present
   isPublic: boolean;
   isFeatured: boolean;
   isActive: boolean;
@@ -293,6 +295,7 @@ export interface DesignFilters {
   sortOrder?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
+  cursor?: string; // ISO or timestamp string for cursor-based pagination
 }
 
 // Creation/Update DTOs
@@ -468,4 +471,3 @@ export interface ShopAppeal {
   createdAt: Date;
   updatedAt: Date;
 }
-```

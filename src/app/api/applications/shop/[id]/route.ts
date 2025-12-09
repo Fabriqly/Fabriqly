@@ -224,6 +224,22 @@ export async function PATCH(
       console.error('Error logging activity:', activityError);
     }
 
+    // Send approval email (non-blocking)
+    try {
+      const { EmailService } = await import('@/services/EmailService');
+      EmailService.sendApplicationApprovedEmail({
+        applicationId: id,
+        applicantName: application.userName || application.userEmail || 'there',
+        applicantEmail: application.userEmail,
+        applicationType: 'shop',
+        businessName: application.shopName,
+      }).catch((emailError) => {
+        console.error('Error sending application approved email:', emailError);
+      });
+    } catch (emailError) {
+      console.error('Error setting up application approved email:', emailError);
+    }
+
     return NextResponse.json({
       success: true,
         message: 'Shop application approved successfully and shop profile created'
@@ -267,6 +283,23 @@ export async function PATCH(
         });
       } catch (activityError) {
         console.error('Error logging activity:', activityError);
+      }
+
+      // Send rejection email (non-blocking)
+      try {
+        const { EmailService } = await import('@/services/EmailService');
+        EmailService.sendApplicationRejectedEmail({
+          applicationId: id,
+          applicantName: application.userName || application.userEmail || 'there',
+          applicantEmail: application.userEmail,
+          applicationType: 'shop',
+          businessName: application.shopName,
+          rejectionReason: rejectionReason || undefined,
+        }).catch((emailError) => {
+          console.error('Error sending application rejected email:', emailError);
+        });
+      } catch (emailError) {
+        console.error('Error setting up application rejected email:', emailError);
       }
 
       return NextResponse.json({

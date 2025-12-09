@@ -14,8 +14,12 @@ import {
   Palette,
   Briefcase,
   Store,
-  Settings
+  Settings,
+  Tag,
+  AlertTriangle,
+  LogOut
 } from 'lucide-react';
+import { signOut } from 'next-auth/react';
 
 const getNavigationItems = (userRole?: string | null) => {
   const baseItems = [
@@ -71,6 +75,12 @@ const getNavigationItems = (userRole?: string | null) => {
       icon: Settings,
       description: 'Manage shop customization orders'
     });
+    baseItems.push({
+      name: 'Promotions',
+      href: '/dashboard/promotions',
+      icon: Tag,
+      description: 'Manage discounts and coupons'
+    });
   }
 
   // Add remaining common items
@@ -80,6 +90,12 @@ const getNavigationItems = (userRole?: string | null) => {
       href: '/dashboard/orders',
       icon: ShoppingCart,
       description: 'View and manage orders'
+    },
+    {
+      name: 'Disputes',
+      href: '/dashboard/disputes',
+      icon: AlertTriangle,
+      description: 'View and manage disputes'
     },
     {
       name: 'Finance',
@@ -125,59 +141,75 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
     return false;
   };
 
+  const handleSignOut = () => {
+    // Redirect admins to login page, others to business login
+    const redirectUrl = user?.role === 'admin' ? '/login' : '/business/login';
+    signOut({ callbackUrl: redirectUrl });
+  };
+
+  // Listen for custom event to toggle sidebar from header
+  React.useEffect(() => {
+    const handleToggleSidebar = () => {
+      setSidebarOpen(prev => !prev);
+    };
+    
+    window.addEventListener('toggleDashboardSidebar', handleToggleSidebar);
+    return () => {
+      window.removeEventListener('toggleDashboardSidebar', handleToggleSidebar);
+    };
+  }, []);
+
   return (
     <>
-      {/* Mobile sidebar button */}
-      <div className="lg:hidden fixed top-24 left-4 z-40">
-        <button
-          type="button"
-          className="p-2 rounded-md bg-white shadow-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          onClick={() => setSidebarOpen(true)}
-        >
-          <Menu className="h-6 w-6" />
-        </button>
-      </div>
-
       {/* Mobile sidebar overlay */}
-      <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`} style={{ top: '80px' }}>
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
-        <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white shadow-xl">
-          <div className="absolute top-0 right-0 -mr-12 pt-2">
-            <button
-              type="button"
-              className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <X className="h-6 w-6 text-white" />
-            </button>
-          </div>
-          
-          <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
-            <nav className="px-2 space-y-1">
-              {navigationItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = isRouteActive(item.href);
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
-                      isActive
-                        ? 'bg-indigo-100 text-indigo-900'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <Icon className={`mr-3 h-5 w-5 ${isActive ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden" style={{ top: '80px' }}>
+          <div 
+            className="fixed inset-0 bg-gray-600 bg-opacity-75" 
+            onClick={() => setSidebarOpen(false)}
+            style={{ top: '80px' }}
+          />
+          <div 
+            className="fixed left-0 top-20 flex flex-col w-64 bg-white shadow-xl" 
+            style={{ height: 'calc(100vh - 80px)' }}
+          >
+            <div className="absolute top-0 right-0 -mr-12 pt-2 z-10">
+              <button
+                type="button"
+                className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <X className="h-6 w-6 text-white" />
+              </button>
+            </div>
+            
+            <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
+              <nav className="flex-1 px-2 space-y-1">
+                {navigationItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = isRouteActive(item.href);
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
+                        isActive
+                          ? 'bg-indigo-100 text-indigo-900'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
+                      onClick={() => setSidebarOpen(false)}
+                    >
+                      <Icon className={`mr-3 h-5 w-5 ${isActive ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
 
-          {/* User info at bottom of mobile sidebar */}
-          <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
+            {/* User Profile & Sign Out - Bottom Section (Mobile) */}
+            <div className="flex-shrink-0 flex flex-col border-t border-gray-200 p-4 space-y-3">
+            {/* User info */}
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <div className="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center">
@@ -186,19 +218,33 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
                   </span>
                 </div>
               </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-700">{user?.name || user?.email}</p>
+              <div className="ml-3 flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-700 truncate">{user?.name || user?.email}</p>
                 <p className="text-xs font-medium text-gray-500 capitalize">{user?.role || 'User'}</p>
               </div>
             </div>
+            
+            {/* Sign Out button */}
+            <button
+              onClick={() => {
+                handleSignOut();
+                setSidebarOpen(false);
+              }}
+              className="w-full inline-flex items-center justify-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </button>
           </div>
         </div>
       </div>
+      )}
 
       {/* Desktop sidebar */}
       <div className="hidden lg:flex lg:flex-shrink-0">
-        <div className="flex flex-col w-64">
+        <div className="fixed left-0 top-20 flex flex-col w-64" style={{ height: 'calc(100vh - 80px)' }}>
           <div className="flex flex-col h-full border-r border-gray-200 bg-white shadow-sm">
+            {/* Navigation Links - Top Section */}
             <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
               <nav className="flex-1 px-2 space-y-1">
                 {navigationItems.map((item) => {
@@ -223,8 +269,9 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
               </nav>
             </div>
 
-            {/* User info at bottom of desktop sidebar */}
-            <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
+            {/* User Profile & Sign Out - Bottom Section */}
+            <div className="flex-shrink-0 flex flex-col border-t border-gray-200 p-4 space-y-3">
+              {/* User info */}
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <div className="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center">
@@ -233,11 +280,20 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
                     </span>
                   </div>
                 </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-700">{user?.name || user?.email}</p>
+                <div className="ml-3 flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-700 truncate">{user?.name || user?.email}</p>
                   <p className="text-xs font-medium text-gray-500 capitalize">{user?.role || 'User'}</p>
                 </div>
               </div>
+              
+              {/* Sign Out button */}
+              <button
+                onClick={handleSignOut}
+                className="w-full inline-flex items-center justify-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </button>
             </div>
           </div>
         </div>

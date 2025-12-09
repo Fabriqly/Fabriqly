@@ -6,9 +6,9 @@ import { Collections } from '@/services/firebase';
 import { DesignerProfile, UpdateDesignerProfileData } from '@/types/enhanced-products';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // GET /api/designer-profiles/[id] - Get designer profile

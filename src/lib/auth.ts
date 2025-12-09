@@ -10,6 +10,12 @@ import { UserRole } from '@/types/next-auth';
 import { AuthErrorHandler, AuthErrorCode } from './auth-errors';
 import { FirebaseAdminService } from '@/services/firebase-admin';
 
+// Validate NEXTAUTH_URL on import
+if (!process.env.NEXTAUTH_URL) {
+  console.error('❌ NEXTAUTH_URL is not set in environment variables!');
+  console.error('Please add NEXTAUTH_URL=http://localhost:3000 to your .env.local file');
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -63,7 +69,8 @@ export const authOptions: NextAuthOptions = {
               userCredential.user.displayName ||
               credentials.email,
             image: userData.photoURL || userCredential.user.photoURL || '',
-            role: userData.role as UserRole
+            role: userData.role as UserRole,
+            isVerified: userData.isVerified ?? false
           };
         } catch (error: any) {
           console.error('Credentials verification error:', error);
@@ -240,6 +247,8 @@ export const authOptions: NextAuthOptions = {
               await setDoc(userDocRef, userData);
               token.sub = firebaseUserId;
               token.role = 'customer' as UserRole;
+              // New user, use Google image
+              token.photoURL = user.image;
             } else {
               const userData = userDoc.data();
               await setDoc(
@@ -253,10 +262,11 @@ export const authOptions: NextAuthOptions = {
               );
 
               token.role = userData.role as UserRole;
+              // Use photoURL from database if available, otherwise use Google image
+              token.photoURL = userData.photoURL || user.image;
             }
 
             token.displayName = user.name;
-            token.photoURL = user.image;
             token.provider = 'google';
           } else if (account.provider === 'credentials') {
             token.role = user.role as UserRole;
@@ -266,14 +276,26 @@ export const authOptions: NextAuthOptions = {
 
             try {
               const userDocRef = doc(db, Collections.USERS, userId);
-              await setDoc(
-                userDocRef,
-                {
-                  lastLoginAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString()
-                },
-                { merge: true }
-              );
+              const userDoc = await getDoc(userDocRef);
+              
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                // Update photoURL from database if available
+                if (userData.photoURL) {
+                  token.photoURL = userData.photoURL;
+                }
+                // Include isVerified status
+                token.isVerified = userData.isVerified ?? false;
+                
+                await setDoc(
+                  userDocRef,
+                  {
+                    lastLoginAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  },
+                  { merge: true }
+                );
+              }
             } catch (error) {
               console.error('JWT: Error updating last login time:', error);
             }
@@ -294,6 +316,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role;
         if (token.displayName) session.user.name = token.displayName;
         if (token.photoURL) session.user.image = token.photoURL;
+        session.user.isVerified = (token as any).isVerified ?? false;
       }
       return session;
     },
@@ -305,18 +328,7 @@ export const authOptions: NextAuthOptions = {
         return url;
       }
 
-      // Role-based redirect after authentication
-      if (user?.role === 'customer') {
-        return `${baseUrl}/explore`;
-      } else if (user?.role === 'designer') {
-        return `${baseUrl}/dashboard/designs`;
-      } else if (user?.role === 'admin') {
-        return `${baseUrl}/dashboard/admin`;
-      } else if (user?.role === 'business') {
-        return `${baseUrl}/dashboard/business`;
-      }
-
-      // Default redirect
+      // Default redirect - role-based redirects are handled in middleware or after sign-in
       return `${baseUrl}/explore`;
     }
   },

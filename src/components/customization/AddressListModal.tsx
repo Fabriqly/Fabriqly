@@ -138,8 +138,27 @@ export function AddressListModal({
 
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="p-4 border-2 border-gray-200 rounded-lg animate-pulse">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-4 h-4 bg-gray-200 rounded"></div>
+                        <div className="h-5 w-32 bg-gray-200 rounded"></div>
+                        <div className="h-4 w-16 bg-gray-200 rounded"></div>
+                      </div>
+                      <div className="space-y-2 ml-6">
+                        <div className="h-4 w-3/4 bg-gray-200 rounded"></div>
+                        <div className="h-4 w-2/3 bg-gray-200 rounded"></div>
+                        <div className="h-4 w-1/2 bg-gray-200 rounded"></div>
+                        <div className="h-4 w-1/3 bg-gray-200 rounded"></div>
+                      </div>
+                    </div>
+                    <div className="w-6 h-6 bg-gray-200 rounded-full"></div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : addresses.length === 0 ? (
             <div className="text-center py-12">

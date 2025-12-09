@@ -207,5 +207,8 @@ export const StorageBuckets = {
   DESIGNS: 'designs',
   PROFILES: 'profiles',
   CATEGORIES: 'categories',
-  TEMP: 'temp'
+  TEMP: 'temp',
+  // Private buckets for protected content
+  PRODUCTS_PRIVATE: 'products-private',
+  DESIGNS_PRIVATE: 'designs-private'
 } as const

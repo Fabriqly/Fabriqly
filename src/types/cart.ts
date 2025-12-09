@@ -32,6 +32,17 @@ export interface Cart {
   items: CartItem[];
   totalItems: number;
   totalAmount: number;
+  discountAmount?: number;
+  appliedCouponCode?: string;
+  appliedDiscounts?: Array<{
+    discountId: string;
+    couponCode?: string;
+    discountType: 'percentage' | 'fixed_amount';
+    discountValue: number;
+    discountAmount: number;
+    scope: 'product' | 'category' | 'order' | 'shipping';
+    targetIds?: string[];
+  }>;
   createdAt: Date;
   updatedAt: Date;
 }

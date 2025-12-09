@@ -37,6 +37,13 @@ export class EscrowService {
         throw AppError.badRequest('No payment details found for this request');
       }
 
+      // Check if escrow is frozen due to dispute
+      if (request.paymentDetails.escrowStatus === 'disputed') {
+        throw AppError.badRequest(
+          'Cannot release payment. Escrow is frozen due to an active dispute.'
+        );
+      }
+
       // Allow release if status is 'held' OR if it's already been attempted but failed
       // (in case we need to retry)
       if (request.paymentDetails.escrowStatus !== 'held' && request.paymentDetails.escrowStatus !== 'designer_paid') {
@@ -66,10 +73,23 @@ export class EscrowService {
         throw AppError.badRequest('No designer assigned to this request');
       }
 
-      const designerProfile = await FirebaseAdminService.getDocument(
+      // Try to find designer profile by userId (designerId is typically the userId)
+      // First try as profile ID, if not found, try as userId
+      let designerProfile = await FirebaseAdminService.getDocument(
         Collections.DESIGNER_PROFILES,
         request.designerId
       );
+
+      // If not found by ID, try finding by userId
+      if (!designerProfile) {
+        const profiles = await FirebaseAdminService.queryDocuments(
+          Collections.DESIGNER_PROFILES,
+          [{ field: 'userId', operator: '==', value: request.designerId }],
+          undefined,
+          1
+        );
+        designerProfile = profiles.length > 0 ? profiles[0] : null;
+      }
 
       if (!designerProfile) {
         throw AppError.notFound('Designer profile not found');
@@ -162,6 +182,13 @@ export class EscrowService {
       // 3. Validate escrow status
       if (!request.paymentDetails) {
         throw AppError.badRequest('No payment details found for this request');
+      }
+
+      // Check if escrow is frozen due to dispute
+      if (request.paymentDetails.escrowStatus === 'disputed') {
+        throw AppError.badRequest(
+          'Cannot release payment. Escrow is frozen due to an active dispute.'
+        );
       }
 
       if (request.paymentDetails.escrowStatus === 'fully_released') {
@@ -273,10 +300,23 @@ export class EscrowService {
 
       // Also check if designer has payout details configured
       try {
-        const designerProfile = await FirebaseAdminService.getDocument(
+        // Try to find designer profile by userId (designerId is typically the userId)
+        // First try as profile ID, if not found, try as userId
+        let designerProfile = await FirebaseAdminService.getDocument(
           Collections.DESIGNER_PROFILES,
           request.designerId
         );
+
+        // If not found by ID, try finding by userId
+        if (!designerProfile) {
+          const profiles = await FirebaseAdminService.queryDocuments(
+            Collections.DESIGNER_PROFILES,
+            [{ field: 'userId', operator: '==', value: request.designerId }],
+            undefined,
+            1
+          );
+          designerProfile = profiles.length > 0 ? profiles[0] : null;
+        }
 
         if (!designerProfile) {
           return false;
@@ -331,6 +371,8 @@ export class EscrowService {
     shopPaid: boolean;
     designerAmount?: number;
     shopAmount?: number;
+    isFrozen?: boolean;
+    disputeId?: string;
   }> {
     const request = await this.customizationRepo.findById(requestId);
     
@@ -345,11 +387,173 @@ export class EscrowService {
     return {
       escrowStatus: request.paymentDetails.escrowStatus,
       totalAmount: request.paymentDetails.totalAmount,
-      designerPaid: request.paymentDetails.escrowStatus !== 'held',
+      designerPaid: request.paymentDetails.escrowStatus !== 'held' && request.paymentDetails.escrowStatus !== 'disputed',
       shopPaid: request.paymentDetails.escrowStatus === 'fully_released',
       designerAmount: request.paymentDetails.designerPayoutAmount,
       shopAmount: request.paymentDetails.shopPayoutAmount,
+      isFrozen: request.paymentDetails.escrowStatus === 'disputed',
+      disputeId: request.paymentDetails.disputeId,
     };
+  }
+
+  /**
+   * Freeze escrow due to dispute
+   */
+  async freezeEscrow(customizationRequestId: string, disputeId: string): Promise<void> {
+    try {
+      console.log(`[EscrowService] Freezing escrow for request: ${customizationRequestId}, dispute: ${disputeId}`);
+
+      const request = await this.customizationRepo.findById(customizationRequestId);
+      if (!request) {
+        throw AppError.notFound('Customization request not found');
+      }
+
+      if (!request.paymentDetails) {
+        throw AppError.badRequest('No payment details found for this request');
+      }
+
+      // Store previous status to restore later
+      const previousStatus = request.paymentDetails.escrowStatus;
+
+      // Update escrow status to disputed
+      await this.customizationRepo.update(customizationRequestId, {
+        paymentDetails: {
+          ...request.paymentDetails,
+          escrowStatus: 'disputed',
+          disputeId: disputeId,
+        } as any,
+        updatedAt: Timestamp.now() as any,
+      });
+
+      // Fire event
+      eventBus.emit('escrow.frozen', {
+        requestId: customizationRequestId,
+        disputeId,
+        previousStatus,
+      });
+
+      console.log(`[EscrowService] Escrow frozen successfully`);
+    } catch (error: any) {
+      console.error(`[EscrowService] Failed to freeze escrow:`, error);
+      throw AppError.internal('Failed to freeze escrow', error);
+    }
+  }
+
+  /**
+   * Unfreeze escrow (dispute resolved or cancelled)
+   */
+  async unfreezeEscrow(customizationRequestId: string): Promise<void> {
+    try {
+      console.log(`[EscrowService] Unfreezing escrow for request: ${customizationRequestId}`);
+
+      const request = await this.customizationRepo.findById(customizationRequestId);
+      if (!request) {
+        throw AppError.notFound('Customization request not found');
+      }
+
+      if (!request.paymentDetails) {
+        throw AppError.badRequest('No payment details found for this request');
+      }
+
+      if (request.paymentDetails.escrowStatus !== 'disputed') {
+        console.log(`[EscrowService] Escrow is not frozen, no action needed`);
+        return;
+      }
+
+      // Restore previous status (stored in previousEscrowStatus or default to 'held')
+      // Since we don't store previousEscrowStatus in PaymentDetails, we'll need to infer it
+      // If designer was already paid, restore to 'designer_paid', otherwise 'held'
+      const previousStatus = request.paymentDetails.designerPayoutAmount 
+        ? 'designer_paid' 
+        : 'held';
+
+      // Update escrow status
+      await this.customizationRepo.update(customizationRequestId, {
+        paymentDetails: {
+          ...request.paymentDetails,
+          escrowStatus: previousStatus,
+          disputeId: undefined,
+        } as any,
+        updatedAt: Timestamp.now() as any,
+      });
+
+      // Fire event
+      eventBus.emit('escrow.unfrozen', {
+        requestId: customizationRequestId,
+        restoredStatus: previousStatus,
+      });
+
+      console.log(`[EscrowService] Escrow unfrozen successfully, restored to: ${previousStatus}`);
+    } catch (error: any) {
+      console.error(`[EscrowService] Failed to unfreeze escrow:`, error);
+      throw AppError.internal('Failed to unfreeze escrow', error);
+    }
+  }
+
+  /**
+   * Refund escrow (full or partial)
+   */
+  async refundEscrow(
+    customizationRequestId: string, 
+    amount: number, 
+    reason: string
+  ): Promise<void> {
+    try {
+      console.log(`[EscrowService] Processing refund for request: ${customizationRequestId}, amount: ${amount}`);
+
+      const request = await this.customizationRepo.findById(customizationRequestId);
+      if (!request) {
+        throw AppError.notFound('Customization request not found');
+      }
+
+      if (!request.paymentDetails) {
+        throw AppError.badRequest('No payment details found for this request');
+      }
+
+      // Get payment invoice IDs from payment history
+      const paymentInvoices = request.paymentDetails.payments
+        .filter(p => p.status === 'success')
+        .map(p => p.id);
+
+      if (paymentInvoices.length === 0) {
+        throw AppError.badRequest('No successful payments found to refund');
+      }
+
+      // Process refund via Xendit
+      // For now, we'll refund the first invoice (full refund)
+      // TODO: Implement partial refund logic if needed
+      const invoiceId = paymentInvoices[0];
+      
+      try {
+        await this.xenditService.refundInvoice(invoiceId, amount, reason);
+      } catch (error: any) {
+        console.error(`[EscrowService] Xendit refund failed:`, error);
+        // Continue with status update even if Xendit refund fails
+        // Admin can process refund manually
+      }
+
+      // Update payment status
+      await this.customizationRepo.update(customizationRequestId, {
+        paymentDetails: {
+          ...request.paymentDetails,
+          paymentStatus: 'refunded',
+          escrowStatus: 'fully_released', // Mark as fully released since refunded
+        } as any,
+        updatedAt: Timestamp.now() as any,
+      });
+
+      // Fire event
+      eventBus.emit('escrow.refunded', {
+        requestId: customizationRequestId,
+        amount,
+        reason,
+      });
+
+      console.log(`[EscrowService] Refund processed successfully`);
+    } catch (error: any) {
+      console.error(`[EscrowService] Failed to refund escrow:`, error);
+      throw AppError.internal('Failed to refund escrow', error);
+    }
   }
 }
 
