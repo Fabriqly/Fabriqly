@@ -45,9 +45,9 @@ const convertTimestamps = (data: any): any => {
 };
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // GET /api/activities/[id] - Get single activity
