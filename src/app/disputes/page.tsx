@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Plus, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 
 export default function DisputesPage() {
@@ -97,6 +98,8 @@ export default function DisputesPage() {
     <div className="min-h-screen bg-gray-50">
       <CustomerHeader user={session.user} />
       {content}
+      
+      <ScrollToTop />
     </div>
   );
 }

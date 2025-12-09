@@ -137,7 +137,7 @@ export default function ShopCustomizationsPage() {
       <div className="flex flex-1">
         <DashboardSidebar user={user} />
 
-        <div className="flex-1">
+        <div className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
           <div className="container mx-auto px-4 py-8">
             {/* Header */}
             <div className="mb-8">

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { User, Mail, Phone, MapPin, Calendar, Save, Edit, X, Upload, Camera, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { ShippingAddressModal } from '@/components/customization/ShippingAddressModal';
 
@@ -833,6 +834,8 @@ export default function ProfilePage() {
           userId={session?.user?.id}
         />
       )}
+      
+      <ScrollToTop />
     </div>
   );
 }

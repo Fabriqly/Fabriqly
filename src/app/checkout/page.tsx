@@ -6,7 +6,6 @@ import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { CartSidebar } from '@/components/cart/CartSidebar';
 import XenditPaymentForm from '@/components/payments/XenditPaymentForm';
 import { DiscountSummary } from '@/components/promotions/DiscountSummary';
 import { CouponSelectionModal } from '@/components/promotions/CouponSelectionModal';
@@ -21,12 +20,18 @@ import {
   Shield,
   Edit,
   Check,
-  X
+  X,
+  Store,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Header } from '@/components/layout';
 import { AddressListModal } from '@/components/customization/AddressListModal';
 import { ShippingAddressModal } from '@/components/customization/ShippingAddressModal';
+import { ShopProfile } from '@/types/shop-profile';
+import { CartItem } from '@/types/cart';
 
 interface Address {
   firstName: string;
@@ -136,6 +141,16 @@ export default function CheckoutPage() {
   const [addressRefreshTrigger, setAddressRefreshTrigger] = useState(0);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [showCouponModal, setShowCouponModal] = useState(false);
+  
+  // Shop grouping for Order Review
+  const [shopProfiles, setShopProfiles] = useState<Record<string, ShopProfile | null>>({});
+  const [loadingShops, setLoadingShops] = useState(true);
+  const [groupedItems, setGroupedItems] = useState<Array<{
+    shop: ShopProfile | null;
+    businessOwnerId: string;
+    items: (CartItem & { shop?: ShopProfile })[];
+  }>>([]);
+  const [orderReviewExpanded, setOrderReviewExpanded] = useState(true);
 
   // Check for bulk checkout items
   useEffect(() => {
@@ -217,6 +232,61 @@ export default function CheckoutPage() {
       }));
     }
   }, [user]);
+
+  // Group items by shop and load shop profiles
+  useEffect(() => {
+    const items = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+    if (items.length === 0) {
+      setGroupedItems([]);
+      setLoadingShops(false);
+      return;
+    }
+
+    const loadShopProfiles = async () => {
+      setLoadingShops(true);
+      const uniqueOwnerIds = [...new Set(items.map((item: any) => item.businessOwnerId))];
+      const shopMap: Record<string, ShopProfile | null> = {};
+
+      // Fetch shop profiles for all unique business owners
+      await Promise.all(
+        uniqueOwnerIds.map(async (ownerId) => {
+          try {
+            const response = await fetch(`/api/shop-profiles/user/${ownerId}`);
+            const data = await response.json();
+            if (data.success && data.data) {
+              shopMap[ownerId] = data.data;
+            } else {
+              shopMap[ownerId] = null;
+            }
+          } catch (error) {
+            console.error(`Error loading shop for owner ${ownerId}:`, error);
+            shopMap[ownerId] = null;
+          }
+        })
+      );
+
+      setShopProfiles(shopMap);
+
+      // Group items by businessOwnerId
+      const grouped = items.reduce((acc: any, item: any) => {
+        const ownerId = item.businessOwnerId;
+        if (!acc[ownerId]) {
+          acc[ownerId] = {
+            shop: shopMap[ownerId] || null,
+            businessOwnerId: ownerId,
+            items: []
+          };
+        }
+        acc[ownerId].items.push({ ...item, shop: shopMap[ownerId] || undefined });
+        return acc;
+      }, {} as Record<string, any>);
+
+      setGroupedItems(Object.values(grouped));
+      setLoadingShops(false);
+    };
+
+    loadShopProfiles();
+  }, [isBulkCheckout, bulkCheckoutItems, cartState.cart?.items]);
 
   // Handle address selection from AddressListModal
   const handleAddressSelect = (address: any) => {
@@ -307,6 +377,13 @@ export default function CheckoutPage() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(price);
+  };
+
+  const getShopName = (group: { shop: ShopProfile | null; businessOwnerId: string }) => {
+    if (group.shop) {
+      return group.shop.shopName || group.shop.businessName || 'Shop';
+    }
+    return 'Shop';
   };
 
   const { calculateDiscount } = useCart();
@@ -568,27 +645,21 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <CartSidebar />
+      <Header title="Checkout" />
       
-      {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center space-x-4">
-            <Link href="/explore">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Shopping
-              </Button>
-            </Link>
-            <h1 className="text-2xl font-bold">Checkout</h1>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 space-y-4">
+            {/* Back to Cart Button */}
+            <div className="mb-2">
+              <Link href="/cart">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Cart
+                </Button>
+              </Link>
+            </div>
             {/* Progress Steps */}
             <div className="bg-white p-6 rounded-lg shadow-sm">
               <div className="flex items-center justify-between">
@@ -613,7 +684,130 @@ export default function CheckoutPage() {
             </div>
 
             {currentStep === 'address' && (
-              <div className="space-y-8">
+              <div className="space-y-4">
+            {/* Order Review Section */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <button
+                onClick={() => setOrderReviewExpanded(!orderReviewExpanded)}
+                className="w-full flex items-center justify-between p-6 hover:bg-gray-50 transition-colors"
+              >
+                <h2 className="text-lg font-semibold text-gray-900">Order Review</h2>
+                {orderReviewExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gray-500" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-500" />
+                )}
+              </button>
+              
+              {orderReviewExpanded && (
+                <div className="px-6 pb-6 border-t border-gray-200">
+                  {loadingShops ? (
+                    <div className="space-y-4 pt-4">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="animate-pulse">
+                          <div className="h-6 w-32 bg-gray-200 rounded mb-3"></div>
+                          <div className="space-y-3">
+                            <div className="flex space-x-4">
+                              <div className="w-16 h-16 bg-gray-200 rounded"></div>
+                              <div className="flex-1 space-y-2">
+                                <div className="h-4 w-3/4 bg-gray-200 rounded"></div>
+                                <div className="h-3 w-1/2 bg-gray-200 rounded"></div>
+                                <div className="h-4 w-20 bg-gray-200 rounded"></div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : groupedItems.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <p>No items to review</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6 pt-4">
+                      {groupedItems.map((group) => (
+                        <div key={group.businessOwnerId} className="border-b border-gray-200 last:border-b-0 pb-6 last:pb-0">
+                          {/* Shop Header */}
+                          <div className="flex items-center space-x-2 mb-4 pb-3 border-b border-gray-100">
+                            <Store className="w-4 h-4 text-gray-600" />
+                            <h3 className="font-semibold text-sm text-gray-900">
+                              {group.shop?.username ? (
+                                <Link 
+                                  href={`/shops/${group.shop.username}`}
+                                  className="hover:text-blue-600 transition-colors"
+                                >
+                                  {getShopName(group)}
+                                </Link>
+                              ) : (
+                                getShopName(group)
+                              )}
+                            </h3>
+                          </div>
+
+                          {/* Items from this shop */}
+                          <div className="space-y-4">
+                            {group.items.map((item) => (
+                              <div key={item.id} className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-4">
+                                {/* Product Image */}
+                                <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                                  {item.product.images && item.product.images.length > 0 ? (
+                                    <img
+                                      src={item.product.images[0].imageUrl}
+                                      alt={item.product.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <Package className="w-6 h-6 text-gray-400" />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Product Details */}
+                                <div className="flex-1 min-w-0 w-full sm:w-auto">
+                                  <h4 className="font-medium text-gray-900 mb-1">
+                                    {item.product.name}
+                                  </h4>
+                                  
+                                  {/* Variant Info */}
+                                  {(item.selectedVariants && Object.keys(item.selectedVariants).length > 0) || item.selectedColorId ? (
+                                    <div className="text-sm text-gray-400 mb-2 space-y-0.5">
+                                      {item.selectedVariants && Object.entries(item.selectedVariants).map(([key, value]) => (
+                                        <div key={key}>{key}: {value}</div>
+                                      ))}
+                                      {item.selectedColorId && (
+                                        <div>Color: {item.selectedColorName || item.selectedColorId}</div>
+                                      )}
+                                    </div>
+                                  ) : null}
+
+                                  {/* Price and Quantity Row */}
+                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 space-y-1 sm:space-y-0">
+                                    <div className="flex items-center space-x-4 text-sm">
+                                      <span className="text-gray-600">
+                                        {formatPrice(item.unitPrice)}
+                                      </span>
+                                      <span className="text-gray-500">
+                                        x{item.quantity}
+                                      </span>
+                                    </div>
+                                    <span className="font-semibold text-gray-900">
+                                      {formatPrice(item.totalPrice)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Shipping Address */}
             <div className="bg-white p-6 rounded-lg shadow-sm">
               <div className="flex items-center justify-between mb-4">
@@ -764,21 +958,11 @@ export default function CheckoutPage() {
               />
             </div>
 
-            {/* Continue to Payment Button */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <Button
-                onClick={handleCreateOrders}
-                disabled={loading}
-                className="w-full"
-              >
-                {loading ? 'Creating Orders...' : 'Continue to Payment'}
-              </Button>
-            </div>
               </div>
             )}
 
             {currentStep === 'payment' && createdOrders.length > 0 && (
-              <div className="space-y-8">
+              <div className="space-y-4">
                 <XenditPaymentForm
                   orderId={createdOrders[0].order.id}
                   orderIds={createdOrders.map(o => o.order.id)}
@@ -811,47 +995,11 @@ export default function CheckoutPage() {
             )}
           </div>
 
-          {/* Order Summary */}
+          {/* Order Summary Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-white p-6 rounded-lg shadow-sm sticky top-8">
+            <div className="bg-white p-6 rounded-lg shadow-sm lg:sticky lg:top-4 lg:h-fit">
               <h2 className="text-lg font-semibold mb-4">Order Summary</h2>
               
-              {/* Order Items */}
-              <div className="space-y-3 mb-6">
-                {(isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || []).map((item) => (
-                  <div key={item.id} className="flex space-x-3">
-                    <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                      {item.product.images && item.product.images.length > 0 ? (
-                        <img
-                          src={item.product.images[0].imageUrl}
-                          alt={item.product.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            console.error('Checkout image failed to load:', item.product.images[0].imageUrl);
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                          }}
-                        />
-                      ) : null}
-                      <div className={`w-full h-full flex items-center justify-center ${item.product.images && item.product.images.length > 0 ? 'hidden' : ''}`}>
-                        <Package className="w-4 h-4 text-gray-400" />
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {item.product.name}
-                      </h4>
-                      <p className="text-xs text-gray-500">
-                        Qty: {item.quantity}
-                      </p>
-                      <p className="text-sm font-medium">
-                        {formatPrice(item.totalPrice)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
               {/* Coupon Section */}
               <div className="border-t pt-4 mt-4">
                 <div className="flex items-center justify-between">
@@ -910,11 +1058,24 @@ export default function CheckoutPage() {
                   <span>Tax</span>
                   <span>{formatPrice(calculateTax())}</span>
                 </div>
-                <div className="flex justify-between text-lg font-semibold border-t pt-2">
-                  <span>Total</span>
-                  <span>{formatPrice(calculateTotal())}</span>
+                <div className="flex justify-between items-center border-t pt-3 mt-2">
+                  <span className="text-lg font-semibold text-gray-900">Total</span>
+                  <span className="text-2xl font-bold text-gray-900">{formatPrice(calculateTotal())}</span>
                 </div>
               </div>
+
+              {/* Continue to Payment Button */}
+              {currentStep === 'address' && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <Button
+                    onClick={handleCreateOrders}
+                    disabled={loading}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg py-4 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? 'Creating Orders...' : 'Continue to Payment'}
+                  </Button>
+                </div>
+              )}
 
               {/* Security Badges */}
               <div className="flex items-center justify-center space-x-4 mt-6 pt-4 border-t">
@@ -1022,3 +1183,4 @@ export default function CheckoutPage() {
     </div>
   );
 }
+

@@ -3,6 +3,7 @@
 import { ShopProfile } from '@/types/shop-profile';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { Dialog } from '@headlessui/react';
 import { ShopReviewSection } from '@/components/reviews/ShopReviewSection';
 import { ProductCard } from '@/components/products/ProductCard';
 import { Product } from '@/types/products';
@@ -21,7 +22,10 @@ import {
   CheckCircle2,
   Store,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Filter,
+  X,
+  Check
 } from 'lucide-react';
 
 interface ShopProfileViewProps {
@@ -31,6 +35,7 @@ interface ShopProfileViewProps {
 }
 
 export default function ShopProfileView({ shop, showEditButton = false, onEdit }: ShopProfileViewProps) {
+  const [activeTab, setActiveTab] = useState<'about' | 'products' | 'contacts' | 'reviews'>('about');
   const [actualRatings, setActualRatings] = useState({
     averageRating: shop.ratings?.averageRating || 0,
     totalReviews: shop.ratings?.totalReviews || 0
@@ -40,6 +45,7 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [productTags, setProductTags] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const itemsPerPage = 9;
 
   useEffect(() => {
@@ -266,8 +272,85 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
 
       {/* Shop Info Card - White Background */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-16 md:-mt-20 relative z-10">
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-4 md:p-5">
-          <div className="flex flex-col md:flex-row gap-4">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-3 md:p-5">
+          {/* Mobile View - Compact Layout */}
+          <div className="lg:hidden">
+            <div className="flex items-center gap-3 mb-3">
+              {/* Shop Avatar */}
+              <div className="flex-shrink-0">
+                <div className="relative inline-block">
+                  <div className="w-16 h-16 rounded-full border-2 border-white bg-white shadow-md overflow-hidden">
+                    {shop.branding?.logoUrl ? (
+                      <img
+                        src={shop.branding.logoUrl}
+                        alt={`${shop.shopName} logo`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-lg font-bold">
+                        {shop.shopName?.charAt(0) || 'S'}
+                      </div>
+                    )}
+                  </div>
+                  {shop.isVerified && (
+                    <div className="absolute -bottom-0.5 -right-0.5 bg-blue-500 rounded-full p-1 border-2 border-white shadow-sm">
+                      <CheckCircle2 className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Shop Name and Handle */}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg font-bold text-gray-900 truncate">
+                  {shop.shopName}
+                </h1>
+                <p className="text-xs text-gray-600 truncate">
+                  @{shop.username}
+                </p>
+              </div>
+            </div>
+
+            {/* Tagline */}
+            {shop.branding?.tagline && (
+              <p className="text-xs text-gray-700 italic mb-3 px-1">
+                &ldquo;{shop.branding.tagline}&rdquo;
+              </p>
+            )}
+
+            {/* Stats Row - Clickable */}
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={() => {
+                  setActiveTab('reviews');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer flex-1"
+              >
+                <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                <span className="font-semibold text-gray-900 text-sm">{actualRatings.averageRating.toFixed(1)}</span>
+                <span className="text-xs text-gray-600">({actualRatings.totalReviews})</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('products');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer flex-1"
+              >
+                <Package className="w-3.5 h-3.5 text-gray-600" />
+                <span className="font-semibold text-gray-900 text-sm">{shop.shopStats?.totalProducts || 0}</span>
+                <span className="text-xs text-gray-600">Products</span>
+              </button>
+              <button className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors border border-gray-200 flex items-center gap-1.5 text-xs">
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Message</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop View - Original Layout */}
+          <div className="hidden lg:flex flex-col md:flex-row gap-4">
             {/* Shop Avatar */}
             <div className="flex-shrink-0">
               <div className="relative inline-block">
@@ -279,9 +362,9 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                <div className="w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xl md:text-2xl font-bold">
-                  {shop.shopName?.charAt(0) || 'S'}
-                </div>
+                    <div className="w-full h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xl md:text-2xl font-bold">
+                      {shop.shopName?.charAt(0) || 'S'}
+                    </div>
                   )}
                 </div>
                 {shop.isVerified && (
@@ -334,9 +417,475 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
         </div>
       </div>
 
+      {/* Tabs - Mobile View Only */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 lg:hidden mt-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('about')}
+              className={`flex-1 px-2 py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 ${
+                activeTab === 'about'
+                  ? 'border-blue-600 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              About
+            </button>
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`flex-1 px-2 py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 ${
+                activeTab === 'products'
+                  ? 'border-blue-600 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Products
+            </button>
+            <button
+              onClick={() => setActiveTab('contacts')}
+              className={`flex-1 px-2 py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 ${
+                activeTab === 'contacts'
+                  ? 'border-blue-600 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Contacts
+            </button>
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`flex-1 px-2 py-3 text-xs sm:text-sm font-medium transition-colors border-b-2 ${
+                activeTab === 'reviews'
+                  ? 'border-blue-600 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Reviews
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Main Content - Split Layout */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5">
+        {/* Mobile View - Tab Content */}
+        <div className="lg:hidden">
+          {activeTab === 'about' && (
+            <div className="space-y-4">
+              {/* About Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <Store className="w-4 h-4 text-blue-600" />
+                  About the Shop
+                </h2>
+                <p className="text-gray-700 leading-relaxed mb-3 whitespace-pre-line">
+                  {shop.description || 'No description available.'}
+                </p>
+                
+                {shop.specialties && shop.specialties.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-1.5">Specialties</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {shop.specialties.map((specialty, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100"
+                        >
+                          {specialty}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Business Details Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h2 className="text-lg font-bold text-gray-900 mb-3">Business Details</h2>
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-sm text-gray-600">Business Type</span>
+                    <p className="font-medium text-gray-900 capitalize">
+                      {shop.businessDetails.businessType.replace('_', ' ')}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-600">Owner</span>
+                    <p className="font-medium text-gray-900">{shop.businessOwnerName}</p>
+                  </div>
+                  {shop.businessDetails.registeredBusinessId && (
+                    <div>
+                      <span className="text-sm text-gray-600">Business ID</span>
+                      <p className="font-medium text-gray-900">{shop.businessDetails.registeredBusinessId}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Customization Policy Card */}
+              {shop.customizationPolicy && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                  <h2 className="text-lg font-bold text-gray-900 mb-3">Customization Policy</h2>
+                  <div className="space-y-2">
+                    {shop.customizationPolicy.turnaroundTime && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-400" />
+                        <div>
+                          <span className="text-sm text-gray-600">Turnaround Time</span>
+                          <p className="font-medium text-gray-900">{shop.customizationPolicy.turnaroundTime}</p>
+                        </div>
+                      </div>
+                    )}
+                    {shop.customizationPolicy.revisionsAllowed !== undefined && (
+                      <div>
+                        <span className="text-sm text-gray-600">Revisions Allowed</span>
+                        <p className="font-medium text-gray-900">{shop.customizationPolicy.revisionsAllowed}</p>
+                      </div>
+                    )}
+                    {shop.customizationPolicy.rushOrderAvailable && (
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span className="text-sm font-medium">Rush orders available</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'products' && (
+            <div>
+              {/* Product Catalog Header */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-xl font-bold text-gray-900">Products</h2>
+                  <span className="text-sm text-gray-600">
+                    {filteredProducts.length > 0 
+                      ? totalPages > 1
+                        ? `Showing ${startIndex + 1}-${Math.min(endIndex, filteredProducts.length)} of ${filteredProducts.length} products`
+                        : `${filteredProducts.length} ${filteredProducts.length === 1 ? 'product' : 'products'}`
+                      : '0 products'}
+                  </span>
+                </div>
+
+                {/* Mobile Filter Button */}
+                <div className="lg:hidden mb-3">
+                  <button 
+                    onClick={() => setMobileFilterOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-gray-700 font-medium hover:bg-gray-50 w-full justify-center"
+                  >
+                    <Filter className="w-4 h-4" />
+                    Filter & Sort
+                  </button>
+                </div>
+
+                {/* Filter Tabs - Desktop Only */}
+                <div className="hidden lg:flex flex-wrap gap-2 overflow-x-auto pb-2">
+                  {categories.map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                        selectedCategory === category
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {category === 'all' ? 'All Products' : category}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Product Grid - 2 columns on mobile */}
+              {loadingProducts ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 animate-pulse">
+                      <div className="aspect-square bg-gray-200 rounded-lg mb-3"></div>
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-1.5"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+                  <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1.5">No Products Found</h3>
+                  <p className="text-gray-600">
+                    {selectedCategory === 'all' 
+                      ? 'This shop doesn\'t have any products yet.' 
+                      : `No products found in the "${selectedCategory}" category.`}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    {paginatedProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        variant="customer"
+                        showActions={false}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="mt-6 flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                          currentPage === 1
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                        }`}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                          if (
+                            page === 1 ||
+                            page === totalPages ||
+                            (page >= currentPage - 1 && page <= currentPage + 1)
+                          ) {
+                            return (
+                              <button
+                                key={page}
+                                onClick={() => handlePageChange(page)}
+                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-w-[40px] ${
+                                  currentPage === page
+                                    ? 'bg-blue-600 text-white shadow-md'
+                                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                                }`}
+                              >
+                                {page}
+                              </button>
+                            );
+                          } else if (page === currentPage - 2 || page === currentPage + 2) {
+                            return (
+                              <span key={page} className="px-2 text-gray-400">
+                                ...
+                              </span>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                          currentPage === totalPages
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                        }`}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Mobile Filter Drawer */}
+              <Dialog open={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)} className="relative z-50">
+              <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+              
+              <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
+                <Dialog.Panel className="w-screen max-w-md transform transition-transform">
+                  <div className="flex h-full flex-col bg-white shadow-xl">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                      <h2 className="text-lg font-semibold text-gray-900">Filter & Sort</h2>
+                      <button
+                        onClick={() => setMobileFilterOpen(false)}
+                        className="text-gray-400 hover:text-gray-500"
+                      >
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto px-6 py-4">
+                      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2 text-gray-900 font-semibold">
+                            <Filter className="w-4 h-4" />
+                            <h2>Categories</h2>
+                          </div>
+                          {selectedCategory !== 'all' && (
+                            <button 
+                              onClick={() => {
+                                setSelectedCategory('all');
+                                setMobileFilterOpen(false);
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                            >
+                              Clear
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-0.5 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                          {categories.map((category) => {
+                            const isSelected = selectedCategory === category;
+                            return (
+                              <button
+                                key={category}
+                                onClick={() => {
+                                  setSelectedCategory(category);
+                                  setMobileFilterOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between group ${
+                                  isSelected
+                                    ? 'bg-blue-50 text-blue-700 font-medium'
+                                    : 'text-gray-600 hover:bg-gray-50'
+                                }`}
+                              >
+                                <span className="truncate">{category === 'all' ? 'All Products' : category}</span>
+                                {isSelected && <Check className="w-3.5 h-3.5" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
+                      <button
+                        onClick={() => setMobileFilterOpen(false)}
+                        className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        Apply Filters
+                      </button>
+                    </div>
+                  </div>
+                </Dialog.Panel>
+              </div>
+            </Dialog>
+            </div>
+          )}
+
+          {activeTab === 'contacts' && (
+            <div className="space-y-4">
+              {/* Contact Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h2 className="text-lg font-bold text-gray-900 mb-3">Contact Information</h2>
+                <div className="space-y-2">
+                  <div className="flex gap-3">
+                    <div className="flex-shrink-0 pt-0.5">
+                      <Mail className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600 block">Email</span>
+                      <a href={`mailto:${shop.contactInfo.email}`} className="font-medium text-gray-900 hover:text-blue-600">
+                        {shop.contactInfo.email}
+                      </a>
+                    </div>
+                  </div>
+                  {shop.contactInfo.phone && (
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 pt-0.5">
+                        <Phone className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600 block">Phone</span>
+                        <a href={`tel:${shop.contactInfo.phone}`} className="font-medium text-gray-900 hover:text-blue-600">
+                          {shop.contactInfo.phone}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {shop.location && (shop.location.city || shop.location.province) && (
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 pt-0.5">
+                        <MapPin className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <div>
+                        <span className="text-sm text-gray-600 block">Location</span>
+                        <p className="font-medium text-gray-900">
+                          {[shop.location.city, shop.location.province].filter(Boolean).join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Social Media Card */}
+              {(shop.socialMedia || shop.website) && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                  <h2 className="text-lg font-bold text-gray-900 mb-3">Connect With Us</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {shop.website && (
+                      <a
+                        href={shop.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                      >
+                        <Globe className="w-4 h-4" />
+                        Website
+                      </a>
+                    )}
+                    {shop.socialMedia?.facebook && (
+                      <a
+                        href={shop.socialMedia.facebook}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                      >
+                        <Facebook className="w-4 h-4" />
+                        Facebook
+                      </a>
+                    )}
+                    {shop.socialMedia?.instagram && (
+                      <a
+                        href={shop.socialMedia.instagram}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                      >
+                        <Instagram className="w-4 h-4" />
+                        Instagram
+                      </a>
+                    )}
+                    {shop.socialMedia?.twitter && (
+                      <a
+                        href={shop.socialMedia.twitter}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-blue-400 hover:bg-blue-500 text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                      >
+                        <Twitter className="w-4 h-4" />
+                        Twitter
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'reviews' && (
+            <div>
+              <ShopReviewSection shop={shop} />
+            </div>
+          )}
+        </div>
+
+        {/* Desktop View - Split Layout */}
+        <div className="hidden lg:grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5">
           {/* Left Sidebar - Shop Info (4 columns on desktop) */}
           <aside className="lg:col-span-4 space-y-4">
             {/* About Card */}
@@ -393,8 +942,10 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
               <h2 className="text-lg font-bold text-gray-900 mb-3">Contact Information</h2>
               <div className="space-y-2">
-                <div className="flex items-start gap-3">
-                  <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 pt-0.5">
+                    <Mail className="w-5 h-5 text-gray-400" />
+                  </div>
                   <div>
                     <span className="text-sm text-gray-600 block">Email</span>
                     <a href={`mailto:${shop.contactInfo.email}`} className="font-medium text-gray-900 hover:text-blue-600">
@@ -403,8 +954,10 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
                   </div>
                 </div>
                 {shop.contactInfo.phone && (
-                  <div className="flex items-start gap-3">
-                    <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <div className="flex gap-3">
+                    <div className="flex-shrink-0 pt-0.5">
+                      <Phone className="w-5 h-5 text-gray-400" />
+                    </div>
                     <div>
                       <span className="text-sm text-gray-600 block">Phone</span>
                       <a href={`tel:${shop.contactInfo.phone}`} className="font-medium text-gray-900 hover:text-blue-600">
@@ -414,8 +967,10 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
                   </div>
                 )}
                 {shop.location && (shop.location.city || shop.location.province) && (
-                  <div className="flex items-start gap-3">
-                    <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <div className="flex gap-3">
+                    <div className="flex-shrink-0 pt-0.5">
+                      <MapPin className="w-5 h-5 text-gray-400" />
+                    </div>
                     <div>
                       <span className="text-sm text-gray-600 block">Location</span>
                       <p className="font-medium text-gray-900">
@@ -546,7 +1101,7 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
 
             {/* Product Grid */}
             {loadingProducts ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 animate-pulse">
                     <div className="aspect-square bg-gray-200 rounded-lg mb-3"></div>
@@ -567,7 +1122,7 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {paginatedProducts.map((product) => (
                     <ProductCard
                       key={product.id}
@@ -645,8 +1200,8 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
           </main>
         </div>
 
-        {/* Reviews Section */}
-        <div className="mt-4">
+        {/* Reviews Section - Desktop Only */}
+        <div className="hidden lg:block mt-4">
           <ShopReviewSection shop={shop} />
         </div>
       </div>

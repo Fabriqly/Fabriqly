@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { 
   ProductWithDetails, 
   ProductVariant 
@@ -28,7 +29,8 @@ import {
   AlertTriangle,
   X,
   Store,
-  MessageSquare
+  MessageSquare,
+  Info
 } from 'lucide-react';
 import { AddToCartButton } from '@/components/cart/AddToCartButton';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,6 +39,7 @@ import { RatingDisplay } from '@/components/reviews/RatingDisplay';
 import { ReviewList } from '@/components/reviews/ReviewList';
 import { ReviewForm } from '@/components/reviews/ReviewForm';
 import { Review } from '@/types/firebase';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 
 export function ProductDetail() {
   const params = useParams();
@@ -392,10 +395,120 @@ export function ProductDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-sm text-slate-600">Loading product...</p>
+      <div className="min-h-screen bg-slate-50">
+        <CustomerHeader user={user} />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Breadcrumb Skeleton */}
+          <div className="mb-6 space-y-4">
+            <div className="h-10 w-32 bg-slate-200 rounded-md animate-pulse"></div>
+            <div className="h-4 w-64 bg-slate-200 rounded-md animate-pulse"></div>
+          </div>
+
+          {/* Product Hero Section Skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-12">
+            {/* Left Column - Images Skeleton */}
+            <div className="lg:col-span-7 space-y-4">
+              {/* Main Image Skeleton */}
+              <div className="aspect-[3/2] max-h-[400px] bg-slate-200 rounded-xl animate-pulse"></div>
+              
+              {/* Thumbnail Images Skeleton */}
+              <div className="flex flex-row gap-2 overflow-x-auto pb-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="w-20 h-20 rounded-lg bg-slate-200 animate-pulse flex-shrink-0"></div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right Column - Product Details Skeleton */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Title Skeleton */}
+              <div className="space-y-3">
+                <div className="h-8 w-3/4 bg-slate-200 rounded-md animate-pulse"></div>
+                <div className="h-4 w-1/2 bg-slate-200 rounded-md animate-pulse"></div>
+              </div>
+
+              {/* Price Skeleton */}
+              <div className="h-10 w-32 bg-slate-200 rounded-md animate-pulse"></div>
+
+              {/* Description Skeleton */}
+              <div className="space-y-2">
+                <div className="h-4 w-full bg-slate-200 rounded-md animate-pulse"></div>
+                <div className="h-4 w-full bg-slate-200 rounded-md animate-pulse"></div>
+                <div className="h-4 w-3/4 bg-slate-200 rounded-md animate-pulse"></div>
+              </div>
+
+              {/* Variants Skeleton */}
+              <div className="space-y-4">
+                <div className="h-5 w-24 bg-slate-200 rounded-md animate-pulse"></div>
+                <div className="flex flex-wrap gap-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-10 w-20 bg-slate-200 rounded-md animate-pulse"></div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Color Selection Skeleton */}
+              <div className="space-y-2">
+                <div className="h-5 w-16 bg-slate-200 rounded-md animate-pulse"></div>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="w-12 h-12 rounded-full bg-slate-200 animate-pulse"></div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quantity and Actions Skeleton */}
+              <div className="space-y-4">
+                <div className="h-10 w-48 bg-slate-200 rounded-md animate-pulse"></div>
+                <div className="flex space-x-4">
+                  <div className="flex-1 h-12 bg-slate-200 rounded-md animate-pulse"></div>
+                  <div className="flex-1 h-12 bg-slate-200 rounded-md animate-pulse"></div>
+                </div>
+              </div>
+
+              {/* Features Skeleton */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-slate-200">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-5 w-24 bg-slate-200 rounded-md animate-pulse"></div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Seller Information Skeleton */}
+          <div className="mb-12 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 rounded-full bg-slate-200 animate-pulse"></div>
+                <div className="space-y-2">
+                  <div className="h-5 w-32 bg-slate-200 rounded-md animate-pulse"></div>
+                  <div className="h-4 w-24 bg-slate-200 rounded-md animate-pulse"></div>
+                </div>
+              </div>
+              <div className="h-10 w-28 bg-slate-200 rounded-md animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Tabs Skeleton */}
+          <div className="mb-12">
+            <div className="border-b border-slate-200 mb-6">
+              <div className="flex space-x-8">
+                <div className="h-6 w-40 bg-slate-200 rounded-md animate-pulse"></div>
+                <div className="h-6 w-32 bg-slate-200 rounded-md animate-pulse"></div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+              <div className="space-y-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="flex justify-between py-2 border-b border-slate-100">
+                    <div className="h-4 w-32 bg-slate-200 rounded-md animate-pulse"></div>
+                    <div className="h-4 w-24 bg-slate-200 rounded-md animate-pulse"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -448,8 +561,12 @@ export function ProductDetail() {
       try {
         const referrerUrl = new URL(document.referrer);
         const referrerPathname = referrerUrl.pathname;
+        const referrerQuery = referrerUrl.searchParams.get('q') || referrerUrl.searchParams.get('query') || '';
         
-        if (referrerPathname.startsWith('/explore/merchandise')) {
+        if (referrerPathname === '/search' || referrerPathname.startsWith('/search')) {
+          const searchPath = referrerQuery ? `/search?q=${encodeURIComponent(referrerQuery)}` : '/search';
+          return { label: 'Search', path: searchPath };
+        } else if (referrerPathname.startsWith('/explore/merchandise')) {
           return { label: 'Merchandise', path: '/explore/merchandise' };
         } else if (referrerPathname.startsWith('/explore/shops')) {
           return { label: 'Shops', path: '/explore/shops' };
@@ -513,11 +630,22 @@ export function ProductDetail() {
             {/* Main Image */}
             <div className="aspect-[3/2] max-h-[400px] bg-white rounded-xl overflow-hidden relative border border-slate-200">
               {currentImage ? (
-                <img
-                  src={currentImage.imageUrl}
-                  alt={currentImage.altText || product.name}
-                  className="w-full h-full object-contain"
-                />
+                currentImage.storagePath && currentImage.storageBucket ? (
+                  <WatermarkedImage
+                    storagePath={currentImage.storagePath}
+                    storageBucket={currentImage.storageBucket}
+                    productId={product.id}
+                    alt={currentImage.altText || product.name}
+                    className="w-full h-full object-contain"
+                    fallbackSrc={currentImage.imageUrl}
+                  />
+                ) : (
+                  <img
+                    src={currentImage.imageUrl}
+                    alt={currentImage.altText || product.name}
+                    className="w-full h-full object-contain"
+                  />
+                )
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-400">
                   <ImageIcon className="w-24 h-24" />
@@ -562,11 +690,22 @@ export function ProductDetail() {
                       : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <img
-                    src={image.imageUrl}
-                    alt={image.altText || product.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {image.storagePath && image.storageBucket ? (
+                    <WatermarkedImage
+                      storagePath={image.storagePath}
+                      storageBucket={image.storageBucket}
+                      productId={product.id}
+                      alt={image.altText || product.name}
+                      className="w-full h-full object-cover"
+                      fallbackSrc={image.imageUrl}
+                    />
+                  ) : (
+                    <img
+                      src={image.imageUrl}
+                      alt={image.altText || product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                 </button>
               ))}
             </div>
@@ -627,7 +766,9 @@ export function ProductDetail() {
 
             {/* Description */}
             <div>
-              <p className="text-sm text-slate-600 leading-relaxed">{product.description}</p>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {product.shortDescription || product.description}
+              </p>
             </div>
 
             {/* Variants */}
@@ -749,30 +890,47 @@ export function ProductDetail() {
 
               <div className="space-y-3">
                 {product.isCustomizable && (
-                  <Button
-                    onClick={() => {
-                      // Store selected options in sessionStorage for the customize page
-                      sessionStorage.setItem(`product_${product.id}_variants`, JSON.stringify(selectedVariants));
-                      sessionStorage.setItem(`product_${product.id}_color`, selectedColorId);
-                      sessionStorage.setItem(`product_${product.id}_colorAdjustment`, colorPriceAdjustment.toString());
-                      
-                      // Navigate with URL params as well
-                      const params = new URLSearchParams();
-                      if (Object.keys(selectedVariants).length > 0) {
-                        params.set('variants', JSON.stringify(selectedVariants));
-                      }
-                      if (selectedColorId) {
-                        params.set('color', selectedColorId);
-                      }
-                      
-                      const queryString = params.toString();
-                      router.push(`/products/${product.id}/customize${queryString ? `?${queryString}` : ''}`);
-                    }}
-                    disabled={product.stockQuantity === 0}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-                  >
-                    🎨 Customize This Product
-                  </Button>
+                  <>
+                    {/* Helper Text with Info Icon */}
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-0.5">
+                      <span>Don't have a design yet?</span>
+                      <div className="relative group">
+                        <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 pointer-events-none">
+                          <p className="mb-1 font-semibold">Need a Design?</p>
+                          <p className="mb-2">If you don't have a design ready, you can click the Customize button below to hire a professional designer from our platform to create one for you.</p>
+                          <p>You can also visit the Designers page to browse and view their profiles!</p>
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                            <div className="w-2 h-2 bg-gray-900 rotate-45"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        // Store selected options in sessionStorage for the customize page
+                        sessionStorage.setItem(`product_${product.id}_variants`, JSON.stringify(selectedVariants));
+                        sessionStorage.setItem(`product_${product.id}_color`, selectedColorId);
+                        sessionStorage.setItem(`product_${product.id}_colorAdjustment`, colorPriceAdjustment.toString());
+                        
+                        // Navigate with URL params as well
+                        const params = new URLSearchParams();
+                        if (Object.keys(selectedVariants).length > 0) {
+                          params.set('variants', JSON.stringify(selectedVariants));
+                        }
+                        if (selectedColorId) {
+                          params.set('color', selectedColorId);
+                        }
+                        
+                        const queryString = params.toString();
+                        router.push(`/products/${product.id}/customize${queryString ? `?${queryString}` : ''}`);
+                      }}
+                      disabled={product.stockQuantity === 0}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      🎨 Customize This Product
+                    </Button>
+                  </>
                 )}
                 
                 <div className="flex space-x-4">
@@ -1151,6 +1309,8 @@ export function ProductDetail() {
           </div>
         </div>
       )}
+      
+      <ScrollToTop />
     </div>
   );
 }

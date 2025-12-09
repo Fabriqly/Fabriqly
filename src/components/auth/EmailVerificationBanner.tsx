@@ -50,7 +50,7 @@ export function EmailVerificationBanner() {
   };
 
   return (
-    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 sm:p-4 mb-3 sm:mb-4">
       <div className="flex items-start">
         <div className="flex-shrink-0">
           <Mail className="h-5 w-5 text-yellow-600" />

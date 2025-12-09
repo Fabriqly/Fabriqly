@@ -281,7 +281,7 @@ export default function FileDisputeSelectPage() {
         <DashboardHeader user={session.user} showMobileMenu={true} />
         <div className="flex flex-1">
           <DashboardSidebar user={session.user} />
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
             {content}
           </div>
         </div>

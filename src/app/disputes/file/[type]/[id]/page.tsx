@@ -82,10 +82,12 @@ export default function FileDisputePage() {
 
   const isDesigner = session.user.role === 'designer' || session.user.role === 'business_owner';
 
+  const disputesLink = isDesigner ? "/dashboard/disputes" : "/disputes";
+
   const errorContent = (
     <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
       <div className="max-w-3xl mx-auto">
-        <Link href="/disputes">
+        <Link href={disputesLink}>
           <Button variant="outline" className="mb-6">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Disputes
@@ -95,7 +97,7 @@ export default function FileDisputePage() {
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Cannot File Dispute</h2>
           <p className="text-gray-600 mb-6">{eligibility?.reason || 'You are not eligible to file a dispute for this transaction.'}</p>
-          <Link href="/disputes">
+          <Link href={disputesLink}>
             <Button>Return to Disputes</Button>
           </Link>
         </div>
@@ -106,7 +108,7 @@ export default function FileDisputePage() {
   const formContent = (
     <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
       <div className="max-w-7xl mx-auto">
-        <Link href="/disputes">
+        <Link href={disputesLink}>
           <Button variant="outline" className="mb-6">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Disputes
@@ -131,8 +133,10 @@ export default function FileDisputePage() {
         <DashboardHeader user={session.user} showMobileMenu={true} />
         <div className="flex flex-1">
           <DashboardSidebar user={session.user} />
-          <div className="flex-1 overflow-y-auto">
-            {content}
+          <div className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
+            <div className="container mx-auto px-4 py-8">
+              {content}
+            </div>
           </div>
         </div>
       </div>
