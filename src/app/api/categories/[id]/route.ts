@@ -8,9 +8,9 @@ import { ResponseBuilder } from '@/utils/ResponseBuilder';
 import { ErrorHandler } from '@/errors/ErrorHandler';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // GET /api/categories/[id] - Get a single category
