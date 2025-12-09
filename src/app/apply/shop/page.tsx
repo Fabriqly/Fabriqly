@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { ShopApplicationForm } from '@/components/applications/ShopApplicationForm';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 
 export default function ApplyShopPage() {
   const router = useRouter();
@@ -39,6 +40,8 @@ export default function ApplyShopPage() {
       <div className="container mx-auto px-4 py-8">
         <ShopApplicationForm onCancel={() => router.back()} />
       </div>
+      
+      <ScrollToTop />
     </div>
   );
 }

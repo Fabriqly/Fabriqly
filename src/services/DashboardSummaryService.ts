@@ -124,6 +124,14 @@ export class DashboardSummaryService {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    // Revenue = subtotal only (excludes tax and shipping as those are pass-through costs)
+    // Also include design fees from customizations
+    const orderRevenue = orders.reduce((sum, o) => sum + (o.subtotal || 0), 0);
+    const customizationRevenue = customizations.reduce((sum, c) => {
+      const designFee = c.pricingAgreement?.designFee || 0;
+      return sum + designFee;
+    }, 0);
+
     const calcMetrics = {
       totalUsers: users.length,
       totalProducts: products.length,
@@ -133,14 +141,6 @@ export class DashboardSummaryService {
       completedOrders: orders.filter(o => o.status === 'completed').length,
       cancelledOrders: orders.filter(o => o.status === 'cancelled').length,
       totalCategories: categories.length,
-      
-      // Revenue = subtotal only (excludes tax and shipping as those are pass-through costs)
-      // Also include design fees from customizations
-      const orderRevenue = orders.reduce((sum, o) => sum + (o.subtotal || 0), 0);
-      const customizationRevenue = customizations.reduce((sum, c) => {
-        const designFee = c.pricingAgreement?.designFee || 0;
-        return sum + designFee;
-      }, 0);
       totalRevenue: orderRevenue + customizationRevenue,
       todayRevenue: orders.filter(o => {
         const orderDate = new Date(o.createdAt);

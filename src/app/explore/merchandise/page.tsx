@@ -1,18 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Dialog } from '@headlessui/react';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { ProductCard } from '@/components/products/ProductCard';
-import { LoadingCard } from '@/components/ui/LoadingCard';
 import { useAuth } from '@/hooks/useAuth';
 import { ProductWithDetails } from '@/types/products';
-import { Package, ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
+import { Filter, SlidersHorizontal, Search, Check, X, Package } from 'lucide-react';
 
 export default function MerchandisePage() {
   const { user } = useAuth();
   const [products, setProducts] = useState<ProductWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [tagSearch, setTagSearch] = useState('');
 
   useEffect(() => {
     loadMerchandiseProducts();
@@ -26,11 +30,51 @@ export default function MerchandisePage() {
       const data = await response.json();
       
       if (response.ok && data.success) {
-        // The API returns { success: true, data: { products: [...] } }
-        const products = data.data.products || [];
-        setProducts(products);
-      } else {
-        console.error('Error loading merchandise products:', data.error);
+        const fetchedProducts = data.data.products || [];
+        
+        // Ensure images array is properly formatted
+        const formattedProducts = fetchedProducts.map((product: any) => {
+          if (!product.images || product.images.length === 0) {
+            if (product.primaryImageUrl) {
+              product.images = [{
+                imageUrl: product.primaryImageUrl,
+                isPrimary: true,
+                altText: product.name
+              }];
+            } else if (product.imageUrl) {
+              product.images = [{
+                imageUrl: product.imageUrl,
+                isPrimary: true,
+                altText: product.name
+              }];
+            } else {
+              product.images = [];
+            }
+          } else {
+            product.images = product.images.map((img: any) => ({
+              ...img,
+              imageUrl: img.imageUrl || img.url,
+              isPrimary: img.isPrimary !== undefined ? img.isPrimary : false,
+              altText: img.altText || product.name
+            }));
+          }
+          return product;
+        });
+        
+        setProducts(formattedProducts);
+        
+        // Extract unique tags from all products
+        const allTags = new Set<string>();
+        formattedProducts.forEach((product: any) => {
+          if (product.tags && Array.isArray(product.tags)) {
+            product.tags.forEach((tag: string) => {
+              if (tag && tag.trim() && tag.toLowerCase() !== 'merchandise') {
+                allTags.add(tag.trim());
+              }
+            });
+          }
+        });
+        setTags(Array.from(allTags).sort());
       }
     } catch (error) {
       console.error('Error loading merchandise products:', error);
@@ -39,156 +83,271 @@ export default function MerchandisePage() {
     }
   };
 
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => {
+      if (prev.includes(tag)) {
+        return prev.filter(t => t !== tag);
+      }
+      return [...prev, tag];
+    });
+  };
+
+  const clearFilters = () => {
+    setSelectedTags([]);
+    setTagSearch('');
+  };
+
+  const filteredTags = tags.filter(tag => 
+    tag.toLowerCase().includes(tagSearch.toLowerCase())
+  );
+
+  const filteredProducts = selectedTags.length > 0
+    ? products.filter((product: any) => 
+        product.tags && Array.isArray(product.tags) && 
+        product.tags.some((tag: string) => selectedTags.includes(tag))
+      )
+    : products;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Customer Header */}
+    <div className="min-h-screen bg-gray-50 font-sans">
       <CustomerHeader user={user} />
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Back Navigation */}
-        <div className="mb-6">
-          <Link 
-            href="/explore"
-            className="inline-flex items-center text-indigo-600 hover:text-indigo-500 font-medium transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Explore
-          </Link>
-        </div>
-
-        {/* Guest Banner - Show only if user is not logged in */}
-        {!user && (
-          <div className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg p-4 text-white">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <p className="font-semibold">Preview Mode</p>
-                  <p className="text-sm text-indigo-100">You're browsing as a guest. Login to purchase items and access your cart.</p>
-                </div>
-              </div>
-              <a 
-                href="/login" 
-                className="bg-white text-indigo-600 px-4 py-2 rounded-lg font-medium hover:bg-indigo-50 transition-colors whitespace-nowrap"
-              >
-                Login Now
-              </a>
-            </div>
-          </div>
-        )}
-
+      
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Page Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-3 rounded-lg shadow-lg">
-              <Package className="h-8 w-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900">Merchandise</h1>
-              <p className="text-gray-600 mt-1">Browse our exclusive collection of branded merchandise</p>
-            </div>
-          </div>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-gray-900 mb-2 tracking-tight">Merchandise</h1>
+          <p className="text-base sm:text-lg text-gray-600 max-w-2xl">
+            Browse our exclusive collection of branded merchandise.
+          </p>
         </div>
 
-        {/* Products Count */}
-        {!loading && (
-          <div className="mb-6 flex items-center justify-between">
-            <p className="text-gray-600">
-              {products.length === 0 ? (
-                'No merchandise available'
-              ) : products.length === 1 ? (
-                '1 product available'
-              ) : (
-                `${products.length} products available`
-              )}
-            </p>
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Mobile Filter Button */}
+          <div className="lg:hidden mb-4">
+            <button 
+              onClick={() => setMobileFilterOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-gray-700 font-medium hover:bg-gray-50 w-full justify-center"
+            >
+              <Filter className="w-4 h-4" />
+              Filter & Sort
+            </button>
           </div>
-        )}
 
-        {/* Products Grid */}
-        <section>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {loading ? (
-              // Loading cards
-              Array.from({ length: 8 }).map((_, index) => (
-                <LoadingCard key={index} />
-              ))
-            ) : products.length > 0 ? (
-              // Actual products
-              products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  variant="customer"
-                  showActions={false}
-                />
-              ))
-            ) : (
-              // No products message
-              <div className="col-span-full">
-                <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-                  <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                    <Package className="h-8 w-8 text-gray-400" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Merchandise Available</h3>
-                  <p className="text-gray-500 mb-6">
-                    We're currently working on bringing you amazing merchandise products. Check back soon!
-                  </p>
-                  <Link 
-                    href="/explore"
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
-                  >
-                    Browse All Products
-                  </Link>
+          {/* Sidebar Filter - Desktop Only */}
+          <aside className="hidden lg:block w-64 flex-shrink-0">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 sticky top-24">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-gray-900 font-semibold">
+                  <Filter className="w-4 h-4" />
+                  <h2>Tags</h2>
                 </div>
+                {selectedTags.length > 0 && (
+                  <button 
+                    onClick={clearFilters}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                  >
+                    Clear
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Tag Search */}
+              <div className="relative mb-3">
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
+                <input
+                  type="text"
+                  placeholder="Search tags..."
+                  value={tagSearch}
+                  onChange={(e) => setTagSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                />
+              </div>
+              
+              <div className="space-y-0.5 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                <button
+                  onClick={() => setSelectedTags([])}
+                  className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between group ${
+                    selectedTags.length === 0
+                      ? 'bg-blue-50 text-blue-700 font-medium'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <span>All Tags</span>
+                  {selectedTags.length === 0 && <Check className="w-3.5 h-3.5" />}
+                </button>
+                
+                {filteredTags.length > 0 ? (
+                  filteredTags.map((tag) => {
+                    const isSelected = selectedTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        onClick={() => toggleTag(tag)}
+                        className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between group ${
+                          isSelected
+                            ? 'bg-blue-50 text-blue-700 font-medium'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="truncate">{tag}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5" />}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-4 text-gray-400 text-xs">
+                    No tags found
+                  </div>
+                )}
+              </div>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <div className="flex-1">
+            {loading ? (
+              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4 lg:gap-6">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-xl shadow-sm p-6 animate-pulse h-[360px]">
+                    <div className="h-32 bg-gray-200 rounded-lg mb-4"></div>
+                    <div className="h-6 bg-gray-200 rounded w-3/4 mb-3"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                    <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-1.5">No Merchandise Found</h3>
+                <p className="text-gray-600">
+                  {selectedTags.length === 0 
+                    ? 'No merchandise available at the moment.' 
+                    : `No merchandise found with the selected tags.`}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4 lg:gap-6">
+                {filteredProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    variant="customer"
+                    showActions={false}
+                  />
+                ))}
               </div>
             )}
           </div>
-        </section>
+        </div>
 
-        {/* Info Section */}
-        <section className="mt-16">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm p-8 border border-indigo-100">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center">
-                <div className="bg-white rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3 shadow-sm">
-                  <Package className="h-6 w-6 text-indigo-600" />
+        {/* Mobile Filter Drawer */}
+        <Dialog open={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)} className="relative z-50">
+          <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+          
+          <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
+            <Dialog.Panel className="w-screen max-w-md transform transition-transform">
+              <div className="flex h-full flex-col bg-white shadow-xl">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                  <h2 className="text-lg font-semibold text-gray-900">Filter & Sort</h2>
+                  <button
+                    onClick={() => setMobileFilterOpen(false)}
+                    className="text-gray-400 hover:text-gray-500"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Quality Products</h3>
-                <p className="text-gray-600 text-sm">
-                  All merchandise is made with high-quality materials and craftsmanship
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="bg-white rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3 shadow-sm">
-                  <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto px-6 py-4">
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2 text-gray-900 font-semibold">
+                        <Filter className="w-4 h-4" />
+                        <h2>Tags</h2>
+                      </div>
+                      {selectedTags.length > 0 && (
+                        <button 
+                          onClick={clearFilters}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                        >
+                          Clear
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Tag Search */}
+                    <div className="relative mb-3">
+                      <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
+                      <input
+                        type="text"
+                        placeholder="Search tags..."
+                        value={tagSearch}
+                        onChange={(e) => setTagSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      />
+                    </div>
+                    
+                    <div className="space-y-0.5 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                      <button
+                        onClick={() => setSelectedTags([])}
+                        className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between group ${
+                          selectedTags.length === 0
+                            ? 'bg-blue-50 text-blue-700 font-medium'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span>All Tags</span>
+                        {selectedTags.length === 0 && <Check className="w-3.5 h-3.5" />}
+                      </button>
+                      
+                      {filteredTags.length > 0 ? (
+                        filteredTags.map((tag) => {
+                          const isSelected = selectedTags.includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              onClick={() => toggleTag(tag)}
+                              className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center justify-between group ${
+                                isSelected
+                                  ? 'bg-blue-50 text-blue-700 font-medium'
+                                  : 'text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              <span className="truncate">{tag}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5" />}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-4 text-gray-400 text-xs">
+                          No tags found
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Authentic Brand</h3>
-                <p className="text-gray-600 text-sm">
-                  Official Fabriqly merchandise with authentic branding
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="bg-white rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3 shadow-sm">
-                  <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+
+                {/* Footer */}
+                <div className="border-t border-gray-200 px-6 py-4 bg-gray-50">
+                  <button
+                    onClick={() => setMobileFilterOpen(false)}
+                    className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    Apply Filters
+                  </button>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Fast Shipping</h3>
-                <p className="text-gray-600 text-sm">
-                  Quick processing and delivery to your doorstep
-                </p>
               </div>
-            </div>
+            </Dialog.Panel>
           </div>
-        </section>
+        </Dialog>
       </main>
+      
+      <ScrollToTop />
     </div>
   );
 }
-

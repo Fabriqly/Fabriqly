@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Download, CheckCircle, XCircle, Loader } from 'lucide-react';
+import { X, Download, CheckCircle, XCircle, Loader, Lock } from 'lucide-react';
 import { CustomizationRequestWithDetails } from '@/types/customization';
 
 interface CustomizationReviewModalProps {
@@ -230,47 +230,77 @@ export function CustomizationReviewModal({
             </div>
           )}
 
-          {/* Designer Work */}
-          {(request.designerFinalFile || request.designerPreviewImage || request.designerNotes) && (
-            <div className="bg-green-50 p-4 rounded-lg">
-              <h3 className="font-semibold mb-3">Designer's Work</h3>
-              
-              {request.designerNotes && (
-                <div className="mb-4">
-                  <p className="text-sm font-medium text-gray-700 mb-1">Designer Notes</p>
-                  <p className="text-gray-700 whitespace-pre-wrap">{request.designerNotes}</p>
-                </div>
-              )}
+          {/* Designer Work - Only show if payment is made */}
+          {(request.designerFinalFile || request.designerPreviewImage || request.designerNotes) && (() => {
+            // Check if customer has paid
+            const hasPaid = request.paymentDetails && (
+              request.paymentDetails.paymentStatus === 'fully_paid' ||
+              (request.paymentDetails.paidAmount || 0) >= (request.pricingAgreement?.designFee || 0)
+            );
 
-              <div className="grid md:grid-cols-2 gap-4">
-                {request.designerFinalFile && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Final Design File</p>
-                    <a
-                      href={request.designerFinalFile.url}
-                      download
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
-                    >
-                      <Download className="w-4 h-4" />
-                      {request.designerFinalFile.fileName}
-                    </a>
+            if (!hasPaid) {
+              return (
+                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2 text-yellow-800">
+                    <Lock className="w-5 h-5" />
+                    Designer's Work (Payment Required)
+                  </h3>
+                  <p className="text-yellow-700 mb-4">
+                    Please complete your payment to view the final design.
+                  </p>
+                  {request.pricingAgreement && (
+                    <div className="bg-white rounded-lg p-4 border border-yellow-200">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Payment Required:</p>
+                      <p className="text-lg font-bold text-gray-900">
+                        ₱{request.pricingAgreement.designFee.toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <div className="bg-green-50 p-4 rounded-lg">
+                <h3 className="font-semibold mb-3">Designer's Work</h3>
+                
+                {request.designerNotes && (
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-gray-700 mb-1">Designer Notes</p>
+                    <p className="text-gray-700 whitespace-pre-wrap">{request.designerNotes}</p>
                   </div>
                 )}
-                {request.designerPreviewImage && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Final Preview</p>
-                    <img 
-                      src={request.designerPreviewImage.url} 
-                      alt="Final design preview"
-                      className="w-full h-auto rounded mt-2"
-                    />
-                  </div>
-                )}
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  {request.designerFinalFile && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Final Design File</p>
+                      <a
+                        href={request.designerFinalFile.url}
+                        download
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                      >
+                        <Download className="w-4 h-4" />
+                        {request.designerFinalFile.fileName}
+                      </a>
+                    </div>
+                  )}
+                  {request.designerPreviewImage && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Final Preview</p>
+                      <img 
+                        src={request.designerPreviewImage.url} 
+                        alt="Final design preview"
+                        className="w-full h-auto rounded mt-2"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Rejection Reason */}
           {request.rejectionReason && (

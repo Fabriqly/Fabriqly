@@ -135,8 +135,9 @@ export async function PATCH(
             twitter: application.socialMedia.twitter,
             linkedin: application.socialMedia.linkedin
           } : undefined,
-          isVerified: false,
-          designerStats: {
+          isVerified: true, // Automatically verify when application is approved
+          isActive: true,
+          portfolioStats: {
             totalDesigns: 0,
             totalDownloads: 0,
             totalViews: 0,
@@ -172,6 +173,22 @@ export async function PATCH(
         });
       } catch (activityError) {
         console.error('Error logging activity:', activityError);
+      }
+
+      // Send approval email (non-blocking)
+      try {
+        const { EmailService } = await import('@/services/EmailService');
+        EmailService.sendApplicationApprovedEmail({
+          applicationId: id,
+          applicantName: application.userName || application.userEmail || 'there',
+          applicantEmail: application.userEmail,
+          applicationType: 'designer',
+          businessName: application.businessName,
+        }).catch((emailError) => {
+          console.error('Error sending application approved email:', emailError);
+        });
+      } catch (emailError) {
+        console.error('Error setting up application approved email:', emailError);
       }
 
       return NextResponse.json({
@@ -217,6 +234,23 @@ export async function PATCH(
         });
       } catch (activityError) {
         console.error('Error logging activity:', activityError);
+      }
+
+      // Send rejection email (non-blocking)
+      try {
+        const { EmailService } = await import('@/services/EmailService');
+        EmailService.sendApplicationRejectedEmail({
+          applicationId: id,
+          applicantName: application.userName || application.userEmail || 'there',
+          applicantEmail: application.userEmail,
+          applicationType: 'designer',
+          businessName: application.businessName,
+          rejectionReason: rejectionReason || undefined,
+        }).catch((emailError) => {
+          console.error('Error sending application rejected email:', emailError);
+        });
+      } catch (emailError) {
+        console.error('Error setting up application rejected email:', emailError);
       }
 
       return NextResponse.json({

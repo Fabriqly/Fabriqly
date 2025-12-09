@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 import { Color } from '@/types/enhanced-products';
-import { Plus, Edit, Trash2, Palette, Globe, User } from 'lucide-react';
+import { Plus, Edit, Trash2, Palette, Globe, User, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import Link from 'next/link';
 
 interface CreateColorData {
   colorName: string;
@@ -136,11 +137,56 @@ export default function BusinessColorsPage() {
     } : null;
   };
 
+  // Skeleton Card Component
+  const SkeletonCard = () => (
+    <div className="bg-white rounded-lg shadow-md p-6 animate-pulse">
+      <div className="flex items-center justify-between mb-4">
+        <div className="h-6 bg-gray-200 rounded w-32"></div>
+        <div className="h-4 bg-gray-200 rounded w-16"></div>
+      </div>
+      <div className="space-y-3">
+        <div className="flex items-center space-x-3">
+          <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-gray-200 rounded w-24"></div>
+            <div className="h-3 bg-gray-200 rounded w-32"></div>
+          </div>
+        </div>
+        <div className="h-6 bg-gray-200 rounded w-20"></div>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-gray-600">Loading colors...</span>
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <DashboardHeader user={user} />
+        <div className="flex flex-1">
+          <DashboardSidebar user={user} />
+          <div className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
+            <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
+              <div className="mb-8">
+                <Link href="/dashboard/products">
+                  <Button variant="outline" className="mb-4 flex items-center space-x-2">
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Back to Products</span>
+                  </Button>
+                </Link>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="h-8 bg-gray-200 rounded w-48 mb-2 animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded w-96 animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {[...Array(8)].map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -155,9 +201,15 @@ export default function BusinessColorsPage() {
         <DashboardSidebar user={user} />
 
         {/* Main Content */}
-        <div className="flex-1">
+        <div className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
             <div className="mb-8">
+              <Link href="/dashboard/products">
+                <Button variant="outline" className="mb-4 flex items-center space-x-2">
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to Products</span>
+                </Button>
+              </Link>
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">Color Management</h1>
@@ -261,6 +313,121 @@ export default function BusinessColorsPage() {
               </div>
             )}
 
+            {/* Custom Colors Section */}
+            <div className="mb-8 bg-white rounded-lg shadow-md border border-purple-200 p-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <User className="w-5 h-5 text-purple-600" />
+                <h2 className="text-xl font-semibold text-gray-900">Your Custom Colors</h2>
+                <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
+                  {getCustomColors().length} colors
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">
+                Your private colors created for specific product needs. Only you can use these colors.
+              </p>
+              
+              {getCustomColors().length === 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  <div className="bg-white rounded-lg shadow-md p-6 border-2 border-dashed border-purple-200 bg-purple-50 flex flex-col items-center justify-center min-h-[200px]">
+                    <Palette className="w-8 h-8 text-purple-400 mb-3" />
+                    <h3 className="text-sm font-medium text-gray-900 mb-1 text-center">No custom colors yet</h3>
+                    <p className="text-xs text-gray-600 mb-3 text-center">Create your first custom color</p>
+                    <Button onClick={() => setShowCreateForm(true)} size="sm">
+                      <Plus className="w-3 h-3 mr-1" />
+                      Create Color
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {getCustomColors().map((color) => (
+                    <div key={color.id} className="bg-white rounded-lg shadow-md p-4 md:p-6 border border-gray-200">
+                      {/* Mobile Layout - Stacked */}
+                      <div className="flex flex-col md:hidden space-y-3">
+                        {/* Name Row with Actions */}
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-semibold text-gray-900">{color.colorName}</h3>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => setEditingColor(color)}
+                              className="p-1 text-gray-400 hover:text-blue-600"
+                            >
+                              <Edit className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteColor(color.id)}
+                              className="p-1 text-gray-400 hover:text-red-600"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Color Preview Row */}
+                        <div className="flex justify-center">
+                          <div 
+                            className="w-full aspect-square max-w-[80px] rounded-lg border border-gray-300 shadow-sm"
+                            style={{ backgroundColor: color.hexCode }}
+                          />
+                        </div>
+                        
+                        {/* Hex and RGB Row */}
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-gray-900">{color.hexCode}</p>
+                          <p className="text-xs text-gray-500">{color.rgbCode}</p>
+                        </div>
+                      </div>
+
+                      {/* Desktop Layout - Original */}
+                      <div className="hidden md:block">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold text-gray-900">{color.colorName}</h3>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => setEditingColor(color)}
+                              className="p-1 text-gray-400 hover:text-blue-600"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteColor(color.id)}
+                              className="p-1 text-gray-400 hover:text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-3">
+                            <div 
+                              className="w-12 h-12 rounded-lg border border-gray-300 shadow-sm"
+                              style={{ backgroundColor: color.hexCode }}
+                            />
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{color.hexCode}</p>
+                              <p className="text-sm text-gray-500">{color.rgbCode}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              color.isActive 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {color.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                            <span className="text-xs text-gray-500">Custom</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Global Colors Section */}
             <div className="mb-8">
               <div className="flex items-center space-x-2 mb-4">
@@ -275,99 +442,62 @@ export default function BusinessColorsPage() {
                 You can use them in your products without creating your own.
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-6">
                 {getGlobalColors().map((color) => (
-                  <div key={color.id} className="bg-white rounded-lg shadow-md p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">{color.colorName}</h3>
-                      <div className="flex items-center space-x-2">
-                        <Globe className="w-4 h-4 text-blue-600" />
-                        <span className="text-xs text-gray-500">Global</span>
+                  <div key={color.id} className="bg-white rounded-lg shadow-md p-4 md:p-6">
+                    {/* Mobile Layout - Stacked */}
+                    <div className="flex flex-col md:hidden space-y-3">
+                      {/* Name Row */}
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-gray-900">{color.colorName}</h3>
+                      </div>
+                      
+                      {/* Color Preview Row */}
+                      <div className="flex justify-center">
+                        <div 
+                          className="w-full aspect-square max-w-[80px] rounded-lg border border-gray-300 shadow-sm"
+                          style={{ backgroundColor: color.hexCode }}
+                        />
+                      </div>
+                      
+                      {/* Hex and RGB Row */}
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-gray-900">{color.hexCode}</p>
+                        <p className="text-xs text-gray-500">{color.rgbCode}</p>
                       </div>
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-3">
-                        <div 
-                          className="w-12 h-12 rounded-lg border border-gray-300 shadow-sm"
-                          style={{ backgroundColor: color.hexCode }}
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{color.hexCode}</p>
-                          <p className="text-sm text-gray-500">{color.rgbCode}</p>
+                    {/* Desktop Layout - Original */}
+                    <div className="hidden md:block">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">{color.colorName}</h3>
+                        <div className="flex items-center space-x-2">
+                          <Globe className="w-4 h-4 text-blue-600" />
+                          <span className="text-xs text-gray-500">Global</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          color.isActive 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {color.isActive ? 'Available' : 'Unavailable'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Custom Colors Section */}
-            <div className="mb-8">
-              <div className="flex items-center space-x-2 mb-4">
-                <User className="w-5 h-5 text-purple-600" />
-                <h2 className="text-xl font-semibold text-gray-900">Your Custom Colors</h2>
-                <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
-                  {getCustomColors().length} colors
-                </span>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                Your private colors created for specific product needs. Only you can use these colors.
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {getCustomColors().map((color) => (
-                  <div key={color.id} className="bg-white rounded-lg shadow-md p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">{color.colorName}</h3>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => setEditingColor(color)}
-                          className="p-1 text-gray-400 hover:text-blue-600"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteColor(color.id)}
-                          className="p-1 text-gray-400 hover:text-red-600"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-3">
-                        <div 
-                          className="w-12 h-12 rounded-lg border border-gray-300 shadow-sm"
-                          style={{ backgroundColor: color.hexCode }}
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{color.hexCode}</p>
-                          <p className="text-sm text-gray-500">{color.rgbCode}</p>
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-3">
+                          <div 
+                            className="w-12 h-12 rounded-lg border border-gray-300 shadow-sm"
+                            style={{ backgroundColor: color.hexCode }}
+                          />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{color.hexCode}</p>
+                            <p className="text-sm text-gray-500">{color.rgbCode}</p>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          color.isActive 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {color.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                        <span className="text-xs text-gray-500">Custom</span>
+                        <div className="flex items-center justify-between">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            color.isActive 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {color.isActive ? 'Available' : 'Unavailable'}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>

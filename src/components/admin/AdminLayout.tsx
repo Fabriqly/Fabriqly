@@ -19,7 +19,11 @@ import {
   Shield,
   Store,
   MessageSquare,
-  FileText
+  FileText,
+  DollarSign,
+  Tag,
+  AlertTriangle,
+  Database
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -70,6 +74,12 @@ const adminNavigation = [
     description: 'Review shop suspension appeals'
   },
   {
+    name: 'Disputes',
+    href: '/dashboard/admin/disputes',
+    icon: AlertTriangle,
+    description: 'Manage and resolve disputes'
+  },
+  {
     name: 'Applications',
     href: '/dashboard/admin/applications',
     icon: FileText,
@@ -82,6 +92,18 @@ const adminNavigation = [
     description: 'Verify designer accounts'
   },
   {
+    name: 'Payouts',
+    href: '/dashboard/admin/payouts',
+    icon: DollarSign,
+    description: 'Manage designer payouts'
+  },
+  {
+    name: 'Promotions',
+    href: '/dashboard/admin/promotions',
+    icon: Tag,
+    description: 'Manage discounts and coupons'
+  },
+  {
     name: 'Users',
     href: '/dashboard/admin/users',
     icon: Users,
@@ -92,6 +114,18 @@ const adminNavigation = [
     href: '/dashboard/admin/analytics',
     icon: BarChart3,
     description: 'System analytics'
+  },
+  {
+    name: 'Backups',
+    href: '/dashboard/admin/backups',
+    icon: Database,
+    description: 'Manage backups and recovery'
+  },
+  {
+    name: 'System Announcements',
+    href: '/dashboard/admin/system-announcements',
+    icon: MessageSquare,
+    description: 'Send system-wide announcements'
   },
   {
     name: 'Settings',

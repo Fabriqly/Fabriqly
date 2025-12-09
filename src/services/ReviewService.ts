@@ -11,10 +11,11 @@ export interface CreateReviewData {
   rating: number;
   comment: string;
   images?: string[];
-  reviewType: 'product' | 'shop' | 'designer' | 'customization';
+  reviewType: 'product' | 'shop' | 'designer' | 'design' | 'customization';
   productId?: string;
   shopId?: string;
   designerId?: string;
+  designId?: string;
   customizationRequestId?: string;
 }
 
@@ -38,6 +39,9 @@ export class ReviewService {
     if (data.reviewType === 'designer' && !data.designerId) {
       throw AppError.badRequest('Designer ID is required for designer reviews');
     }
+    if (data.reviewType === 'design' && !data.designId) {
+      throw AppError.badRequest('Design ID is required for design reviews');
+    }
     if (data.reviewType === 'customization' && !data.customizationRequestId) {
       throw AppError.badRequest('Customization request ID is required for customization reviews');
     }
@@ -49,6 +53,7 @@ export class ReviewService {
       productId: data.productId,
       shopId: data.shopId,
       designerId: data.designerId,
+      designId: data.designId,
       customizationRequestId: data.customizationRequestId
     });
 
@@ -69,7 +74,8 @@ export class ReviewService {
     await this.updateAverageRatings(data.reviewType, {
       shopId: data.shopId,
       designerId: data.designerId,
-      productId: data.productId
+      productId: data.productId,
+      designId: data.designId
     });
 
     // Emit event
@@ -77,7 +83,7 @@ export class ReviewService {
       reviewId: review.id,
       reviewType: data.reviewType,
       rating: data.rating,
-      targetId: data.productId || data.shopId || data.designerId || data.customizationRequestId
+      targetId: data.productId || data.shopId || data.designerId || data.designId || data.customizationRequestId
     });
 
     return review as Review;
@@ -91,6 +97,7 @@ export class ReviewService {
     productId?: string;
     shopId?: string;
     designerId?: string;
+    designId?: string;
     customizationRequestId?: string;
     reviewType?: string;
     limit?: number;
@@ -108,6 +115,9 @@ export class ReviewService {
     }
     if (filters.designerId) {
       queryFilters.push({ field: 'designerId', operator: '==', value: filters.designerId });
+    }
+    if (filters.designId) {
+      queryFilters.push({ field: 'designId', operator: '==', value: filters.designId });
     }
     if (filters.customizationRequestId) {
       queryFilters.push({ field: 'customizationRequestId', operator: '==', value: filters.customizationRequestId });
@@ -135,15 +145,18 @@ export class ReviewService {
       shopId?: string;
       designerId?: string;
       productId?: string;
+      designId?: string;
     }
   ): Promise<void> {
     try {
       if (reviewType === 'shop' && target.shopId) {
         const shopReviews = await this.getReviews({ shopId: target.shopId });
-        const avgRating = shopReviews.reduce((sum, r) => sum + r.rating, 0) / shopReviews.length;
+        const avgRating = shopReviews.length > 0 
+          ? shopReviews.reduce((sum, r) => sum + r.rating, 0) / shopReviews.length 
+          : 0;
         
         await FirebaseAdminService.updateDocument(Collections.SHOP_PROFILES, target.shopId, {
-          stats: {
+          ratings: {
             averageRating: avgRating,
             totalReviews: shopReviews.length
           } as any
@@ -152,7 +165,9 @@ export class ReviewService {
 
       if (reviewType === 'designer' && target.designerId) {
         const designerReviews = await this.getReviews({ designerId: target.designerId });
-        const avgRating = designerReviews.reduce((sum, r) => sum + r.rating, 0) / designerReviews.length;
+        const avgRating = designerReviews.length > 0
+          ? designerReviews.reduce((sum, r) => sum + r.rating, 0) / designerReviews.length
+          : 0;
         
         await FirebaseAdminService.updateDocument(Collections.DESIGNER_PROFILES, target.designerId, {
           portfolioStats: {
@@ -170,7 +185,7 @@ export class ReviewService {
    * Get average rating
    */
   async getAverageRating(
-    reviewType: 'product' | 'shop' | 'designer',
+    reviewType: 'product' | 'shop' | 'designer' | 'design',
     targetId: string
   ): Promise<{ average: number; total: number }> {
     const filters: any = { reviewType };
@@ -178,6 +193,7 @@ export class ReviewService {
     if (reviewType === 'product') filters.productId = targetId;
     if (reviewType === 'shop') filters.shopId = targetId;
     if (reviewType === 'designer') filters.designerId = targetId;
+    if (reviewType === 'design') filters.designId = targetId;
 
     const reviews = await this.getReviews(filters);
     
@@ -191,6 +207,131 @@ export class ReviewService {
       average: Math.round(average * 10) / 10, // Round to 1 decimal
       total: reviews.length
     };
+  }
+
+  /**
+   * Get a single review by ID
+   */
+  async getReviewById(reviewId: string): Promise<Review | null> {
+    const review = await FirebaseAdminService.getDocument(
+      Collections.REVIEWS,
+      reviewId
+    );
+    return review as Review | null;
+  }
+
+  /**
+   * Add a reply to a review
+   */
+  async addReply(
+    reviewId: string,
+    authorId: string,
+    authorName: string,
+    authorRole: 'shop_owner' | 'designer' | 'admin',
+    comment: string
+  ): Promise<Review> {
+    const review = await this.getReviewById(reviewId);
+    if (!review) {
+      throw AppError.notFound('Review not found');
+    }
+
+    if (review.reply) {
+      throw AppError.badRequest('This review already has a reply');
+    }
+
+    const reply = {
+      id: `reply-${Date.now()}`,
+      authorId,
+      authorName,
+      authorRole,
+      comment,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    };
+
+    const updatedReview = await FirebaseAdminService.updateDocument(
+      Collections.REVIEWS,
+      reviewId,
+      {
+        reply,
+        updatedAt: Timestamp.now()
+      }
+    );
+
+    return updatedReview as Review;
+  }
+
+  /**
+   * Update a review reply
+   */
+  async updateReply(
+    reviewId: string,
+    authorId: string,
+    comment: string
+  ): Promise<Review> {
+    const review = await this.getReviewById(reviewId);
+    if (!review || !review.reply) {
+      throw AppError.notFound('Review or reply not found');
+    }
+
+    if (review.reply.authorId !== authorId) {
+      throw AppError.forbidden('You can only update your own replies');
+    }
+
+    const updatedReply = {
+      ...review.reply,
+      comment,
+      updatedAt: Timestamp.now()
+    };
+
+    const updatedReview = await FirebaseAdminService.updateDocument(
+      Collections.REVIEWS,
+      reviewId,
+      {
+        reply: updatedReply,
+        updatedAt: Timestamp.now()
+      }
+    );
+
+    return updatedReview as Review;
+  }
+
+  /**
+   * Delete a review
+   */
+  async deleteReview(reviewId: string, userId: string, userRole: string): Promise<void> {
+    const review = await this.getReviewById(reviewId);
+    if (!review) {
+      throw AppError.notFound('Review not found');
+    }
+
+    // Check permissions
+    const canDelete = 
+      review.customerId === userId ||
+      userRole === 'admin' ||
+      (review.reviewType === 'shop' && userRole === 'business_owner') ||
+      (review.reviewType === 'designer' && userRole === 'designer') ||
+      (review.reviewType === 'design' && userRole === 'designer');
+
+    if (!canDelete) {
+      throw AppError.forbidden('You do not have permission to delete this review');
+    }
+
+    await FirebaseAdminService.deleteDocument(Collections.REVIEWS, reviewId);
+
+    // Update average ratings after deletion
+    await this.updateAverageRatings(review.reviewType, {
+      shopId: review.shopId,
+      designerId: review.designerId,
+      productId: review.productId
+    });
+
+    // Emit event
+    await eventBus.emit('review.deleted', {
+      reviewId,
+      reviewType: review.reviewType,
+      targetId: review.productId || review.shopId || review.designerId || review.customizationRequestId
+    });
   }
 
   /**

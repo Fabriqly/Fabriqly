@@ -8,10 +8,11 @@ import {
   Package, 
   Mail, 
   ArrowRight,
-  Home,
   ShoppingBag
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
+import LogoName from '@/../public/LogoName.png';
 
 export default function OrderSuccessPage() {
   const searchParams = useSearchParams();
@@ -35,11 +36,21 @@ export default function OrderSuccessPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-          {/* Success Icon */}
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
-            <CheckCircle className="h-8 w-8 text-green-600" />
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          {/* Header from checkout (without text) */}
+          <div className="w-full bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-600">
+            <div className="px-6 py-4">
+              <div className="flex items-center">
+                <Image src={LogoName} alt="Fabriqly" className="h-8 w-auto" priority />
+              </div>
+            </div>
           </div>
+
+          <div className="p-8 text-center">
+            {/* Success Icon */}
+            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
 
           {/* Success Message */}
           <h1 className="text-2xl font-bold text-gray-900 mb-4">
@@ -84,26 +95,19 @@ export default function OrderSuccessPage() {
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Link href="/orders" className="flex-1">
-              <Button className="w-full">
+              <Button className="w-full bg-white border-2 border-gray-300 text-gray-900 hover:bg-gray-50 hover:border-gray-400 font-semibold py-3">
                 <Package className="w-4 h-4 mr-2" />
                 View My Orders
               </Button>
             </Link>
             
             <Link href="/explore" className="flex-1">
-              <Button variant="outline" className="w-full">
+              <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3">
                 <ShoppingBag className="w-4 h-4 mr-2" />
                 Continue Shopping
               </Button>
             </Link>
           </div>
-
-          {/* Home Link */}
-          <div className="mt-6">
-            <Link href="/" className="text-sm text-blue-600 hover:text-blue-700 flex items-center justify-center space-x-1">
-              <Home className="w-4 h-4" />
-              <span>Return to Home</span>
-            </Link>
           </div>
         </div>
       </div>

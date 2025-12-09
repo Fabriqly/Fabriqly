@@ -21,14 +21,23 @@ import { AppError } from '@/errors/AppError';
 import { CacheService } from '@/services/CacheService';
 import { eventBus, EventTypes } from '@/events';
 import { PerformanceMonitor } from '@/monitoring/PerformanceMonitor';
+import { CouponService } from './CouponService';
+import { DiscountService } from './DiscountService';
+import { AppliedDiscount } from '@/types/promotion';
 
 export class OrderService implements IOrderService {
+  private couponService: CouponService;
+  private discountService: DiscountService;
+
   constructor(
     private orderRepository: OrderRepository,
     private activityRepository: ActivityRepository,
     private productRepository: ProductRepository,
     private cacheService: CacheService
-  ) {}
+  ) {
+    this.couponService = new CouponService();
+    this.discountService = new DiscountService();
+  }
 
   async createOrder(data: CreateOrderData): Promise<Order> {
     return PerformanceMonitor.measure('OrderService.createOrder', async () => {
@@ -40,17 +49,153 @@ export class OrderService implements IOrderService {
 
       // Calculate totals
       const subtotal = data.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      const tax = subtotal * 0.08; // 8% tax
+      
+      // Apply discounts/coupons with scope awareness
+      let productDiscountAmount = 0; // Discount on products/subtotal
+      let shippingDiscountAmount = 0; // Discount on shipping
+      const appliedDiscounts: AppliedDiscount[] = [];
+      
+      console.log('[OrderService] Creating order with couponCode:', data.couponCode, 'subtotal:', subtotal);
+      
+      if (data.couponCode) {
+        const productIds = data.items.map(item => item.productId);
+        
+        // Fetch products to get category IDs
+        const products = await Promise.all(
+          productIds.map(id => this.productRepository.findById(id))
+        );
+        const categoryIds = products
+          .filter(p => p && p.categoryId)
+          .map(p => p!.categoryId!)
+          .filter(Boolean);
+
+        // Get shipping cost
+        const shipping = data.shippingCost || 0;
+
+        // Calculate applicable amount for product/category scoped discounts
+        let applicableAmount = 0;
+        if (products.length > 0) {
+          // For product/category scopes, we need to calculate from matching items
+          // This will be refined when we get the discount scope
+        }
+
+        const couponResult = await this.couponService.applyCoupon(data.couponCode, {
+          userId: data.customerId,
+          orderAmount: subtotal,
+          productIds,
+          categoryIds,
+          shippingCost: shipping,
+          applicableAmount
+        });
+
+        console.log('[OrderService] Coupon validation result:', {
+          success: couponResult.success,
+          hasDiscount: !!couponResult.discount,
+          discountAmount: couponResult.discountAmount,
+          error: couponResult.error
+        });
+        
+        if (couponResult.success && couponResult.discount && couponResult.discountAmount !== undefined) {
+          const discount = couponResult.discount;
+          
+          console.log('[OrderService] Applying discount:', {
+            scope: discount.scope,
+            type: discount.type,
+            value: discount.value,
+            targetIds: discount.targetIds
+          });
+          
+          // Calculate discount based on scope
+          if (discount.scope === 'shipping') {
+            // Shipping discount applies only to shipping cost
+            shippingDiscountAmount = this.discountService.calculateDiscount(
+              discount,
+              subtotal,
+              undefined,
+              shipping
+            );
+          } else if (discount.scope === 'product') {
+            // Product discount applies to matching products only
+            const matchingItems = data.items.filter(item => 
+              discount.targetIds?.includes(item.productId)
+            );
+            const matchingAmount = matchingItems.reduce((sum, item) => 
+              sum + (item.price * item.quantity), 0
+            );
+            productDiscountAmount = this.discountService.calculateDiscount(
+              discount,
+              subtotal,
+              matchingAmount
+            );
+          } else if (discount.scope === 'category') {
+            // Category discount applies to matching category products
+            const matchingProducts = products.filter(p => 
+              p && p.categoryId && discount.targetIds?.includes(p.categoryId)
+            );
+            const matchingProductIds = matchingProducts.map(p => p!.id);
+            const matchingItems = data.items.filter(item => 
+              matchingProductIds.includes(item.productId)
+            );
+            const matchingAmount = matchingItems.reduce((sum, item) => 
+              sum + (item.price * item.quantity), 0
+            );
+            productDiscountAmount = this.discountService.calculateDiscount(
+              discount,
+              subtotal,
+              matchingAmount
+            );
+          } else {
+            // Order-level discount applies to entire subtotal
+            productDiscountAmount = this.discountService.calculateDiscount(
+              discount,
+              subtotal
+            );
+          }
+
+          appliedDiscounts.push({
+            discountId: discount.id,
+            couponCode: data.couponCode,
+            discountType: discount.type,
+            discountValue: discount.value,
+            discountAmount: discount.scope === 'shipping' ? shippingDiscountAmount : productDiscountAmount,
+            scope: discount.scope,
+            // Only include targetIds if it exists and is not undefined
+            // For order-level and shipping-level discounts, targetIds may not be set
+            ...(discount.targetIds && discount.targetIds.length > 0 ? { targetIds: discount.targetIds } : {})
+          });
+        }
+      }
+
+      // Calculate tax on subtotal after product discount (shipping discount doesn't affect tax)
+      const taxableAmount = Math.max(0, subtotal - productDiscountAmount);
+      const tax = taxableAmount * 0.08; // 8% tax
       const shipping = data.shippingCost || 0;
-      const totalAmount = subtotal + tax + shipping;
+      const shippingAfterDiscount = Math.max(0, shipping - shippingDiscountAmount);
+      
+      // Total = (subtotal - product discount) + tax + (shipping - shipping discount)
+      const totalAmount = taxableAmount + tax + shippingAfterDiscount;
+
+      console.log('[OrderService] Order totals calculated:', {
+        subtotal,
+        productDiscountAmount,
+        shippingDiscountAmount,
+        taxableAmount,
+        tax,
+        shipping,
+        shippingAfterDiscount,
+        totalAmount,
+        couponCode: data.couponCode
+      });
 
       // Create order
       const now = Timestamp.now();
+      const totalDiscountAmount = productDiscountAmount + shippingDiscountAmount;
       const orderData = {
         customerId: data.customerId,
         businessOwnerId: data.businessOwnerId,
         items: data.items,
         subtotal,
+        discountAmount: totalDiscountAmount > 0 ? totalDiscountAmount : undefined,
         tax,
         shippingCost: shipping,
         totalAmount,
@@ -60,6 +205,8 @@ export class OrderService implements IOrderService {
         billingAddress: data.billingAddress || data.shippingAddress,
         paymentMethod: data.paymentMethod,
         notes: data.notes,
+        appliedDiscounts: appliedDiscounts.length > 0 ? appliedDiscounts : undefined,
+        appliedCouponCode: data.couponCode,
         statusHistory: [
           {
             status: 'pending' as const,
@@ -98,6 +245,46 @@ export class OrderService implements IOrderService {
         businessOwnerId: data.businessOwnerId,
         totalAmount: order.totalAmount
       });
+
+      // Send order created email (non-blocking)
+      try {
+        const { EmailService } = await import('./EmailService');
+        const { FirebaseAdminService } = await import('./firebase-admin');
+        const { Collections } = await import('./firebase');
+        
+        // Get customer and business owner data
+        const [customerDoc, businessOwnerDoc] = await Promise.all([
+          FirebaseAdminService.getDocument(Collections.USERS, data.customerId),
+          FirebaseAdminService.getDocument(Collections.USERS, data.businessOwnerId),
+        ]);
+        
+        if (customerDoc) {
+          const customer = {
+            email: customerDoc.email,
+            firstName: customerDoc.profile?.firstName,
+            lastName: customerDoc.profile?.lastName,
+            displayName: customerDoc.displayName || `${customerDoc.profile?.firstName || ''} ${customerDoc.profile?.lastName || ''}`.trim() || customerDoc.email,
+          };
+          
+          const businessOwner = businessOwnerDoc ? {
+            email: businessOwnerDoc.email,
+            firstName: businessOwnerDoc.profile?.firstName,
+            lastName: businessOwnerDoc.profile?.lastName,
+            displayName: businessOwnerDoc.displayName || `${businessOwnerDoc.profile?.firstName || ''} ${businessOwnerDoc.profile?.lastName || ''}`.trim() || businessOwnerDoc.email,
+          } : undefined;
+          
+          EmailService.sendOrderCreatedEmail({
+            order,
+            customer,
+            businessOwner,
+          }).catch((emailError) => {
+            console.error('Error sending order created email:', emailError);
+          });
+        }
+      } catch (emailError) {
+        console.error('Error setting up order created email:', emailError);
+        // Don't fail order creation if email fails
+      }
 
       // Clear relevant caches
       await CacheService.invalidate(`orders:customer:${data.customerId}`);
@@ -154,6 +341,48 @@ export class OrderService implements IOrderService {
         updateData.statusHistory = statusHistory;
       }
 
+      // Handle inventory restoration if order is being cancelled
+      // Only restore if order was previously paid/processing (inventory was decremented)
+      if (data.status === 'cancelled' && existingOrder.status !== 'cancelled') {
+        const shouldRestoreInventory = 
+          existingOrder.paymentStatus === 'paid' || 
+          existingOrder.status === 'processing' || 
+          existingOrder.status === 'to_ship' ||
+          existingOrder.status === 'shipped';
+        
+        if (shouldRestoreInventory && existingOrder.items && existingOrder.items.length > 0) {
+          console.log(`[OrderService] Restoring inventory for cancelled order ${orderId}`);
+          try {
+            const { ProductService } = await import('./ProductService');
+            const { CategoryRepository } = await import('@/repositories/CategoryRepository');
+            
+            const categoryRepository = new CategoryRepository();
+            const productService = new ProductService(this.productRepository, categoryRepository, this.activityRepository);
+            
+            await Promise.all(
+              existingOrder.items.map(async (item: any) => {
+                try {
+                  const result = await productService.incrementStock(
+                    item.productId,
+                    item.quantity,
+                    orderId
+                  );
+                  if (!result) {
+                    console.error(`[OrderService] Failed to restore stock for product ${item.productId} in order ${orderId}`);
+                  }
+                } catch (error) {
+                  console.error(`[OrderService] Error restoring stock for product ${item.productId}:`, error);
+                  // Continue processing other items even if one fails
+                }
+              })
+            );
+          } catch (error) {
+            console.error(`[OrderService] Error restoring inventory for order ${orderId}:`, error);
+            // Don't fail order cancellation if inventory restoration fails
+          }
+        }
+      }
+
       // Update order
       const updatedOrder = await this.orderRepository.update(orderId, updateData);
 
@@ -191,6 +420,44 @@ export class OrderService implements IOrderService {
       // Update shop stats when order is marked as delivered
       if (data.status && data.status === 'delivered') {
         await this.updateShopStatsForDeliveredOrder(updatedOrder);
+      }
+
+      // Send status change emails (non-blocking)
+      if (data.status && data.status !== existingOrder.status) {
+        try {
+          const { EmailService } = await import('./EmailService');
+          
+          if (data.status === 'shipped') {
+            EmailService.sendOrderShippedEmail(
+              orderId,
+              existingOrder.customerId,
+              updatedOrder.trackingNumber,
+              updatedOrder.carrier
+            ).catch((emailError) => {
+              console.error('Error sending order shipped email:', emailError);
+            });
+          } else if (data.status === 'delivered') {
+            EmailService.sendOrderDeliveredEmail(
+              orderId,
+              existingOrder.customerId,
+              existingOrder.businessOwnerId
+            ).catch((emailError) => {
+              console.error('Error sending order delivered email:', emailError);
+            });
+          } else if (data.status === 'cancelled') {
+            EmailService.sendOrderCancelledEmail(
+              orderId,
+              existingOrder.customerId,
+              existingOrder.businessOwnerId,
+              data.notes // Use notes as cancellation reason if provided
+            ).catch((emailError) => {
+              console.error('Error sending order cancelled email:', emailError);
+            });
+          }
+        } catch (emailError) {
+          console.error('Error setting up status change email:', emailError);
+          // Don't fail order update if email fails
+        }
       }
 
       // Clear relevant caches
