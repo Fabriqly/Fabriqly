@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
           // Dynamic import to avoid TypeScript errors when nodemailer is not installed
           const nodemailer = await import('nodemailer' as any);
           
-          const transporter = nodemailer.default.createTransporter({
+          const transporter = nodemailer.default.createTransport({
             host: process.env.SMTP_HOST,
             port: parseInt(process.env.SMTP_PORT || '587'),
             secure: false,
