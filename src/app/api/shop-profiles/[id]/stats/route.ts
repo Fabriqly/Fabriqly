@@ -11,7 +11,7 @@ const shopProfileService = new ShopProfileService(shopProfileRepository, activit
 // GET /api/shop-profiles/[id]/stats - Get shop statistics
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;

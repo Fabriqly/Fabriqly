@@ -9,7 +9,7 @@ import { Timestamp } from 'firebase/firestore';
 // PUT /api/designs/[id]/feature - Toggle featured status
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -21,7 +21,7 @@ export async function PUT(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
     const { isFeatured } = await request.json();
 
     if (typeof isFeatured !== 'boolean') {
