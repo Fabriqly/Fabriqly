@@ -39,6 +39,7 @@ import { RatingDisplay } from '@/components/reviews/RatingDisplay';
 import { ReviewList } from '@/components/reviews/ReviewList';
 import { ReviewForm } from '@/components/reviews/ReviewForm';
 import { Review } from '@/types/firebase';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 
 export function ProductDetail() {
   const params = useParams();
@@ -629,11 +630,22 @@ export function ProductDetail() {
             {/* Main Image */}
             <div className="aspect-[3/2] max-h-[400px] bg-white rounded-xl overflow-hidden relative border border-slate-200">
               {currentImage ? (
-                <img
-                  src={currentImage.imageUrl}
-                  alt={currentImage.altText || product.name}
-                  className="w-full h-full object-contain"
-                />
+                currentImage.storagePath && currentImage.storageBucket ? (
+                  <WatermarkedImage
+                    storagePath={currentImage.storagePath}
+                    storageBucket={currentImage.storageBucket}
+                    productId={product.id}
+                    alt={currentImage.altText || product.name}
+                    className="w-full h-full object-contain"
+                    fallbackSrc={currentImage.imageUrl}
+                  />
+                ) : (
+                  <img
+                    src={currentImage.imageUrl}
+                    alt={currentImage.altText || product.name}
+                    className="w-full h-full object-contain"
+                  />
+                )
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-400">
                   <ImageIcon className="w-24 h-24" />
@@ -678,11 +690,22 @@ export function ProductDetail() {
                       : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <img
-                    src={image.imageUrl}
-                    alt={image.altText || product.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {image.storagePath && image.storageBucket ? (
+                    <WatermarkedImage
+                      storagePath={image.storagePath}
+                      storageBucket={image.storageBucket}
+                      productId={product.id}
+                      alt={image.altText || product.name}
+                      className="w-full h-full object-cover"
+                      fallbackSrc={image.imageUrl}
+                    />
+                  ) : (
+                    <img
+                      src={image.imageUrl}
+                      alt={image.altText || product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                 </button>
               ))}
             </div>

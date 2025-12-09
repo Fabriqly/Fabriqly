@@ -67,27 +67,77 @@ export async function POST(request: NextRequest) {
     const fileExtension = file.name.split('.').pop();
     const fileName = `${timestamp}.${fileExtension}`;
 
-    // Upload to Supabase Storage using server-side method
-    const uploadResult = await SupabaseStorageService.uploadFileFromServer(
-      Buffer.from(await file.arrayBuffer()),
-      fileName,
-      file.type,
-      {
-        bucket: StorageBuckets.DESIGNS,
-        folder: `designs/${timestamp}`,
-        upsert: false
+    // Read file buffer once (can't read File.arrayBuffer() twice)
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+
+    // Upload to Supabase Storage using server-side method (use private bucket for watermarking)
+    // Try private bucket first, fallback to public for backward compatibility
+    const usePrivateBucket = true // Set to true to enable watermarking for new uploads
+    let bucket = usePrivateBucket ? StorageBuckets.DESIGNS_PRIVATE : StorageBuckets.DESIGNS
+    
+    let uploadResult;
+    try {
+      uploadResult = await SupabaseStorageService.uploadFileFromServer(
+        fileBuffer,
+        fileName,
+        file.type,
+        {
+          bucket: bucket,
+          folder: `designs/${timestamp}`,
+          upsert: false
+        }
+      );
+    } catch (error: any) {
+      // If private bucket doesn't exist, fallback to public bucket
+      const isBucketNotFound = error.message?.includes('Bucket not found') || 
+                               error.message?.includes('not found') ||
+                               (error.__isStorageError && error.statusCode === '404');
+      
+      if (isBucketNotFound && bucket === StorageBuckets.DESIGNS_PRIVATE) {
+        console.warn(`Private bucket ${bucket} not found, falling back to public bucket ${StorageBuckets.DESIGNS}`);
+        bucket = StorageBuckets.DESIGNS;
+        
+        // Retry with public bucket using same buffer
+        uploadResult = await SupabaseStorageService.uploadFileFromServer(
+          fileBuffer,
+          fileName,
+          file.type,
+          {
+            bucket: bucket,
+            folder: `designs/${timestamp}`,
+            upsert: false
+          }
+        );
+      } else {
+        throw error;
       }
-    );
+    }
 
     console.log(`${type} file uploaded:`, uploadResult);
 
+    // For private buckets, generate a signed URL for immediate preview
+    // (Designer should be able to see their own uploads)
+    let displayUrl = uploadResult.url;
+    if (bucket === StorageBuckets.DESIGNS_PRIVATE) {
+      try {
+        const signedUrl = await SupabaseStorageService.getSignedUrl(bucket, uploadResult.path, 3600);
+        displayUrl = signedUrl;
+        console.log(`Generated signed URL for ${type} preview`);
+      } catch (signedUrlError) {
+        console.warn('Failed to generate signed URL, using public URL:', signedUrlError);
+        // Fallback to public URL (won't work for private buckets, but at least we tried)
+      }
+    }
+
     return NextResponse.json(
       ResponseBuilder.success({
-        url: uploadResult.url,
+        url: displayUrl,
         path: uploadResult.path,
         size: uploadResult.size,
         contentType: uploadResult.contentType,
-        fileName: fileName
+        fileName: fileName,
+        storageBucket: bucket, // Include bucket info for future reference
+        storagePath: uploadResult.path // Include path for watermarking
       }),
       { status: 201 }
     );

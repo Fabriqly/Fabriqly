@@ -20,6 +20,7 @@ import {
 import { useCart } from '@/contexts/CartContext';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 
 interface ProductCardProps {
   product: Product & { category?: any; images?: any[] };
@@ -209,11 +210,22 @@ export function ProductCard({
           >
             <div className="aspect-square bg-gray-100 relative overflow-hidden">
               {primaryImage ? (
-                <img
-                  src={primaryImage.imageUrl}
-                  alt={primaryImage.altText || product.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+                primaryImage.storagePath && primaryImage.storageBucket ? (
+                  <WatermarkedImage
+                    storagePath={primaryImage.storagePath}
+                    storageBucket={primaryImage.storageBucket}
+                    productId={product.id}
+                    alt={primaryImage.altText || product.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fallbackSrc={primaryImage.imageUrl}
+                  />
+                ) : (
+                  <img
+                    src={primaryImage.imageUrl}
+                    alt={primaryImage.altText || product.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                )
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-400">
                   <ImageIcon className="w-12 h-12" />
@@ -405,11 +417,22 @@ export function ProductCard({
                   {/* Image */}
                   <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
                     {primaryImage ? (
-                      <img
-                        src={primaryImage.imageUrl}
-                        alt={primaryImage.altText || product.name}
-                        className="w-full h-full object-cover"
-                      />
+                      primaryImage.storagePath && primaryImage.storageBucket ? (
+                        <WatermarkedImage
+                          storagePath={primaryImage.storagePath}
+                          storageBucket={primaryImage.storageBucket}
+                          productId={product.id}
+                          alt={primaryImage.altText || product.name}
+                          className="w-full h-full object-cover"
+                          fallbackSrc={primaryImage.imageUrl}
+                        />
+                      ) : (
+                        <img
+                          src={primaryImage.imageUrl}
+                          alt={primaryImage.altText || product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      )
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400">
                         <ImageIcon className="w-16 h-16" />
@@ -547,16 +570,27 @@ export function ProductCard({
         >
           <div className="aspect-w-16 aspect-h-12 bg-gray-200">
             {primaryImage ? (
-              <img
-                src={primaryImage.thumbnailUrl || primaryImage.imageUrl}
-                alt={primaryImage.altText || product.name}
-                className="w-full h-48 object-cover"
-                onError={(e) => {
-                  // Fallback to placeholder if image fails to load
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                }}
-              />
+              primaryImage.storagePath && primaryImage.storageBucket ? (
+                <WatermarkedImage
+                  storagePath={primaryImage.storagePath}
+                  storageBucket={primaryImage.storageBucket}
+                  productId={product.id}
+                  alt={primaryImage.altText || product.name}
+                  className="w-full h-48 object-cover"
+                  fallbackSrc={primaryImage.thumbnailUrl || primaryImage.imageUrl}
+                />
+              ) : (
+                <img
+                  src={primaryImage.thumbnailUrl || primaryImage.imageUrl}
+                  alt={primaryImage.altText || product.name}
+                  className="w-full h-48 object-cover"
+                  onError={(e) => {
+                    // Fallback to placeholder if image fails to load
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+              )
             ) : null}
             <div className={`w-full h-48 bg-gray-200 flex items-center justify-center ${primaryImage ? 'hidden' : ''}`}>
               <ImageIcon className="w-12 h-12 text-gray-400" />
@@ -600,16 +634,27 @@ export function ProductCard({
             {/* Product Image */}
             <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
               {primaryImage ? (
-                <img
-                  src={primaryImage.thumbnailUrl || primaryImage.imageUrl}
-                  alt={primaryImage.altText || product.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // Fallback to placeholder if image fails to load
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                  }}
-                />
+                primaryImage.storagePath && primaryImage.storageBucket ? (
+                  <WatermarkedImage
+                    storagePath={primaryImage.storagePath}
+                    storageBucket={primaryImage.storageBucket}
+                    productId={product.id}
+                    alt={primaryImage.altText || product.name}
+                    className="w-full h-full object-cover"
+                    fallbackSrc={primaryImage.thumbnailUrl || primaryImage.imageUrl}
+                  />
+                ) : (
+                  <img
+                    src={primaryImage.thumbnailUrl || primaryImage.imageUrl}
+                    alt={primaryImage.altText || product.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Fallback to placeholder if image fails to load
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                )
               ) : null}
               <div className={`w-full h-full bg-gray-200 flex items-center justify-center ${primaryImage ? 'hidden' : ''}`}>
                 <ImageIcon className="w-6 h-6 text-gray-400" />
