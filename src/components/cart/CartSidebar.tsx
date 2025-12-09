@@ -300,7 +300,7 @@ export function CartSidebar() {
                     </Link>
                     
                     {/* Variants */}
-                    {Object.keys(item.selectedVariants).length > 0 && (
+                    {item.selectedVariants && Object.keys(item.selectedVariants).length > 0 && (
                       <div className="text-xs text-gray-500 mt-1">
                         {Object.entries(item.selectedVariants).map(([key, value]) => (
                           <span key={key} className="block">

@@ -318,7 +318,8 @@ export class FirebaseAdminService {
       value: any;
     }> = [],
     orderBy?: { field: string; direction: 'asc' | 'desc' },
-    limit?: number
+    limit?: number,
+    startAfterValue?: any
   ) {
     try {
       let query: FirebaseFirestore.Query = adminDb.collection(collection);
@@ -335,6 +336,11 @@ export class FirebaseAdminService {
       // Apply ordering
       if (orderBy) {
         query = query.orderBy(orderBy.field, orderBy.direction);
+      }
+
+      // Apply cursor (startAfter) if provided
+      if (startAfterValue !== undefined && startAfterValue !== null && orderBy) {
+        query = query.startAfter(startAfterValue);
       }
 
       // Apply limit

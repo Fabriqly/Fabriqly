@@ -295,6 +295,7 @@ export interface DesignFilters {
   sortOrder?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
+  cursor?: string; // ISO or timestamp string for cursor-based pagination
 }
 
 // Creation/Update DTOs

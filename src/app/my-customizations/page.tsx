@@ -18,6 +18,7 @@ import { DesignerWorkModal } from '@/components/customization/DesignerWorkModal'
 import { PricingAgreementForm } from '@/components/customization/PricingAgreementForm';
 import { Loader, Search, Clock, MessageCircle } from 'lucide-react';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 
@@ -624,7 +625,7 @@ export default function MyCustomizationsPage() {
         <DashboardHeader user={session?.user || null} showMobileMenu={true} />
         <div className="flex flex-1">
           <DashboardSidebar user={session?.user || null} />
-          <div className="flex-1">
+          <div className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
             <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
               {/* Page Header */}
               <div className="mb-8">
@@ -1176,6 +1177,8 @@ export default function MyCustomizationsPage() {
           </div>
         </div>
       )}
+      
+      <ScrollToTop />
     </>
   );
 }
