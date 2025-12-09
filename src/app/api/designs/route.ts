@@ -10,13 +10,27 @@ import {
   DesignFilters,
   DesignWithDetails 
 } from '@/types/enhanced-products';
+import { unstable_cache } from 'next/cache';
+
+// Serverless-friendly cache for design listings
+const cachedGetDesigns = unstable_cache(
+  async (_key: string, filters: DesignFilters) => {
+    const designRepository = new DesignRepository();
+    const activityRepository = new ActivityRepository();
+    const designService = new DesignService(designRepository, activityRepository);
+    return designService.getDesigns(filters);
+  },
+  ['designs-list-cache'],
+  {
+    revalidate: 60, // 1 minute
+    tags: ['designs-list'],
+  }
+);
 
 // GET /api/designs - List designs with filters
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    
-    console.log('🔍 Designs API called with params:', Object.fromEntries(searchParams.entries()));
     
     // Parse filters from query parameters
     const filters: DesignFilters = {
@@ -35,30 +49,43 @@ export async function GET(request: NextRequest) {
       search: searchParams.get('search') || undefined,
       sortBy: (searchParams.get('sortBy') as any) || 'createdAt',
       sortOrder: (searchParams.get('sortOrder') as any) || 'desc',
-      limit: parseInt(searchParams.get('limit') || '20'),
-      offset: parseInt(searchParams.get('offset') || '0')
+      limit: Math.min(parseInt(searchParams.get('limit') || '12'), 20), // cap to reduce reads
+      offset: parseInt(searchParams.get('offset') || '0'),
+      cursor: searchParams.get('cursor') || undefined
     };
 
-    console.log('📊 Parsed filters:', filters);
+    // Cache key based on filters to avoid redundant reads
+    const cacheKeyFilters = JSON.stringify(filters);
 
-    // Initialize services
-    const designRepository = new DesignRepository();
-    const activityRepository = new ActivityRepository();
-    const designService = new DesignService(designRepository, activityRepository);
+    // For cursor pagination, fetch limit + 1 to determine hasMore
+    const effectiveLimit = (filters.limit || 12);
+    const fetchLimit = Math.min(effectiveLimit + 1, 21); // small cap
 
-    // Get designs using the service
-    const designs = await designService.getDesigns(filters);
+    const designsWithExtra = await cachedGetDesigns(cacheKeyFilters, {
+      ...filters,
+      limit: fetchLimit,
+    });
 
-    console.log('✅ Found designs:', designs.length);
+    const hasMore = designsWithExtra.length > effectiveLimit;
+    const designs = hasMore ? designsWithExtra.slice(0, effectiveLimit) : designsWithExtra;
+    const nextCursor = hasMore
+      ? (designs[designs.length - 1]?.createdAt instanceof Date
+          ? designs[designs.length - 1].createdAt.getTime()
+          : new Date(designs[designs.length - 1]?.createdAt || '').getTime())
+      : null;
 
     return NextResponse.json({
       designs,
       total: designs.length,
-      hasMore: designs.length === (filters.limit || 20),
-      filters
+      hasMore,
+      nextCursor,
+      filters: {
+        ...filters,
+        limit: effectiveLimit,
+      }
     });
   } catch (error) {
-    console.error('❌ Error fetching designs:', error);
+    console.error('Error fetching designs:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -80,14 +107,6 @@ export async function POST(request: NextRequest) {
 
     const body: CreateDesignData = await request.json();
     
-    // Generate idempotency key based on user and design data
-    const idempotencyKey = `${session.user.id}-${body.designName}-${body.designFileUrl}-${Date.now()}`;
-    
-    // Log the request for debugging
-    console.log('🔍 Design creation API called by user:', session.user.id);
-    console.log('🔑 Idempotency key:', idempotencyKey);
-    console.log('📊 Design data:', JSON.stringify(body, null, 2));
-    
     // Initialize services
     const designRepository = new DesignRepository();
     const activityRepository = new ActivityRepository();
@@ -95,8 +114,6 @@ export async function POST(request: NextRequest) {
 
     // Create design using the service
     const design = await designService.createDesign(body, session.user.id);
-    
-    console.log('✅ Design created successfully with ID:', design.id);
 
     return NextResponse.json({ design }, { status: 201 });
   } catch (error: any) {
