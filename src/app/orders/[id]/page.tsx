@@ -61,6 +61,25 @@ interface OrderItem {
   quantity: number;
   price: number;
   customizations?: Record<string, any>;
+  product?: {
+    id: string;
+    name: string;
+    price: number;
+    sku: string;
+    images?: Array<{
+      id: string;
+      imageUrl: string;
+      altText?: string;
+      isPrimary?: boolean;
+    }>;
+  };
+  selectedDesign?: { name: string; priceModifier?: number };
+  selectedSize?: { name: string; priceModifier?: number };
+  selectedColorId?: string;
+  selectedColorName?: string;
+  selectedVariants?: Record<string, any>;
+  unitPrice?: number;
+  totalPrice?: number;
 }
 
 export default function OrderDetailPage() {
@@ -469,23 +488,56 @@ export default function OrderDetailPage() {
               {/* Order Items */}
               <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
                 <h2 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Order Items</h2>
-                <div className="space-y-3 md:space-y-4">
+                <div className="space-y-4 md:space-y-6">
                   {order.items.map((item, index) => (
-                    <div key={index} className="flex items-start gap-3 md:gap-4 pb-3 md:pb-4 border-b last:border-0 last:pb-0">
-                      {item.customizations?.designerFinalFileUrl && (
-                        <div className="flex-shrink-0">
+                    <div key={index} className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-4 pb-4 border-b last:border-0 last:pb-0">
+                      {/* Product Image */}
+                      <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                        {item.product?.images && item.product.images.length > 0 ? (
+                          <img
+                            src={item.product.images[0].imageUrl}
+                            alt={item.product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : item.customizations?.designerFinalFileUrl ? (
                           <img 
                             src={item.customizations.designerFinalFileUrl as string}
                             alt="Design Preview"
-                            className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-lg border border-gray-200"
+                            className="w-full h-full object-cover"
                           />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-sm md:text-base text-gray-900 break-words">
-                          {item.productName || `Product ${item.productId.slice(-8)}`}
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Package className="w-6 h-6 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Product Details */}
+                      <div className="flex-1 min-w-0 w-full sm:w-auto">
+                        <h3 className="font-medium text-sm md:text-base text-gray-900 mb-1 break-words">
+                          {item.product?.name || item.productName || `Product ${item.productId.slice(-8)}`}
                         </h3>
-                        {item.customizations && Object.keys(item.customizations).length > 0 && (
+                        
+                        {/* Variant Info */}
+                        {(item.selectedDesign || item.selectedSize || (item.selectedVariants && Object.keys(item.selectedVariants).length > 0) || item.selectedColorId) && (
+                          <div className="text-sm text-gray-400 mb-2 space-y-0.5">
+                            {item.selectedDesign && (
+                              <div>Design: {item.selectedDesign.name}</div>
+                            )}
+                            {item.selectedSize && (
+                              <div>Size: {item.selectedSize.name}</div>
+                            )}
+                            {item.selectedVariants && Object.entries(item.selectedVariants).map(([key, value]) => (
+                              <div key={key}>{key}: {value}</div>
+                            ))}
+                            {item.selectedColorId && (
+                              <div>Color: {item.selectedColorName || item.selectedColorId}</div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Customization Info (for custom orders) */}
+                        {item.customizations && (item.customizations.designerName || item.customizations.printingShopName || item.customizations.customizationRequestId) && (
                           <div className="text-xs text-gray-600 mt-2 space-y-1">
                             {item.customizations.designerName && (
                               <p className="break-words">Designer: {item.customizations.designerName as string}</p>
@@ -503,9 +555,20 @@ export default function OrderDetailPage() {
                             )}
                           </div>
                         )}
-                        <div className="mt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-0">
-                          <span className="text-xs md:text-sm text-gray-500">Quantity: {item.quantity}</span>
-                          <span className="font-medium text-sm md:text-base">{formatPrice(item.price * item.quantity)}</span>
+
+                        {/* Price and Quantity Row */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 space-y-1 sm:space-y-0">
+                          <div className="flex items-center space-x-4 text-sm">
+                            <span className="text-gray-600">
+                              {formatPrice(item.unitPrice || item.price)}
+                            </span>
+                            <span className="text-gray-500">
+                              x{item.quantity}
+                            </span>
+                          </div>
+                          <span className="font-semibold text-gray-900">
+                            {formatPrice(item.totalPrice || (item.price * item.quantity))}
+                          </span>
                         </div>
                       </div>
                     </div>

@@ -563,6 +563,9 @@ export default function CheckoutPage() {
             customizations: {
               ...item.selectedVariants,
               colorId: item.selectedColorId,
+              selectedColorName: item.selectedColorName,
+              selectedDesign: item.selectedDesign,
+              selectedSize: item.selectedSize,
             },
           })),
           shippingAddress,
@@ -771,8 +774,14 @@ export default function CheckoutPage() {
                                   </h4>
                                   
                                   {/* Variant Info */}
-                                  {(item.selectedVariants && Object.keys(item.selectedVariants).length > 0) || item.selectedColorId ? (
+                                  {(item.selectedDesign || item.selectedSize || (item.selectedVariants && Object.keys(item.selectedVariants).length > 0) || item.selectedColorId) && (
                                     <div className="text-sm text-gray-400 mb-2 space-y-0.5">
+                                      {item.selectedDesign && (
+                                        <div>Design: {item.selectedDesign.name}</div>
+                                      )}
+                                      {item.selectedSize && (
+                                        <div>Size: {item.selectedSize.name}</div>
+                                      )}
                                       {item.selectedVariants && Object.entries(item.selectedVariants).map(([key, value]) => (
                                         <div key={key}>{key}: {value}</div>
                                       ))}
@@ -780,7 +789,7 @@ export default function CheckoutPage() {
                                         <div>Color: {item.selectedColorName || item.selectedColorId}</div>
                                       )}
                                     </div>
-                                  ) : null}
+                                  )}
 
                                   {/* Price and Quantity Row */}
                                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 space-y-1 sm:space-y-0">

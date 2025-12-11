@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { CartRepository } from '@/repositories/CartRepository';
 import { ProductRepository } from '@/repositories/ProductRepository';
 import { ResponseBuilder } from '@/utils/ResponseBuilder';
+import { CacheService } from '@/services/CacheService';
 
 export async function PUT(
   request: NextRequest,
@@ -101,6 +102,10 @@ export async function PUT(
       items: updatedItems
     };
 
+    // Invalidate cache after cart update
+    const cacheKey = `cart-${session.user.id}`;
+    await CacheService.invalidate(cacheKey);
+
     return NextResponse.json(ResponseBuilder.success(updatedCart));
   } catch (error) {
     console.error('Error updating cart item:', error);
@@ -164,6 +169,10 @@ export async function DELETE(
       ...cart,
       items: updatedItems
     };
+
+    // Invalidate cache after cart update
+    const cacheKey = `cart-${session.user.id}`;
+    await CacheService.invalidate(cacheKey);
 
     return NextResponse.json(ResponseBuilder.success(updatedCart));
   } catch (error) {

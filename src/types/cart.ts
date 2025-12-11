@@ -19,6 +19,8 @@ export interface CartItem {
   selectedColorId?: string;
   selectedColorName?: string;
   colorPriceAdjustment?: number;
+  selectedDesign?: { name: string; price: number }; // Selected design variant with price modifier
+  selectedSize?: { name: string; price: number }; // Selected size variant with price modifier
   unitPrice: number;
   totalPrice: number;
   businessOwnerId: string;
@@ -55,6 +57,8 @@ export interface AddToCartRequest {
   selectedColorId?: string;
   selectedColorName?: string;
   colorPriceAdjustment?: number;
+  selectedDesign?: { name: string; price: number }; // Selected design variant with price modifier
+  selectedSize?: { name: string; price: number }; // Selected size variant with price modifier
   businessOwnerId: string;
 }
 

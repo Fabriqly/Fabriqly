@@ -27,7 +27,7 @@ interface DesignCardProps {
   onEdit?: (design: DesignWithDetails) => void;
   onDelete?: (design: DesignWithDetails) => void;
   showActions?: boolean;
-  variant?: 'portfolio' | 'catalog';
+  variant?: 'portfolio' | 'catalog' | 'customer';
 }
 
 export function DesignCard({ 
@@ -49,6 +49,100 @@ export function DesignCard({
   const formatFileSize = (format: string) => {
     return format.toUpperCase();
   };
+
+  // Customer variant - matches ProductCard customer style
+  if (variant === 'customer') {
+    return (
+      <div className="bg-white rounded-lg shadow-md hover:-translate-y-1 hover:shadow-xl transition-all duration-300 overflow-hidden group flex flex-col h-full">
+        <Link href={`/explore/designs/${design.id}`}>
+          <div className="aspect-square bg-gray-100 relative overflow-hidden">
+            {design.thumbnailUrl ? (
+              <img
+                src={design.thumbnailUrl}
+                alt={design.designName}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400">
+                <ImageIcon className="w-12 h-12" />
+              </div>
+            )}
+            
+            {/* Gradient Overlay - appears on hover */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            
+            {/* Public/Featured Badge - Upper left of image */}
+            {design.isPublic && (
+              <div className="absolute top-2 left-2 z-10">
+                <span className="bg-white/80 backdrop-blur-sm text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full border border-white/20 shadow-sm">
+                  Public
+                </span>
+              </div>
+            )}
+            {design.isFeatured && (
+              <div className="absolute top-2 right-2 z-10">
+                <span className="bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                  Featured
+                </span>
+              </div>
+            )}
+          </div>
+        </Link>
+
+        <div className="p-3 flex flex-col flex-1">
+          {/* Design Name */}
+          <Link href={`/explore/designs/${design.id}`}>
+            <h3 className="text-sm font-medium text-gray-900 hover:text-indigo-600 transition-colors mb-2 line-clamp-2 leading-tight">
+              {design.designName}
+            </h3>
+          </Link>
+
+          {/* Tags - Always reserve space for consistent alignment */}
+          <div className="flex flex-wrap gap-1 mb-2 min-h-[24px]">
+            {design.tags && design.tags.length > 0 ? (
+              <>
+                {design.tags.slice(0, 2).map((tag, index) => (
+                  <span
+                    key={index}
+                    className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full"
+                  >
+                    {tag}
+                  </span>
+                ))}
+                {design.tags.length > 2 && (
+                  <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-full">
+                    +{design.tags.length - 2}
+                  </span>
+                )}
+              </>
+            ) : (
+              /* Empty space when no tags for consistent alignment */
+              <div className="h-6" />
+            )}
+          </div>
+
+          {/* Price - Anchored to bottom */}
+          <div className="flex items-center justify-between gap-2 mt-auto pt-2">
+            {/* Price */}
+            <div className="flex items-center space-x-2 flex-1 min-w-0">
+              <span className="text-lg font-bold text-indigo-600">
+                {design.pricing?.isFree ? 'Free' : formatPrice(design.pricing?.price || 0)}
+              </span>
+            </div>
+            
+            {/* View Button */}
+            <Link
+              href={`/explore/designs/${design.id}`}
+              className="flex-shrink-0 p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900 transition-colors"
+              aria-label="View design"
+            >
+              <Eye className="w-5 h-5" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (variant === 'catalog') {
     const tagsCount = design.tags?.length || 0;

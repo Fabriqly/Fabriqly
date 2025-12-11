@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
 import { ScrollToTop } from '@/components/common/ScrollToTop';
@@ -9,6 +8,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { EmailVerificationBanner } from '@/components/auth/EmailVerificationBanner';
 import { TopProducts } from '@/components/explore/TopProducts';
 import { ForYouFeed } from '@/components/explore/ForYouFeed';
+import DiscoverBanner from '@/../public/Discover-Banner.png';
+import ShopOwnerBanner from '@/../public/Shop-owner-apply.png';
+import DesignerBanner from '@/../public/Designer-apply.png';
 
 export default function ExplorePage() {
   const { user } = useAuth();
@@ -107,13 +109,10 @@ export default function ExplorePage() {
               type="button"
             >
               <div className="relative w-full h-[170px] sm:h-[255px] lg:h-[340px] rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
-                <Image
-                  src="/Discover-Banner.png"
+                <img
+                  src={DiscoverBanner.src}
                   alt="Discover Fabriqly"
-                  fill
-                  className="object-cover"
-                  priority
-                  unoptimized
+                  className="w-full h-full object-cover"
                 />
               </div>
             </button>
@@ -124,12 +123,10 @@ export default function ExplorePage() {
               <Link href="/apply/shop" className="block cursor-pointer group">
                 <div className="relative rounded-lg overflow-hidden shadow-lg transition-all duration-300 group-hover:shadow-xl group-hover:scale-105 group-hover:-translate-y-1">
                   <div className="relative w-full h-[153px] sm:h-[162px] lg:h-[162px]">
-                    <Image
-                      src="/Shop-owner-apply.png"
+                    <img
+                      src={ShopOwnerBanner.src}
                       alt="Expand your business"
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-110"
-                      unoptimized
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                     />
                   </div>
                 </div>
@@ -139,12 +136,10 @@ export default function ExplorePage() {
               <Link href="/apply/designer" className="block cursor-pointer group">
                 <div className="relative rounded-lg overflow-hidden shadow-lg transition-all duration-300 group-hover:shadow-xl group-hover:scale-105 group-hover:-translate-y-1">
                   <div className="relative w-full h-[153px] sm:h-[162px] lg:h-[162px]">
-                    <Image
-                      src="/Designer-apply.png"
+                    <img
+                      src={DesignerBanner.src}
                       alt="Become a Designer today"
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-110"
-                      unoptimized
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                     />
                   </div>
                 </div>
@@ -172,14 +167,11 @@ export default function ExplorePage() {
                       type="button"
                     >
                       <div className="relative rounded-lg overflow-hidden shadow-lg">
-                        <div className="relative w-full h-[170px] sm:h-[255px]">
-                          <Image
-                            src="/Discover-Banner.png"
+                        <div className="relative w-full h-[196px] sm:h-[293px]">
+                          <img
+                            src={DiscoverBanner.src}
                             alt="Discover Fabriqly"
-                            fill
-                            className="object-cover"
-                            priority
-                            unoptimized
+                            className="w-full h-full object-cover"
                           />
                         </div>
                       </div>
@@ -190,13 +182,11 @@ export default function ExplorePage() {
                   <div className="min-w-full">
                     <Link href="/apply/shop" className="block cursor-pointer">
                       <div className="relative rounded-lg overflow-hidden shadow-lg">
-                        <div className="relative w-full h-[170px] sm:h-[255px]">
-                          <Image
-                            src="/Shop-owner-apply.png"
+                        <div className="relative w-full h-[196px] sm:h-[293px]">
+                          <img
+                            src={ShopOwnerBanner.src}
                             alt="Expand your business"
-                            fill
-                            className="object-cover"
-                            unoptimized
+                            className="w-full h-full object-cover"
                           />
                         </div>
                       </div>
@@ -207,13 +197,11 @@ export default function ExplorePage() {
                   <div className="min-w-full">
                     <Link href="/apply/designer" className="block cursor-pointer">
                       <div className="relative rounded-lg overflow-hidden shadow-lg">
-                        <div className="relative w-full h-[170px] sm:h-[255px]">
-                          <Image
-                            src="/Designer-apply.png"
+                        <div className="relative w-full h-[196px] sm:h-[293px]">
+                          <img
+                            src={DesignerBanner.src}
                             alt="Become a Designer today"
-                            fill
-                            className="object-cover"
-                            unoptimized
+                            className="w-full h-full object-cover"
                           />
                         </div>
                       </div>
