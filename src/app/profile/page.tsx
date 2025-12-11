@@ -389,12 +389,105 @@ export default function ProfilePage() {
     setSuccess('');
   };
 
-  if (status === 'loading' || loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+  // Skeleton Loading Component
+  const ProfileSkeleton = () => (
+    <div className="min-h-screen bg-gray-50">
+      <CustomerHeader user={session?.user || null} />
+      
+      {/* Mobile: Horizontal Tab Bar */}
+      <CustomerNavigationSidebar variant="mobile" />
+      
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+        {/* Desktop: Vertical Sidebar */}
+        <CustomerNavigationSidebar variant="desktop" />
+        
+        {/* Right Content Area */}
+        <main className="flex-1 w-full">
+          <div className="max-w-4xl mx-auto">
+            {/* Header Skeleton */}
+            <div className="mb-6 md:mb-8 animate-pulse">
+              <div className="h-8 md:h-9 bg-gray-200 rounded w-48 mb-2"></div>
+              <div className="h-4 md:h-5 bg-gray-200 rounded w-64"></div>
+            </div>
+
+            {/* Profile Card Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-4 md:mb-6 animate-pulse">
+              <div className="flex flex-col md:flex-row items-center md:items-start md:justify-between gap-4 md:gap-0">
+                <div className="flex flex-col md:flex-row items-center md:items-center space-y-3 md:space-y-0 md:space-x-6">
+                  {/* Avatar Skeleton */}
+                  <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gray-200"></div>
+                  <div className="text-center md:text-left space-y-2">
+                    <div className="h-5 md:h-6 bg-gray-200 rounded w-40"></div>
+                    <div className="h-4 bg-gray-200 rounded w-56"></div>
+                  </div>
+                </div>
+                {/* Edit Button Skeleton */}
+                <div className="h-10 bg-gray-200 rounded w-32 md:w-36"></div>
+              </div>
+            </div>
+
+            {/* Basic Information Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-4 md:mb-6 animate-pulse">
+              <div className="flex items-center mb-4 md:mb-6">
+                <div className="w-5 h-5 bg-gray-200 rounded mr-2"></div>
+                <div className="h-6 md:h-7 bg-gray-200 rounded w-48"></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-24"></div>
+                    <div className="h-5 bg-gray-200 rounded w-full"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Address Information Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-4 md:mb-6 animate-pulse">
+              <div className="flex items-center mb-4 md:mb-6">
+                <div className="w-5 h-5 bg-gray-200 rounded mr-2"></div>
+                <div className="h-6 md:h-7 bg-gray-200 rounded w-40"></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className={`space-y-2 ${i === 1 ? 'md:col-span-2' : ''}`}>
+                    <div className="h-4 bg-gray-200 rounded w-28"></div>
+                    <div className="h-5 bg-gray-200 rounded w-full"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Shipping Addresses Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 animate-pulse">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0 mb-4 md:mb-6">
+                <div className="flex items-center">
+                  <div className="w-5 h-5 bg-gray-200 rounded mr-2"></div>
+                  <div className="h-6 md:h-7 bg-gray-200 rounded w-40"></div>
+                </div>
+                <div className="h-10 bg-gray-200 rounded w-32 md:w-36"></div>
+              </div>
+              <div className="space-y-3 md:space-y-4">
+                {[1, 2].map((i) => (
+                  <div key={i} className="border border-gray-200 rounded-lg p-3 md:p-4 bg-gray-50">
+                    <div className="space-y-2">
+                      <div className="h-5 bg-gray-200 rounded w-32"></div>
+                      <div className="h-4 bg-gray-200 rounded w-full"></div>
+                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
-    );
+    </div>
+  );
+
+  if (status === 'loading' || loading) {
+    return <ProfileSkeleton />;
   }
 
   if (!profile) {

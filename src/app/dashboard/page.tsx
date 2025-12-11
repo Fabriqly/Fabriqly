@@ -19,6 +19,15 @@ function DashboardContent() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
   const [financeLoading, setFinanceLoading] = useState(false);
+  
+  // Designer stats
+  const [designerStats, setDesignerStats] = useState({
+    totalDesigns: 0,
+    totalDownloads: 0,
+    totalReviews: 0,
+    averageRating: 0
+  });
+  const [designerStatsLoading, setDesignerStatsLoading] = useState(false);
 
   // Redirect customers to explore page
   useEffect(() => {
@@ -41,6 +50,13 @@ function DashboardContent() {
     }
   }, [isDesigner, isBusinessOwner, user?.id]);
 
+  // Fetch designer stats
+  useEffect(() => {
+    if (isDesigner && user?.id) {
+      fetchDesignerStats();
+    }
+  }, [isDesigner, user?.id]);
+
   const fetchFinanceSummary = async () => {
     try {
       setFinanceLoading(true);
@@ -55,6 +71,79 @@ function DashboardContent() {
       console.error('Error fetching finance summary:', error);
     } finally {
       setFinanceLoading(false);
+    }
+  };
+
+  const fetchDesignerStats = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setDesignerStatsLoading(true);
+      
+      // Get designer profile
+      const profileResponse = await fetch(`/api/designer-profiles?userId=${user.id}`);
+      const profileData = await profileResponse.json();
+      
+      if (!profileResponse.ok || !profileData.profiles || profileData.profiles.length === 0) {
+        console.log('No designer profile found');
+        setDesignerStatsLoading(false);
+        return;
+      }
+
+      const designerProfile = profileData.profiles[0];
+      
+      // Get design stats
+      const designStatsResponse = await fetch(`/api/designs/stats?designerId=${designerProfile.id}`);
+      const designStatsData = await designStatsResponse.json();
+      
+      let totalDesigns = 0;
+      let totalDownloads = 0;
+      
+      if (designStatsResponse.ok && designStatsData.stats) {
+        totalDesigns = designStatsData.stats.totalDesigns || 0;
+        totalDownloads = designStatsData.stats.totalDownloads || 0;
+      }
+      
+      // Get reviews
+      const reviewsResponse = await fetch(`/api/reviews?designerId=${designerProfile.id}&reviewType=designer`);
+      const reviewsData = await reviewsResponse.json();
+      
+      let totalReviews = 0;
+      let averageRating = 0;
+      
+      if (reviewsResponse.ok && reviewsData.success && reviewsData.data) {
+        const reviews = Array.isArray(reviewsData.data) ? reviewsData.data : [];
+        totalReviews = reviews.length || 0;
+        if (totalReviews > 0) {
+          const sum = reviews.reduce((acc: number, review: any) => acc + (review.rating || 0), 0);
+          averageRating = sum / totalReviews;
+        }
+      }
+      
+      // Try to get average rating from the average API endpoint as well
+      try {
+        const avgResponse = await fetch(`/api/reviews/average?type=designer&targetId=${designerProfile.id}`);
+        const avgData = await avgResponse.json();
+        if (avgResponse.ok && avgData.success && avgData.data) {
+          if (avgData.data.total > 0) {
+            totalReviews = avgData.data.total;
+            averageRating = avgData.data.average || 0;
+          }
+        }
+      } catch (avgError) {
+        console.log('Could not fetch average rating, using calculated value');
+      }
+      
+      setDesignerStats({
+        totalDesigns,
+        totalDownloads,
+        totalReviews,
+        averageRating: Math.round(averageRating * 10) / 10 // Round to 1 decimal place
+      });
+    } catch (error) {
+      console.error('Error fetching designer stats:', error);
+    } finally {
+      setDesignerStatsLoading(false);
     }
   };
 
@@ -363,52 +452,67 @@ function DashboardContent() {
         <div className="mt-8 bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Stats</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* First Stat */}
             <div className="text-center bg-gray-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-blue-600">
                 {isBusinessOwner ? (
                   productsLoading ? '...' : productStats.total
+                ) : isDesigner ? (
+                  designerStatsLoading ? '...' : designerStats.totalDesigns
                 ) : (
-                  isCustomer ? '0' : isDesigner ? '0' : '0'
+                  isCustomer ? '0' : '0'
                 )}
               </div>
               <div className="text-sm text-gray-600">
                 {isCustomer ? 'Orders' : isDesigner ? 'Designs' : isBusinessOwner ? 'Total Products' : 'Total Users'}
               </div>
             </div>
+            
+            {/* Second Stat */}
             <div className="text-center bg-gray-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-green-600">
                 {isBusinessOwner ? (
                   productsLoading ? '...' : productStats.active
+                ) : isDesigner ? (
+                  designerStatsLoading ? '...' : designerStats.totalDownloads
                 ) : (
                   isCustomer ? '$0' : '0'
                 )}
               </div>
               <div className="text-sm text-gray-600">
-                {isCustomer ? 'Spent' : isBusinessOwner ? 'Active Products' : 'Reviews'}
+                {isCustomer ? 'Spent' : isDesigner ? 'Downloads' : isBusinessOwner ? 'Active Products' : 'Reviews'}
               </div>
             </div>
+            
+            {/* Third Stat */}
             <div className="text-center bg-gray-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-purple-600">
                 {isBusinessOwner ? (
                   productsLoading ? '...' : productStats.draft
+                ) : isDesigner ? (
+                  designerStatsLoading ? '...' : designerStats.totalReviews
                 ) : (
                   '0'
                 )}
               </div>
               <div className="text-sm text-gray-600">
-                {isBusinessOwner ? 'Draft Products' : 'Reviews'}
+                {isBusinessOwner ? 'Draft Products' : isDesigner ? 'Reviews' : 'Reviews'}
               </div>
             </div>
+            
+            {/* Fourth Stat */}
             <div className="text-center bg-gray-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-orange-600">
                 {isBusinessOwner ? (
                   productsLoading ? '...' : productStats.outOfStock
+                ) : isDesigner ? (
+                  designerStatsLoading ? '...' : designerStats.averageRating.toFixed(1)
                 ) : (
                   '0'
                 )}
               </div>
               <div className="text-sm text-gray-600">
-                {isBusinessOwner ? 'Out of Stock' : 'Messages'}
+                {isBusinessOwner ? 'Out of Stock' : isDesigner ? 'Rating' : 'Messages'}
               </div>
             </div>
            </div>

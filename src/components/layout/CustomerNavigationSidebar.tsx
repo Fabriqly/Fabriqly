@@ -3,13 +3,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { User, Package, MessageCircle, Bell, Settings, ShoppingCart } from 'lucide-react';
+import { User, Package, MessageCircle, Bell, Settings, ShoppingCart, AlertTriangle } from 'lucide-react';
 
 const navigationItems = [
   { href: '/profile', icon: User, label: 'My Profile' },
   { href: '/cart', icon: ShoppingCart, label: 'My Cart' },
   { href: '/orders', icon: Package, label: 'My Orders' },
   { href: '/my-customizations', icon: MessageCircle, label: 'My Customizations' },
+  { href: '/disputes', icon: AlertTriangle, label: 'My Disputes' },
   { href: '/notifications', icon: Bell, label: 'Notifications' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
