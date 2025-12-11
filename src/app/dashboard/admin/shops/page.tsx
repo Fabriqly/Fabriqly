@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { ShopProfile, ApprovalStatus } from '@/types/shop-profile';
 import Link from 'next/link';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { Check, X, Eye, Mail, MapPin, User, Calendar, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Input } from '@/components/ui/Input';
 
 function AdminShopsContent() {
   const [pendingShops, setPendingShops] = useState<ShopProfile[]>([]);
@@ -20,6 +22,8 @@ function AdminShopsContent() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected' | 'suspended'>('pending');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     fetchData();
@@ -155,23 +159,135 @@ function AdminShopsContent() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center py-12">
-          <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-2 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  const getCurrentShops = () => {
+    let shops: ShopProfile[] = [];
+    switch (activeTab) {
+      case 'pending': shops = pendingShops; break;
+      case 'approved': shops = approvedShops; break;
+      case 'rejected': shops = rejectedShops; break;
+      case 'suspended': shops = suspendedShops; break;
+      default: shops = [];
+    }
+
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      shops = shops.filter(shop => 
+        shop.shopName?.toLowerCase().includes(searchLower) ||
+        shop.username?.toLowerCase().includes(searchLower) ||
+        shop.businessOwnerName?.toLowerCase().includes(searchLower) ||
+        shop.contactInfo?.email?.toLowerCase().includes(searchLower) ||
+        shop.location?.city?.toLowerCase().includes(searchLower) ||
+        shop.location?.province?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Sort by date
+    shops.sort((a, b) => {
+      const getDate = (shop: ShopProfile) => {
+        if (!shop.createdAt) return 0;
+        try {
+          const date = shop.createdAt instanceof Date ? shop.createdAt : new Date(shop.createdAt);
+          return date.getTime();
+        } catch {
+          return 0;
+        }
+      };
+      
+      const dateA = getDate(a);
+      const dateB = getDate(b);
+      
+      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+
+    return shops;
+  };
+
+  const toggleSortOrder = () => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  };
+
+  const getActionsForShop = (shop: ShopProfile) => {
+    switch (shop.approvalStatus) {
+      case 'pending':
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleApprove(shop.id)}
+              disabled={actionLoading === shop.id}
+              className="px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+            >
+              {actionLoading === shop.id ? 'Processing...' : 'Approve'}
+            </button>
+            <button
+              onClick={() => handleReject(shop.id)}
+              disabled={actionLoading === shop.id}
+              className="px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+            >
+              Reject
+            </button>
+          </div>
+        );
+      case 'approved':
+        return (
+          <button
+            onClick={() => handleSuspend(shop.id)}
+            disabled={actionLoading === shop.id}
+            className="px-3 py-1.5 text-sm font-medium text-orange-600 hover:bg-orange-50 rounded transition-colors disabled:opacity-50"
+          >
+            {actionLoading === shop.id ? 'Processing...' : 'Suspend'}
+          </button>
+        );
+      case 'rejected':
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleApprove(shop.id)}
+              disabled={actionLoading === shop.id}
+              className="px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+            >
+              {actionLoading === shop.id ? 'Processing...' : 'Approve'}
+            </button>
+            <button
+              onClick={() => handleSuspend(shop.id)}
+              disabled={actionLoading === shop.id}
+              className="px-3 py-1.5 text-sm font-medium text-orange-600 hover:bg-orange-50 rounded transition-colors disabled:opacity-50"
+            >
+              Suspend
+            </button>
+          </div>
+        );
+      case 'suspended':
+        return (
+          <button
+            onClick={() => handleRestore(shop.id)}
+            disabled={actionLoading === shop.id}
+            className="px-3 py-1.5 text-sm font-medium text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+          >
+            {actionLoading === shop.id ? 'Processing...' : 'Restore'}
+          </button>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const formatDate = (date: any) => {
+    if (!date) return 'N/A';
+    try {
+      const d = date instanceof Date ? date : new Date(date);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return 'N/A';
+    }
+  };
 
   return (
     <>
-      <h1 className="text-3xl font-bold mb-6">Shop Management</h1>
+      <h1 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6">Shop Management</h1>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-6 mb-6 md:mb-8">
         <StatCard label="Pending" value={stats.totalPending} color="yellow" />
         <StatCard label="Approved" value={stats.totalApproved} color="green" />
         <StatCard label="Rejected" value={stats.totalRejected} color="red" />
@@ -226,134 +342,190 @@ function AdminShopsContent() {
           </div>
         </div>
 
-        <div className="p-6">
-          {/* Pending Tab */}
-          {activeTab === 'pending' && (
-            <>
-              <h2 className="text-xl font-semibold mb-4">Pending Approvals</h2>
-              {pendingShops.length === 0 ? (
-                <p className="text-gray-600 text-center py-8">No pending shop approvals</p>
+        {/* Search and Sort Controls */}
+        <div className="p-4 md:p-6 border-b border-gray-200 bg-gray-50">
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+            {/* Search Input */}
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                type="text"
+                placeholder="Search shops by name, owner, email, or location..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-full"
+              />
+            </div>
+            
+            {/* Sort Button */}
+            <button
+              onClick={toggleSortOrder}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap"
+            >
+              <Calendar className="w-4 h-4" />
+              <span className="hidden sm:inline">Sort by Date</span>
+              <span className="sm:hidden">Date</span>
+              {sortOrder === 'asc' ? (
+                <ArrowUp className="w-4 h-4" />
               ) : (
-                <div className="space-y-4">
-                  {pendingShops.map((shop) => (
-                    <ShopCard
-                      key={shop.id}
-                      shop={shop}
-                      actions={
-                        <>
-                          <button
-                            onClick={() => handleApprove(shop.id)}
-                            disabled={actionLoading === shop.id}
-                            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 text-sm"
-                          >
-                            {actionLoading === shop.id ? 'Processing...' : 'Approve'}
-                          </button>
-                          <button
-                            onClick={() => handleReject(shop.id)}
-                            disabled={actionLoading === shop.id}
-                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 text-sm"
-                          >
-                            Reject
-                          </button>
-                        </>
-                      }
-                    />
-                  ))}
-                </div>
+                <ArrowDown className="w-4 h-4" />
               )}
-            </>
-          )}
+            </button>
+          </div>
+        </div>
 
-          {/* Approved Tab */}
-          {activeTab === 'approved' && (
+        <div className="p-4 md:p-6">
+          {loading ? (
             <>
-              <h2 className="text-xl font-semibold mb-4">Approved Shops</h2>
-              {approvedShops.length === 0 ? (
-                <p className="text-gray-600 text-center py-8">No approved shops</p>
-              ) : (
-                <div className="space-y-4">
-                  {approvedShops.map((shop) => (
-                    <ShopCard
-                      key={shop.id}
-                      shop={shop}
-                      actions={
-                        <button
-                          onClick={() => handleSuspend(shop.id)}
-                          disabled={actionLoading === shop.id}
-                          className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 text-sm"
-                        >
-                          {actionLoading === shop.id ? 'Processing...' : 'Suspend'}
-                        </button>
-                      }
-                    />
-                  ))}
-                </div>
-              )}
+              {/* Desktop Skeleton */}
+              <div className="hidden md:block">
+                <TableSkeleton />
+              </div>
+              {/* Mobile Skeleton */}
+              <div className="block md:hidden space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <CardSkeleton key={i} />
+                ))}
+              </div>
             </>
-          )}
-
-          {/* Rejected Tab */}
-          {activeTab === 'rejected' && (
+          ) : (
             <>
-              <h2 className="text-xl font-semibold mb-4">Rejected Shops</h2>
-              {rejectedShops.length === 0 ? (
-                <p className="text-gray-600 text-center py-8">No rejected shops</p>
-              ) : (
-                <div className="space-y-4">
-                  {rejectedShops.map((shop) => (
-                    <ShopCard
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                {getCurrentShops().length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-600 mb-2">
+                      {searchTerm.trim() 
+                        ? `No shops found matching "${searchTerm}"` 
+                        : 'No shops found'}
+                    </p>
+                    {searchTerm.trim() && (
+                      <button
+                        onClick={() => setSearchTerm('')}
+                        className="text-sm text-blue-600 hover:text-blue-700 underline"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Shop/Owner</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Contact</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Status</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Date</th>
+                        <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getCurrentShops().map((shop) => (
+                        <tr key={shop.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              {shop.branding?.logoUrl ? (
+                                <img
+                                  src={shop.branding.logoUrl}
+                                  alt={shop.shopName}
+                                  className="w-10 h-10 rounded-full object-cover border border-gray-200"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                  <User className="w-5 h-5 text-gray-400" />
+                                </div>
+                              )}
+                              <div>
+                                <div className="font-medium text-gray-900">{shop.shopName}</div>
+                                <div className="text-sm text-gray-500">@{shop.username}</div>
+                                <div className="text-xs text-gray-400">{shop.businessOwnerName}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="space-y-1">
+                              {shop.contactInfo?.email && (
+                                <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                  <Mail className="w-3.5 h-3.5" />
+                                  <span className="truncate max-w-[200px]">{shop.contactInfo.email}</span>
+                                </div>
+                              )}
+                              {shop.location?.city && (
+                                <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                  <MapPin className="w-3.5 h-3.5" />
+                                  <span className="truncate max-w-[200px]">{shop.location.city}, {shop.location.province}</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              shop.approvalStatus === 'approved' ? 'bg-green-100 text-green-800' :
+                              shop.approvalStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              shop.approvalStatus === 'suspended' ? 'bg-orange-100 text-orange-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {shop.approvalStatus?.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                              <Calendar className="w-3.5 h-3.5" />
+                              {formatDate(shop.createdAt)}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center justify-end gap-1">
+                              {getActionsForShop(shop)}
+                              <Link
+                                href={`/shops/${shop.username}`}
+                                target="_blank"
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title="View Profile"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="block md:hidden space-y-3">
+                {getCurrentShops().length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-600 mb-2">
+                      {searchTerm.trim() 
+                        ? `No shops found matching "${searchTerm}"` 
+                        : 'No shops found'}
+                    </p>
+                    {searchTerm.trim() && (
+                      <button
+                        onClick={() => setSearchTerm('')}
+                        className="text-sm text-blue-600 hover:text-blue-700 underline"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  getCurrentShops().map((shop) => (
+                    <MobileShopCard
                       key={shop.id}
                       shop={shop}
-                      actions={
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleApprove(shop.id)}
-                            disabled={actionLoading === shop.id}
-                            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 text-sm"
-                          >
-                            {actionLoading === shop.id ? 'Processing...' : 'Approve'}
-                          </button>
-                          <button
-                            onClick={() => handleSuspend(shop.id)}
-                            disabled={actionLoading === shop.id}
-                            className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 text-sm"
-                          >
-                            {actionLoading === shop.id ? 'Processing...' : 'Suspend'}
-                          </button>
-                        </div>
-                      }
+                      onApprove={() => handleApprove(shop.id)}
+                      onReject={() => handleReject(shop.id)}
+                      onSuspend={() => handleSuspend(shop.id)}
+                      onRestore={() => handleRestore(shop.id)}
+                      actionLoading={actionLoading === shop.id}
                     />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Suspended Tab */}
-          {activeTab === 'suspended' && (
-            <>
-              <h2 className="text-xl font-semibold mb-4">Suspended Shops</h2>
-              {suspendedShops.length === 0 ? (
-                <p className="text-gray-600 text-center py-8">No suspended shops</p>
-              ) : (
-                <div className="space-y-4">
-                  {suspendedShops.map((shop) => (
-                    <ShopCard
-                      key={shop.id}
-                      shop={shop}
-                      actions={
-                        <button
-                          onClick={() => handleRestore(shop.id)}
-                          disabled={actionLoading === shop.id}
-                          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 text-sm"
-                        >
-                          {actionLoading === shop.id ? 'Processing...' : 'Restore'}
-                        </button>
-                      }
-                    />
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </>
           )}
         </div>
@@ -380,84 +552,175 @@ function StatCard({ label, value, color }: { label: string; value: number; color
   };
 
   return (
-    <div className={`rounded-lg border p-4 ${colorMap[color] || colorMap.blue}`}>
-      <div className="text-2xl font-bold">{value}</div>
-      <div className="text-sm font-medium">{label}</div>
+    <div className={`rounded-lg border p-3 md:p-4 ${colorMap[color] || colorMap.blue}`}>
+      <div className="text-xl md:text-2xl font-bold">{value}</div>
+      <div className="text-xs md:text-sm font-medium">{label}</div>
     </div>
   );
 }
 
-function ShopCard({
+function MobileShopCard({
   shop,
-  actions,
+  onApprove,
+  onReject,
+  onSuspend,
+  onRestore,
+  actionLoading,
 }: {
   shop: ShopProfile;
-  actions: React.ReactNode;
+  onApprove: () => void;
+  onReject: () => void;
+  onSuspend: () => void;
+  onRestore: () => void;
+  actionLoading: boolean;
 }) {
   return (
-    <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-      <div className="flex gap-4">
-        {/* Logo */}
-        {shop.branding?.logoUrl && (
-          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200 flex-shrink-0">
-            <img src={shop.branding.logoUrl} alt={shop.shopName} className="w-full h-full object-cover" />
+    <div className="border border-gray-200 rounded-lg p-3 bg-white">
+      {/* Header */}
+      <div className="flex items-start gap-3 mb-3">
+        {shop.branding?.logoUrl ? (
+          <img
+            src={shop.branding.logoUrl}
+            alt={shop.shopName}
+            className="w-12 h-12 rounded-full object-cover border border-gray-200 flex-shrink-0"
+          />
+        ) : (
+          <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+            <User className="w-6 h-6 text-gray-400" />
           </div>
         )}
-
-        {/* Content */}
-        <div className="flex-1">
-          <div className="flex justify-between items-start mb-2">
-            <div>
-              <h3 className="font-semibold text-lg">{shop.shopName}</h3>
-              <p className="text-sm text-gray-600">@{shop.username}</p>
-              <p className="text-sm text-gray-600">Owner: {shop.businessOwnerName}</p>
-              <span className={`inline-block px-2 py-1 rounded text-xs font-medium mt-1 ${
-                shop.approvalStatus === 'approved' ? 'bg-green-100 text-green-800' :
-                shop.approvalStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                shop.approvalStatus === 'suspended' ? 'bg-orange-100 text-orange-800' :
-                'bg-red-100 text-red-800'
-              }`}>
-                {shop.approvalStatus?.toUpperCase()}
-              </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-sm text-gray-900 truncate">{shop.shopName}</h3>
+              <p className="text-xs text-gray-500 truncate">@{shop.username}</p>
+              <p className="text-xs text-gray-500 truncate">{shop.businessOwnerName}</p>
             </div>
-            <Link
-              href={`/shops/${shop.username}`}
-              target="_blank"
-              className="text-blue-600 hover:text-blue-700 text-sm"
-            >
-              View Full Profile →
-            </Link>
-          </div>
-
-          <p className="text-sm text-gray-700 mb-3 line-clamp-2">{shop.description}</p>
-
-          {/* Rejection reason for rejected shops */}
-          {shop.approvalStatus === 'rejected' && shop.rejectionReason && (
-            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm font-medium text-red-800 mb-1">Rejection Reason:</p>
-              <p className="text-sm text-red-700">{shop.rejectionReason}</p>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2 mb-3">
-            <span className="px-2 py-1 bg-gray-100 rounded text-xs">
-              {shop.businessDetails.businessType}
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
+              shop.approvalStatus === 'approved' ? 'bg-green-100 text-green-800' :
+              shop.approvalStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+              shop.approvalStatus === 'suspended' ? 'bg-orange-100 text-orange-800' :
+              'bg-red-100 text-red-800'
+            }`}>
+              {shop.approvalStatus?.toUpperCase()}
             </span>
-            {shop.location?.city && (
-              <span className="px-2 py-1 bg-gray-100 rounded text-xs">
-                📍 {shop.location.city}, {shop.location.province}
-              </span>
-            )}
-            <span className="px-2 py-1 bg-gray-100 rounded text-xs">
-              📧 {shop.contactInfo.email}
-            </span>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-2">
-            {actions}
           </div>
         </div>
+      </div>
+
+      {/* Body - Owner and Email only */}
+      <div className="space-y-1.5 mb-3 text-sm">
+        {shop.contactInfo?.email && (
+          <div className="flex items-center gap-1.5 text-gray-600">
+            <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate">{shop.contactInfo.email}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Rejection reason */}
+      {shop.approvalStatus === 'rejected' && shop.rejectionReason && (
+        <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs">
+          <p className="font-medium text-red-800 mb-0.5">Rejection Reason:</p>
+          <p className="text-red-700">{shop.rejectionReason}</p>
+        </div>
+      )}
+
+      {/* Footer - Actions */}
+      <div className="flex gap-2">
+        {shop.approvalStatus === 'pending' && (
+          <>
+            <button
+              onClick={onApprove}
+              disabled={actionLoading}
+              className="flex-1 px-3 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+            >
+              {actionLoading ? 'Processing...' : 'Approve'}
+            </button>
+            <button
+              onClick={onReject}
+              disabled={actionLoading}
+              className="flex-1 px-3 py-2 bg-red-600 text-white rounded text-sm font-medium hover:bg-red-700 disabled:bg-gray-400 transition-colors"
+            >
+              Reject
+            </button>
+          </>
+        )}
+        {shop.approvalStatus === 'approved' && (
+          <button
+            onClick={onSuspend}
+            disabled={actionLoading}
+            className="flex-1 px-3 py-2 bg-orange-600 text-white rounded text-sm font-medium hover:bg-orange-700 disabled:bg-gray-400 transition-colors"
+          >
+            {actionLoading ? 'Processing...' : 'Suspend'}
+          </button>
+        )}
+        {shop.approvalStatus === 'rejected' && (
+          <>
+            <button
+              onClick={onApprove}
+              disabled={actionLoading}
+              className="flex-1 px-3 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+            >
+              {actionLoading ? 'Processing...' : 'Approve'}
+            </button>
+            <button
+              onClick={onSuspend}
+              disabled={actionLoading}
+              className="flex-1 px-3 py-2 bg-orange-600 text-white rounded text-sm font-medium hover:bg-orange-700 disabled:bg-gray-400 transition-colors"
+            >
+              Suspend
+            </button>
+          </>
+        )}
+        {shop.approvalStatus === 'suspended' && (
+          <button
+            onClick={onRestore}
+            disabled={actionLoading}
+            className="flex-1 px-3 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+          >
+            {actionLoading ? 'Processing...' : 'Restore'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TableSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="flex items-center gap-4 py-3 border-b border-gray-100">
+          <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse"></div>
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
+            <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
+          </div>
+          <div className="h-6 bg-gray-200 rounded w-20 animate-pulse"></div>
+          <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+          <div className="h-8 bg-gray-200 rounded w-16 animate-pulse"></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CardSkeleton() {
+  return (
+    <div className="border border-gray-200 rounded-lg p-3 bg-white">
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-12 h-12 rounded-full bg-gray-200 animate-pulse"></div>
+        <div className="flex-1 space-y-2">
+          <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
+          <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
+        </div>
+        <div className="h-6 bg-gray-200 rounded w-16 animate-pulse"></div>
+      </div>
+      <div className="h-3 bg-gray-200 rounded w-40 animate-pulse mb-3"></div>
+      <div className="flex gap-2">
+        <div className="flex-1 h-9 bg-gray-200 rounded animate-pulse"></div>
+        <div className="flex-1 h-9 bg-gray-200 rounded animate-pulse"></div>
       </div>
     </div>
   );
