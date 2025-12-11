@@ -8,7 +8,8 @@ import { CustomerHeader } from '@/components/layout/CustomerHeader';
 import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { 
   ProductWithDetails, 
-  ProductVariant 
+  ProductVariant,
+  ProductVariantOption
 } from '@/types/products';
 import { ColorSelector } from './ColorSelector';
 import { ProductColorWithDetails } from './ProductColorManager';
@@ -51,6 +52,8 @@ export function ProductDetail() {
   const [error, setError] = useState<string | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
+  const [selectedDesign, setSelectedDesign] = useState<ProductVariantOption | null>(null);
+  const [selectedSize, setSelectedSize] = useState<ProductVariantOption | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
   const [productColors, setProductColors] = useState<ProductColorWithDetails[]>([]);
@@ -77,6 +80,19 @@ export function ProductDetail() {
       loadReviews();
     }
   }, [productId]);
+
+  // Initialize selected design and size when product loads
+  useEffect(() => {
+    if (product) {
+      // Set default to first available option if options exist
+      if (product.designs && product.designs.length > 0 && !selectedDesign) {
+        setSelectedDesign(product.designs[0]);
+      }
+      if (product.sizes && product.sizes.length > 0 && !selectedSize) {
+        setSelectedSize(product.sizes[0]);
+      }
+    }
+  }, [product]);
 
   useEffect(() => {
     // Check if user has reviewed when reviews or user changes
@@ -282,8 +298,19 @@ export function ProductDetail() {
     
     let totalPrice = product.price + colorPriceAdjustment;
     
+    // Add design price modifier
+    if (selectedDesign && selectedDesign.priceModifier) {
+      totalPrice += selectedDesign.priceModifier;
+    }
+    
+    // Add size price modifier
+    if (selectedSize && selectedSize.priceModifier) {
+      totalPrice += selectedSize.priceModifier;
+    }
+    
+    // Legacy variant support (for old products)
     Object.entries(selectedVariants).forEach(([variantName, variantValue]) => {
-      const variant = product.variants.find(
+      const variant = product.variants?.find(
         v => v.variantName === variantName && v.variantValue === variantValue
       );
       if (variant) {
@@ -311,7 +338,10 @@ export function ProductDetail() {
         totalPrice: calculatePrice() * quantity,
         selectedVariants,
         selectedColorId,
+        selectedColorName: productColors.find(pc => pc.colorId === selectedColorId)?.color.colorName,
         colorPriceAdjustment,
+        selectedDesign: selectedDesign ? { name: selectedDesign.name, price: selectedDesign.priceModifier } : undefined,
+        selectedSize: selectedSize ? { name: selectedSize.name, price: selectedSize.priceModifier } : undefined,
         businessOwnerId: product.businessOwnerId,
       };
 
@@ -728,12 +758,22 @@ export function ProductDetail() {
                 <div className="text-3xl font-bold text-slate-900">
                   ₱{calculatePrice().toFixed(2)}
                 </div>
-                {(Object.keys(selectedVariants).length > 0 || colorPriceAdjustment !== 0) && (
+                {(selectedDesign?.priceModifier || selectedSize?.priceModifier || Object.keys(selectedVariants).length > 0 || colorPriceAdjustment !== 0) && (
                   <div className="text-sm text-slate-600 mt-1">
                     Base: ₱{product.price.toFixed(2)}
+                    {selectedDesign?.priceModifier && selectedDesign.priceModifier > 0 && (
+                      <span className="ml-2 text-indigo-600">
+                        +₱{selectedDesign.priceModifier.toFixed(2)} (Design)
+                      </span>
+                    )}
+                    {selectedSize?.priceModifier && selectedSize.priceModifier > 0 && (
+                      <span className="ml-2 text-indigo-600">
+                        +₱{selectedSize.priceModifier.toFixed(2)} (Size)
+                      </span>
+                    )}
                     {colorPriceAdjustment !== 0 && (
                       <span className="ml-2 text-indigo-600">
-                        {colorPriceAdjustment > 0 ? '+' : ''}₱{colorPriceAdjustment.toFixed(2)}
+                        {colorPriceAdjustment > 0 ? '+' : ''}₱{colorPriceAdjustment.toFixed(2)} (Color)
                       </span>
                     )}
                   </div>
@@ -748,7 +788,65 @@ export function ProductDetail() {
               </p>
             </div>
 
-            {/* Variants */}
+            {/* Design Variants */}
+            {product.designs && product.designs.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-slate-900 mb-2">
+                  Design
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {product.designs.map((design) => (
+                    <button
+                      key={design.id}
+                      onClick={() => setSelectedDesign(design)}
+                      className={`px-4 py-2 rounded-md border text-sm transition-colors ${
+                        selectedDesign?.id === design.id
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                      }`}
+                    >
+                      {design.name}
+                      {design.priceModifier > 0 && (
+                        <span className="ml-1 text-xs">
+                          (+₱{design.priceModifier.toFixed(2)})
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Size Variants */}
+            {product.sizes && product.sizes.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-slate-900 mb-2">
+                  Size
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {product.sizes.map((size) => (
+                    <button
+                      key={size.id}
+                      onClick={() => setSelectedSize(size)}
+                      className={`px-4 py-2 rounded-md border text-sm transition-colors ${
+                        selectedSize?.id === size.id
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                      }`}
+                    >
+                      {size.name}
+                      {size.priceModifier > 0 && (
+                        <span className="ml-1 text-xs">
+                          (+₱{size.priceModifier.toFixed(2)})
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Legacy Variants (for old products using ProductVariant system) */}
             {Object.keys(groupedVariants).length > 0 && (
               <div className="space-y-4">
                 {Object.entries(groupedVariants).map(([variantName, variants]) => (
@@ -918,6 +1016,8 @@ export function ProductDetail() {
                     selectedColorId={selectedColorId}
                     selectedColorName={productColors.find(pc => pc.colorId === selectedColorId)?.color.colorName}
                     colorPriceAdjustment={colorPriceAdjustment}
+                    selectedDesign={selectedDesign ? { name: selectedDesign.name, price: selectedDesign.priceModifier } : undefined}
+                    selectedSize={selectedSize ? { name: selectedSize.name, price: selectedSize.priceModifier } : undefined}
                     businessOwnerId={product.businessOwnerId}
                     className="flex-1"
                     disabled={product.stockQuantity === 0}

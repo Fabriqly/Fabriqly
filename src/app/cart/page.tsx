@@ -436,7 +436,19 @@ export default function CartPage() {
                                 </h4>
                               </Link>
                               
-                              {/* Variants */}
+                              {/* Design and Size */}
+                              {(item.selectedDesign || item.selectedSize) && (
+                                <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+                                  {item.selectedDesign && (
+                                    <span className="block">Design: {item.selectedDesign.name}</span>
+                                  )}
+                                  {item.selectedSize && (
+                                    <span className="block">Size: {item.selectedSize.name}</span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Legacy Variants */}
                               {item.selectedVariants && Object.keys(item.selectedVariants).length > 0 && (
                                 <div className="text-xs text-gray-500 mt-1">
                                   {Object.entries(item.selectedVariants).map(([key, value]) => (

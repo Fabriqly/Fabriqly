@@ -120,7 +120,7 @@ export function ForYouFeed({ className }: ForYouFeedProps) {
                 <DesignCard
                   key={`design-${design.id}`}
                   design={design}
-                  variant="catalog"
+                  variant="customer"
                   showActions={false}
                 />
               );
