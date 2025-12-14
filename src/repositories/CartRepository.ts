@@ -78,7 +78,10 @@ export class CartRepository extends BaseRepository<Cart> {
       }
 
       // Generate unique ID for the cart item
-      const itemId = `${newItem.productId}-${JSON.stringify(newItem.selectedVariants)}-${newItem.selectedColorId || 'default'}`;
+      // Include productId, variants, color, design, and size to ensure unique items
+      const designId = newItem.selectedDesign?.name || 'no-design';
+      const sizeId = newItem.selectedSize?.name || 'no-size';
+      const itemId = `${newItem.productId}-${JSON.stringify(newItem.selectedVariants)}-${newItem.selectedColorId || 'default'}-${designId}-${sizeId}`;
       
       // Check if item already exists
       const existingItemIndex = items.findIndex(item => item.id === itemId);

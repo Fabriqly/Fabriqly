@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -15,13 +15,20 @@ import {
   AlertCircle,
   ArrowUpDown,
   ArrowDown,
-  ArrowUp
+  ArrowUp,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import Link from 'next/link';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
 import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { useSession } from 'next-auth/react';
+
+// Cache configuration
+const CACHE_KEY = 'orders_cache';
+const CACHE_TIMESTAMP_KEY = 'orders_cache_timestamp';
+const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
 
 interface Order {
   id: string;
@@ -50,7 +57,22 @@ interface OrderItem {
   productName?: string;
   quantity: number;
   price: number;
-  customizations?: Record<string, string>;
+  customizations?: Record<string, any>;
+  product?: {
+    id: string;
+    name: string;
+    images?: Array<{
+      id: string;
+      imageUrl: string;
+      altText?: string;
+      isPrimary?: boolean;
+    }>;
+  };
+  selectedDesign?: { name: string; priceModifier?: number };
+  selectedSize?: { name: string; priceModifier?: number };
+  selectedColorId?: string;
+  selectedColorName?: string;
+  selectedVariants?: Record<string, any>;
 }
 
 export default function OrdersPage() {
@@ -62,15 +84,36 @@ export default function OrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+  const isFetchingRef = useRef(false);
+  const lastFetchTimeRef = useRef<number>(0);
 
-  useEffect(() => {
-    loadOrders();
-  }, []);
+  // Define loadOrders before useEffect hooks that use it
+  const loadOrders = useCallback(async (forceRefresh = false) => {
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) {
+      return;
+    }
 
-  const loadOrders = async () => {
+    // Check if we need to fetch (cache expired or force refresh)
+    const now = Date.now();
+    const timeSinceLastFetch = now - lastFetchTimeRef.current;
+    
+    if (!forceRefresh && timeSinceLastFetch < CACHE_DURATION && lastFetchTimeRef.current > 0) {
+      // Cache is still valid, don't fetch
+      return;
+    }
+
     try {
+      isFetchingRef.current = true;
       setLoading(true);
-      const response = await fetch('/api/orders');
+      setError(null);
+      
+      const response = await fetch('/api/orders', {
+        headers: {
+          'Cache-Control': 'no-cache', // Let browser handle caching
+        },
+      });
       const data = await response.json();
       
       if (response.ok) {
@@ -91,7 +134,17 @@ export default function OrdersPage() {
             return order;
           })
         );
+        
         setOrders(ordersWithShopNames);
+        lastFetchTimeRef.current = now;
+        
+        // Cache the data
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify(ordersWithShopNames));
+          sessionStorage.setItem(CACHE_TIMESTAMP_KEY, now.toString());
+        } catch (error) {
+          console.error('Error caching orders:', error);
+        }
       } else {
         setError(data.error || 'Failed to load orders');
       }
@@ -100,10 +153,73 @@ export default function OrdersPage() {
       setError('Failed to load orders');
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  };
+  }, []);
 
-  const markOrderToShip = async (orderId: string) => {
+  const invalidateCache = useCallback(() => {
+    try {
+      sessionStorage.removeItem(CACHE_KEY);
+      sessionStorage.removeItem(CACHE_TIMESTAMP_KEY);
+      lastFetchTimeRef.current = 0;
+    } catch (error) {
+      console.error('Error invalidating cache:', error);
+    }
+  }, []);
+
+  // Load cached data on mount
+  useEffect(() => {
+    const loadCachedData = () => {
+      try {
+        const cachedData = sessionStorage.getItem(CACHE_KEY);
+        const cachedTimestamp = sessionStorage.getItem(CACHE_TIMESTAMP_KEY);
+        
+        if (cachedData && cachedTimestamp) {
+          const timestamp = parseInt(cachedTimestamp, 10);
+          const now = Date.now();
+          
+          // If cache is still valid, use it
+          if (now - timestamp < CACHE_DURATION) {
+            const parsedOrders = JSON.parse(cachedData);
+            setOrders(parsedOrders);
+            setLoading(false);
+            lastFetchTimeRef.current = timestamp;
+            return true; // Cache was used
+          }
+        }
+      } catch (error) {
+        console.error('Error loading cached orders:', error);
+      }
+      return false; // Cache was not used
+    };
+
+    const cacheUsed = loadCachedData();
+    if (!cacheUsed) {
+      loadOrders(true);
+    }
+  }, [loadOrders]);
+
+  // Refresh data when tab becomes visible and cache is stale
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        const timeSinceLastFetch = now - lastFetchTimeRef.current;
+        
+        // If cache is expired, refresh in background
+        if (timeSinceLastFetch >= CACHE_DURATION) {
+          loadOrders(true);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadOrders]);
+
+  const markOrderToShip = useCallback(async (orderId: string) => {
     try {
       const response = await fetch(`/api/orders/${orderId}/to-ship`, {
         method: 'PUT',
@@ -113,8 +229,9 @@ export default function OrdersPage() {
       });
 
       if (response.ok) {
-        // Reload orders to show updated status
-        await loadOrders();
+        // Invalidate cache and reload orders
+        invalidateCache();
+        await loadOrders(true);
       } else {
         const data = await response.json();
         setError(data.error || 'Failed to mark order as ready to ship');
@@ -123,9 +240,9 @@ export default function OrdersPage() {
       console.error('Error marking order as ready to ship:', error);
       setError('Failed to mark order as ready to ship');
     }
-  };
+  }, [loadOrders, invalidateCache]);
 
-  const markOrderDelivered = async (orderId: string) => {
+  const markOrderDelivered = useCallback(async (orderId: string) => {
     if (!confirm('Confirm that you have received this order?')) {
       return;
     }
@@ -141,7 +258,8 @@ export default function OrdersPage() {
 
       if (response.ok) {
         alert('Thank you! Order marked as delivered.');
-        await loadOrders();
+        invalidateCache();
+        await loadOrders(true);
       } else {
         const data = await response.json();
         setError(data.error || 'Failed to mark order as delivered');
@@ -150,9 +268,9 @@ export default function OrdersPage() {
       console.error('Error marking order as delivered:', error);
       setError('Failed to mark order as delivered');
     }
-  };
+  }, [loadOrders, invalidateCache]);
 
-  const handleCancelOrder = async (orderId: string) => {
+  const handleCancelOrder = useCallback(async (orderId: string) => {
     if (!confirm('Are you sure you want to cancel this order? If payment was made, a refund will be processed.')) {
       return;
     }
@@ -169,7 +287,8 @@ export default function OrdersPage() {
 
       if (response.ok && data.success) {
         alert(data.message || 'Order cancelled successfully. Refund will be processed if payment was made.');
-        await loadOrders();
+        invalidateCache();
+        await loadOrders(true);
       } else {
         alert(data.error || 'Failed to cancel order');
       }
@@ -177,7 +296,7 @@ export default function OrdersPage() {
       console.error('Error cancelling order:', error);
       alert('Failed to cancel order');
     }
-  };
+  }, [loadOrders, invalidateCache]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -236,72 +355,186 @@ export default function OrdersPage() {
     });
   };
 
-  const filteredOrders = orders
-    .filter(order => {
-      // Enhanced search: Order ID, Shop name, or Product name
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = searchQuery === '' || 
-        order.id.toLowerCase().includes(searchLower) ||
-        (order.shopName && order.shopName.toLowerCase().includes(searchLower)) ||
-        order.items.some(item => 
-          (item.productName && item.productName.toLowerCase().includes(searchLower)) ||
-          item.productId.toLowerCase().includes(searchLower)
-        );
-      
-      // Status filter mapping
-      let statusMatch = false;
-      if (statusFilter === 'all') {
-        statusMatch = true;
-      } else if (statusFilter === 'pending') {
-        statusMatch = order.status === 'pending';
-      } else if (statusFilter === 'processing') {
-        statusMatch = order.status === 'processing' || order.status === 'to_ship';
-      } else if (statusFilter === 'shipped') {
-        statusMatch = order.status === 'shipped';
-      } else if (statusFilter === 'delivered') {
-        statusMatch = order.status === 'delivered';
-      } else if (statusFilter === 'cancelled') {
-        statusMatch = order.status === 'cancelled';
-      }
-      
-      return matchesSearch && statusMatch;
-    })
-    .sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
-    });
+  // Memoize filtered and sorted orders to prevent unnecessary recalculations
+  const filteredOrders = useMemo(() => {
+    return orders
+      .filter(order => {
+        // Enhanced search: Order ID, Shop name, or Product name
+        const searchLower = searchQuery.toLowerCase();
+        const matchesSearch = searchQuery === '' || 
+          order.id.toLowerCase().includes(searchLower) ||
+          (order.shopName && order.shopName.toLowerCase().includes(searchLower)) ||
+          order.items.some(item => 
+            (item.productName && item.productName.toLowerCase().includes(searchLower)) ||
+            item.productId.toLowerCase().includes(searchLower)
+          );
+        
+        // Status filter mapping
+        let statusMatch = false;
+        if (statusFilter === 'all') {
+          statusMatch = true;
+        } else if (statusFilter === 'pending') {
+          statusMatch = order.status === 'pending';
+        } else if (statusFilter === 'processing') {
+          statusMatch = order.status === 'processing' || order.status === 'to_ship';
+        } else if (statusFilter === 'shipped') {
+          statusMatch = order.status === 'shipped';
+        } else if (statusFilter === 'delivered') {
+          statusMatch = order.status === 'delivered';
+        } else if (statusFilter === 'cancelled') {
+          statusMatch = order.status === 'cancelled';
+        }
+        
+        return matchesSearch && statusMatch;
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+      });
+  }, [orders, searchQuery, statusFilter, sortOrder]);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <CustomerHeader user={session?.user || null} />
       
-      <div className="flex gap-8 p-8">
-        {/* Left Sidebar - Floating Navigation Card */}
-        <CustomerNavigationSidebar />
+      {/* Mobile: Horizontal Tab Bar */}
+      <CustomerNavigationSidebar variant="mobile" />
+      
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+        {/* Desktop: Vertical Sidebar */}
+        <CustomerNavigationSidebar variant="desktop" />
 
         {/* Right Content Area */}
-        <main className="flex-1">
-          <div className="max-w-4xl">
+        <main className="flex-1 w-full">
+          <div className="max-w-4xl mx-auto">
             {/* Page Header */}
-            <div className="mb-4">
-              <h1 className="text-3xl font-bold text-gray-900">My Orders</h1>
-              <p className="text-gray-600 mt-2">Track and manage your orders</p>
+            <div className="mb-4 md:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Orders</h1>
+                <p className="text-sm md:text-base text-gray-600 mt-1 md:mt-2">Track and manage your orders</p>
+              </div>
+              {!loading && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    invalidateCache();
+                    loadOrders(true);
+                  }}
+                  className="w-full sm:w-auto"
+                  title="Refresh orders"
+                >
+                  <ArrowUpDown className="w-4 h-4 mr-2" />
+                  Refresh
+                </Button>
+              )}
             </div>
 
             {loading ? (
-              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-                <div className="flex flex-col items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                  <p className="text-gray-600">Loading orders...</p>
+              <>
+                {/* Tab Navigation Skeleton */}
+                <div className="bg-white rounded-lg shadow-sm mb-4 overflow-hidden">
+                  <div className="border-b border-gray-200">
+                    <nav className="flex overflow-x-auto no-scrollbar space-x-4 md:space-x-8 px-4 md:px-6" aria-label="Tabs">
+                      {[1, 2, 3, 4, 5, 6].map((i) => (
+                        <div
+                          key={i}
+                          className="py-3 md:py-4 px-1 flex-shrink-0"
+                        >
+                          <div className="h-4 md:h-5 w-20 md:w-24 bg-gray-200 rounded-md animate-pulse"></div>
+                        </div>
+                      ))}
+                    </nav>
+                    <style dangerouslySetInnerHTML={{
+                      __html: `
+                        .no-scrollbar {
+                          -ms-overflow-style: none;
+                          scrollbar-width: none;
+                        }
+                        .no-scrollbar::-webkit-scrollbar {
+                          display: none;
+                        }
+                      `
+                    }} />
+                  </div>
                 </div>
-              </div>
+
+                {/* Search Bar with Sort Skeleton */}
+                <div className="bg-white rounded-lg shadow-sm p-3 md:p-4 mb-4 md:mb-6">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+                    <div className="relative flex-1">
+                      <div className="h-10 md:h-11 bg-gray-200 rounded-lg animate-pulse"></div>
+                    </div>
+                    <div className="h-10 md:h-11 w-full sm:w-32 bg-gray-200 rounded-lg animate-pulse"></div>
+                  </div>
+                </div>
+
+                {/* Order Cards Skeleton */}
+                <div className="space-y-3 md:space-y-4">
+                  {[1, 2, 3].map((orderIndex) => (
+                    <div key={orderIndex} className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+                      {/* Order Header Skeleton */}
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-5 h-5 bg-gray-200 rounded-full animate-pulse"></div>
+                            <div className="h-6 w-20 bg-gray-200 rounded-full animate-pulse"></div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="h-4 w-32 bg-gray-200 rounded-md animate-pulse"></div>
+                            <div className="h-3 w-40 bg-gray-200 rounded-md animate-pulse"></div>
+                          </div>
+                        </div>
+                        
+                        <div className="text-left sm:text-right w-full sm:w-auto space-y-1">
+                          <div className="h-5 w-24 bg-gray-200 rounded-md animate-pulse"></div>
+                          <div className="h-4 w-20 bg-gray-200 rounded-md animate-pulse"></div>
+                          <div className="h-4 w-16 bg-gray-200 rounded-md animate-pulse"></div>
+                        </div>
+                      </div>
+
+                      {/* Order Items Skeleton */}
+                      <div className="border-t pt-3 md:pt-4">
+                        <div className="space-y-3 md:space-y-4">
+                          {[1, 2].map((itemIndex) => (
+                            <div key={itemIndex} className="flex items-start gap-3 md:gap-4">
+                              <div className="w-16 h-16 md:w-20 md:h-20 bg-gray-200 rounded-lg animate-pulse flex-shrink-0"></div>
+                              <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 min-w-0">
+                                <div className="flex-1 min-w-0">
+                                  <div className="h-5 w-3/4 bg-gray-200 rounded-md animate-pulse mb-2"></div>
+                                  <div className="space-y-1">
+                                    <div className="h-3 w-1/2 bg-gray-200 rounded-md animate-pulse"></div>
+                                    <div className="h-3 w-2/3 bg-gray-200 rounded-md animate-pulse"></div>
+                                  </div>
+                                </div>
+                                <div className="text-left sm:text-right flex-shrink-0">
+                                  <div className="h-4 w-16 bg-gray-200 rounded-md animate-pulse mb-1"></div>
+                                  <div className="h-5 w-20 bg-gray-200 rounded-md animate-pulse"></div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Order Actions Skeleton */}
+                      <div className="border-t pt-3 md:pt-4 mt-3 md:mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-0">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:space-x-4 w-full sm:w-auto">
+                          <div className="h-9 w-full sm:w-32 bg-gray-200 rounded-md animate-pulse"></div>
+                          <div className="h-9 w-full sm:w-36 bg-gray-200 rounded-md animate-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             ) : (
               <>
                 {/* Tab Navigation */}
-                <div className="bg-white rounded-lg shadow-sm mb-4">
+                <div className="bg-white rounded-lg shadow-sm mb-4 overflow-hidden">
                   <div className="border-b border-gray-200">
-                    <nav className="flex space-x-8 px-6" aria-label="Tabs">
+                    <nav className="flex overflow-x-auto no-scrollbar space-x-4 md:space-x-8 px-4 md:px-6" aria-label="Tabs">
                       {[
                         { id: 'all', label: 'All Orders' },
                         { id: 'pending', label: 'Pending' },
@@ -314,7 +547,7 @@ export default function OrdersPage() {
                           key={tab.id}
                           onClick={() => setStatusFilter(tab.id)}
                           className={`
-                            py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                            py-3 md:py-4 px-1 border-b-2 font-medium text-xs md:text-sm transition-colors whitespace-nowrap flex-shrink-0
                             ${
                               statusFilter === tab.id
                                 ? 'border-blue-600 text-blue-600'
@@ -326,24 +559,35 @@ export default function OrdersPage() {
                         </button>
                       ))}
                     </nav>
+                    <style dangerouslySetInnerHTML={{
+                      __html: `
+                        .no-scrollbar {
+                          -ms-overflow-style: none;
+                          scrollbar-width: none;
+                        }
+                        .no-scrollbar::-webkit-scrollbar {
+                          display: none;
+                        }
+                      `
+                    }} />
                   </div>
                 </div>
 
                 {/* Search Bar with Sort */}
-                <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-                  <div className="flex items-center gap-3">
+                <div className="bg-white rounded-lg shadow-sm p-3 md:p-4 mb-4 md:mb-6">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                     <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 md:w-5 md:h-5" />
                       <Input
-                        placeholder="You can search by Shop, Order ID or Product name"
+                        placeholder="Search by Shop, Order ID or Product"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10 bg-gray-50 border-gray-200 focus:bg-white"
+                        className="pl-9 md:pl-10 text-sm md:text-base bg-gray-50 border-gray-200 focus:bg-white"
                       />
                     </div>
                     <button
-                      onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors group relative"
+                      onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+                      className="flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors group relative w-full sm:w-auto"
                       title={sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}
                     >
                       {sortOrder === 'newest' ? (
@@ -351,7 +595,7 @@ export default function OrdersPage() {
                       ) : (
                         <ArrowUp className="w-4 h-4 text-gray-600" />
                       )}
-                      <span className="text-sm text-gray-600 font-medium">
+                      <span className="text-xs md:text-sm text-gray-600 font-medium">
                         {sortOrder === 'newest' ? 'Newest' : 'Oldest'}
                       </span>
                     </button>
@@ -366,25 +610,25 @@ export default function OrdersPage() {
             )}
 
             {filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">No orders found</h3>
-            <p className="text-gray-500 mb-4">
+          <div className="bg-white rounded-lg shadow-sm p-6 md:p-8 text-center">
+            <Package className="w-12 h-12 md:w-16 md:h-16 text-gray-300 mx-auto mb-3 md:mb-4" />
+            <h3 className="text-base md:text-lg font-medium text-gray-600 mb-2">No orders found</h3>
+            <p className="text-sm md:text-base text-gray-500 mb-4">
               {searchQuery || statusFilter !== 'all' 
                 ? 'Try adjusting your search or filters'
                 : 'You haven\'t placed any orders yet'
               }
             </p>
             <Link href="/explore">
-              <Button>Start Shopping</Button>
+              <Button className="w-full sm:w-auto">Start Shopping</Button>
             </Link>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             {filteredOrders.map((order) => (
-              <div key={order.id} className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-4">
+              <div key={order.id} className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
                     <div className="flex items-center space-x-2">
                       {getStatusIcon(order.status)}
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
@@ -392,88 +636,154 @@ export default function OrdersPage() {
                       </span>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Order #{order.id.slice(-8)}</p>
+                      <p className="text-xs md:text-sm text-gray-500">Order #{order.id.slice(-8)}</p>
                       <p className="text-xs text-gray-400">
                         Placed on {formatDate(order.createdAt)}
                       </p>
                     </div>
                   </div>
                   
-                  <div className="text-right">
-                    <p className="text-lg font-semibold">{formatPrice(order.totalAmount)}</p>
+                  <div className="text-left sm:text-right w-full sm:w-auto">
+                    <p className="text-base md:text-lg font-semibold">{formatPrice(order.totalAmount)}</p>
                     {order.discountAmount && order.discountAmount > 0 && (
-                      <p className="text-sm text-green-600">
+                      <p className="text-xs md:text-sm text-green-600">
                         Discount: -{formatPrice(order.discountAmount)}
                       </p>
                     )}
-                    <p className="text-sm text-gray-500">
+                    <p className="text-xs md:text-sm text-gray-500">
                       {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
                     </p>
                   </div>
                 </div>
 
                 {/* Order Items */}
-                <div className="border-t pt-4">
-                  <div className="space-y-4">
-                    {order.items.map((item, index) => (
-                      <div key={index} className="flex items-start gap-4">
-                        {/* Show designer final file as image if available */}
-                        {item.customizations?.designerFinalFileUrl && (
-                          <div className="flex-shrink-0">
-                            <img 
-                              src={item.customizations.designerFinalFileUrl as string}
-                              alt="Design Preview"
-                              className="w-20 h-20 object-cover rounded-lg border border-gray-200"
-                            />
-                          </div>
-                        )}
-                        
-                        <div className="flex-1 flex items-start justify-between">
-                          <div>
-                            <span className="font-medium">{item.productName || `Product ${item.productId.slice(-8)}`}</span>
-                            {item.customizations && Object.keys(item.customizations).length > 0 && (
-                              <div className="text-xs text-gray-600 mt-1 space-y-1">
-                                {item.customizations.customizationRequestId && (
-                                  <span className="block">
-                                    customizationRequestId: {item.customizations.customizationRequestId as string}
-                                  </span>
+                <div className="border-t pt-3 md:pt-4">
+                  {order.items.length === 0 ? (
+                    <p className="text-sm text-gray-500">No items in this order</p>
+                  ) : (
+                    <>
+                      <div className="space-y-3 md:space-y-4">
+                        {(expandedOrders.has(order.id) ? order.items : order.items.slice(0, 2)).map((item, index) => (
+                          <div key={index} className="flex items-start gap-3 md:gap-4">
+                            {/* Product Image */}
+                            <div className="w-16 h-16 md:w-20 md:h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                              {item.product?.images && item.product.images.length > 0 ? (
+                                <img
+                                  src={item.product.images[0].imageUrl}
+                                  alt={item.product.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : item.customizations?.designerFinalFileUrl ? (
+                                <img 
+                                  src={item.customizations.designerFinalFileUrl as string}
+                                  alt="Design Preview"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Package className="w-6 h-6 text-gray-400" />
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 min-w-0">
+                              <div className="flex-1 min-w-0">
+                                <span className="font-medium text-sm md:text-base block truncate">
+                                  {item.product?.name || item.productName || `Product ${item.productId.slice(-8)}`}
+                                </span>
+                                
+                                {/* Variant Info */}
+                                {(item.selectedDesign || item.selectedSize || (item.selectedVariants && Object.keys(item.selectedVariants).length > 0) || item.selectedColorId) && (
+                                  <div className="text-sm text-gray-400 mt-1 space-y-0.5">
+                                    {item.selectedDesign && (
+                                      <div>Design: {item.selectedDesign.name}</div>
+                                    )}
+                                    {item.selectedSize && (
+                                      <div>Size: {item.selectedSize.name}</div>
+                                    )}
+                                    {item.selectedVariants && Object.entries(item.selectedVariants).map(([key, value]) => (
+                                      <div key={key}>{key}: {value}</div>
+                                    ))}
+                                    {item.selectedColorId && (
+                                      <div>Color: {item.selectedColorName || item.selectedColorId}</div>
+                                    )}
+                                  </div>
                                 )}
-                                {item.customizations.designerName && (
-                                  <span className="block">
-                                    designerName: {item.customizations.designerName as string}
-                                  </span>
-                                )}
-                                {item.customizations.printingShopName && (
-                                  <span className="block">
-                                    printingShopName: {item.customizations.printingShopName as string}
-                                  </span>
+
+                                {/* Customization Info (for custom orders) */}
+                                {item.customizations && (item.customizations.customizationRequestId || item.customizations.designerName || item.customizations.printingShopName) && (
+                                  <div className="text-xs text-gray-600 mt-1 space-y-1">
+                                    {item.customizations.customizationRequestId && (
+                                      <span className="block">
+                                        customizationRequestId: {item.customizations.customizationRequestId as string}
+                                      </span>
+                                    )}
+                                    {item.customizations.designerName && (
+                                      <span className="block">
+                                        designerName: {item.customizations.designerName as string}
+                                      </span>
+                                    )}
+                                    {item.customizations.printingShopName && (
+                                      <span className="block">
+                                        printingShopName: {item.customizations.printingShopName as string}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                            )}
+                              <div className="text-left sm:text-right flex-shrink-0">
+                                <span className="text-xs md:text-sm block">Qty: {item.quantity}</span>
+                                <p className="font-medium text-sm md:text-base">{formatPrice(item.price * item.quantity)}</p>
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <span className="text-sm">Qty: {item.quantity}</span>
-                            <p className="font-medium">{formatPrice(item.price * item.quantity)}</p>
-                          </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                      
+                      {/* Show expand/collapse button if more than 2 items */}
+                      {order.items.length > 2 && (
+                        <button
+                          onClick={() => {
+                            const newExpanded = new Set(expandedOrders);
+                            if (newExpanded.has(order.id)) {
+                              newExpanded.delete(order.id);
+                            } else {
+                              newExpanded.add(order.id);
+                            }
+                            setExpandedOrders(newExpanded);
+                          }}
+                          className="mt-3 md:mt-4 flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors w-full sm:w-auto"
+                        >
+                          {expandedOrders.has(order.id) ? (
+                            <>
+                              <ChevronUp className="w-4 h-4" />
+                              <span>Show Less</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-4 h-4" />
+                              <span>Show All {order.items.length} Items</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 {/* Order Actions */}
-                <div className="border-t pt-4 mt-4 flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <Link href={`/orders/${order.id}`}>
-                      <Button variant="outline" size="sm">
+                <div className="border-t pt-3 md:pt-4 mt-3 md:mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-0">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:space-x-4 w-full sm:w-auto">
+                    <Link href={`/orders/${order.id}`} className="w-full sm:w-auto">
+                      <Button variant="outline" size="sm" className="w-full sm:w-auto">
                         <Eye className="w-4 h-4 mr-2" />
                         View Details
                       </Button>
                     </Link>
                     
                     {order.trackingNumber && (
-                      <Link href={`/orders/${order.id}/tracking`}>
-                        <Button variant="outline" size="sm">
+                      <Link href={`/orders/${order.id}/tracking`} className="w-full sm:w-auto">
+                        <Button variant="outline" size="sm" className="w-full sm:w-auto">
                           <Truck className="w-4 h-4 mr-2" />
                           Track Package
                         </Button>

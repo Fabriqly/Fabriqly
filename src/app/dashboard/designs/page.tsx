@@ -25,7 +25,9 @@ import {
   MoreVertical,
   Edit,
   Trash2,
-  Upload
+  Upload,
+  Package,
+  DollarSign
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -48,6 +50,8 @@ export default function DesignsDashboard() {
     totalDownloads: 0,
     totalLikes: 0
   });
+  const [shopProfile, setShopProfile] = useState<any>(null);
+  const [designerProfile, setDesignerProfile] = useState<any>(null);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -130,15 +134,35 @@ export default function DesignsDashboard() {
         return;
       }
 
-      const designerProfile = profileData.profiles[0];
-      console.log('📊 Loading stats for designer profile:', designerProfile.id);
+      const designerProfileData = profileData.profiles[0];
+      setDesignerProfile(designerProfileData);
+      console.log('📊 Loading stats for designer profile:', designerProfileData.id);
 
-      const response = await fetch(`/api/designs/stats?designerId=${designerProfile.id}`);
-      const data = await response.json();
+      // Load design stats
+      const designStatsResponse = await fetch(`/api/designs/stats?designerId=${designerProfileData.id}`);
+      const designStatsData = await designStatsResponse.json();
 
-      if (response.ok) {
-        setStats(data.stats || stats);
-        console.log('✅ Stats loaded:', data.stats);
+      if (designStatsResponse.ok) {
+        setStats(designStatsData.stats || stats);
+        console.log('✅ Design stats loaded:', designStatsData.stats);
+      }
+
+      // Load shop profile if it exists (designers can also be business owners)
+      try {
+        const shopProfileResponse = await fetch(`/api/shop-profiles?userId=${user.id}`);
+        const shopProfileData = await shopProfileResponse.json();
+        
+        if (shopProfileResponse.ok && shopProfileData.data && shopProfileData.data.length > 0) {
+          setShopProfile(shopProfileData.data[0]);
+          console.log('✅ Shop profile loaded:', shopProfileData.data[0]);
+        } else if (shopProfileResponse.ok && shopProfileData.profiles && shopProfileData.profiles.length > 0) {
+          // Fallback for different API response format
+          setShopProfile(shopProfileData.profiles[0]);
+          console.log('✅ Shop profile loaded:', shopProfileData.profiles[0]);
+        }
+      } catch (shopError) {
+        console.log('ℹ️ No shop profile found for this designer');
+        // Not an error - designers might not have a shop profile
       }
     } catch (error) {
       console.error('❌ Error loading stats:', error);
@@ -272,57 +296,6 @@ export default function DesignsDashboard() {
               </div>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <FileText className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Designs</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalDesigns}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <Eye className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Views</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalViews}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Download className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Downloads</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalDownloads}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <Heart className="w-6 h-6 text-red-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Likes</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalLikes}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Search and Controls */}
             <div className="mb-6 space-y-4">
               <form onSubmit={handleSearch} className="flex space-x-4">
@@ -341,17 +314,20 @@ export default function DesignsDashboard() {
                 </Button>
               </form>
 
-              <div className="flex justify-between items-center">
+              {/* View Mode Toggle - Matching Products Page Style */}
+              <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-600">
                   {filteredDesigns.length} design{filteredDesigns.length !== 1 ? 's' : ''} found
                 </p>
                 
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
+                {/* View Mode Toggle - Right side, matching products page */}
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center border border-gray-300 rounded-md">
                     <Button
                       variant={viewMode === 'grid' ? 'primary' : 'outline'}
                       size="sm"
                       onClick={() => setViewMode('grid')}
+                      className="rounded-r-none border-r-0"
                     >
                       <Grid className="w-4 h-4" />
                     </Button>
@@ -359,6 +335,7 @@ export default function DesignsDashboard() {
                       variant={viewMode === 'list' ? 'primary' : 'outline'}
                       size="sm"
                       onClick={() => setViewMode('list')}
+                      className="rounded-l-none"
                     >
                       <List className="w-4 h-4" />
                     </Button>
@@ -402,7 +379,7 @@ export default function DesignsDashboard() {
                 ) : (
                   <div className={
                     viewMode === 'grid' 
-                      ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
+                      ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'
                       : 'space-y-4'
                   }>
                     {filteredDesigns.map((design) => (

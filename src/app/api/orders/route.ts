@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     const result = await orderService.getOrders(searchOptions, session.user.id);
 
-    // Fetch product names for all order items
+    // Fetch product names and images for all order items
     const productIds = new Set<string>();
     result.orders.forEach(order => {
       order.items.forEach(item => {
@@ -77,29 +77,84 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // Fetch all products in parallel
-    const productMap = new Map<string, string>();
+    // Fetch all products and images in parallel
+    const productMap = new Map<string, { name: string; images: any[] }>();
     await Promise.all(
       Array.from(productIds).map(async (productId) => {
         try {
           const product = await FirebaseAdminService.getDocument(Collections.PRODUCTS, productId);
+          let productImages: any[] = [];
+          
+          // Fetch product images
+          try {
+            const allImages = await FirebaseAdminService.queryDocuments(
+              Collections.PRODUCT_IMAGES,
+              [{ field: 'productId', operator: '==' as const, value: productId }],
+              { field: 'sortOrder', direction: 'asc' },
+              1 // Only need first image for list view
+            );
+            productImages = (allImages || []).map((img: any) => ({
+              id: img.id,
+              imageUrl: img.imageUrl,
+              altText: img.altText || '',
+              isPrimary: img.isPrimary || false
+            }));
+          } catch (error) {
+            console.error(`Error fetching images for product ${productId}:`, error);
+          }
+          
           if (product) {
-            productMap.set(productId, product.name || `Product ${productId.slice(-8)}`);
+            productMap.set(productId, {
+              name: product.name || `Product ${productId.slice(-8)}`,
+              images: productImages
+            });
           }
         } catch (error) {
           console.error(`Error fetching product ${productId}:`, error);
-          productMap.set(productId, `Product ${productId.slice(-8)}`);
+          productMap.set(productId, {
+            name: `Product ${productId.slice(-8)}`,
+            images: []
+          });
         }
       })
     );
 
-    // Enrich orders with product names
+    // Enrich orders with product names, images, and variant information
     const enrichedOrders = result.orders.map(order => ({
       ...order,
-      items: order.items.map(item => ({
-        ...item,
-        productName: productMap.get(item.productId) || `Product ${item.productId.slice(-8)}`
-      }))
+      items: order.items.map(item => {
+        const productData = productMap.get(item.productId);
+        
+        // Extract variant information from customizations
+        const customizations = item.customizations || {};
+        const selectedDesign = customizations.selectedDesign || (customizations.design ? { name: customizations.design, priceModifier: customizations.designPriceModifier || 0 } : undefined);
+        const selectedSize = customizations.selectedSize || (customizations.size ? { name: customizations.size, priceModifier: customizations.sizePriceModifier || 0 } : undefined);
+        const selectedColorId = customizations.colorId || customizations.selectedColorId;
+        const selectedColorName = customizations.selectedColorName || customizations.colorName;
+        
+        // Create selectedVariants object excluding already extracted fields
+        const selectedVariants: Record<string, any> = {};
+        Object.keys(customizations).forEach(key => {
+          if (!['selectedDesign', 'selectedSize', 'design', 'size', 'colorId', 'selectedColorId', 'selectedColorName', 'colorName', 'designPriceModifier', 'sizePriceModifier', 'customizationRequestId', 'designerName', 'printingShopName', 'designerFinalFileUrl'].includes(key)) {
+            selectedVariants[key] = customizations[key];
+          }
+        });
+        
+        return {
+          ...item,
+          productName: productData?.name || `Product ${item.productId.slice(-8)}`,
+          product: productData ? {
+            id: item.productId,
+            name: productData.name,
+            images: productData.images
+          } : undefined,
+          selectedDesign,
+          selectedSize,
+          selectedColorId,
+          selectedColorName,
+          selectedVariants: Object.keys(selectedVariants).length > 0 ? selectedVariants : undefined
+        };
+      })
     }));
 
     const response = { 
