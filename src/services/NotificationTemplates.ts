@@ -195,7 +195,7 @@ export class NotificationTemplates {
         message: `${data.senderName || 'Someone'} sent you a message: ${data.preview || ''}`,
         category: 'info' as NotificationCategory,
         priority: 'medium' as NotificationPriority,
-        actionUrl: data.conversationId ? `/messages?conversation=${data.conversationId}` : '/messages',
+        actionUrl: data.conversationId ? `/dashboard/messages?conversation=${data.conversationId}` : '/dashboard/messages',
         actionLabel: 'View Message',
         metadata: { conversationId: data.conversationId, senderId: data.senderId, senderName: data.senderName }
       }),

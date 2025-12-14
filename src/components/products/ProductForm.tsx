@@ -31,6 +31,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
   } from 'lucide-react';
   import { CategorySelector } from './CategorySelector';
   import { ProductColorManager } from './ProductColorManager';
+  import { ProductVariantManager } from './ProductVariantManager';
   import { ImageUploader } from './ImageUploader';
 
   interface ProductFormProps {
@@ -409,6 +410,7 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
   const [shops, setShops] = useState<any[]>([]);
   const [loadingShops, setLoadingShops] = useState(false);
   const [showColorManagement, setShowColorManagement] = useState(false);
+  const [showVariantManagement, setShowVariantManagement] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<any[]>([]);
   const [isDraftCreated, setIsDraftCreated] = useState(false);
   const [currentProductId, setCurrentProductId] = useState<string | undefined>(productId);
@@ -1003,6 +1005,59 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
                     <p>Creating draft product...</p>
                   </div>
                 )}
+
+                {/* Variant Management Section */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-2">
+                      <Package className="w-5 h-5 text-blue-600" />
+                      <h3 className="text-lg font-bold text-gray-900">Product Variants & Sizes</h3>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        // If no productId exists, create a draft first
+                        if (!currentProductId) {
+                          try {
+                            const draftId = await createDraftProduct();
+                            if (draftId) {
+                              setCurrentProductId(draftId);
+                              setIsDraftCreated(true);
+                              setShowVariantManagement(true);
+                            } else {
+                              alert('Please fill in name, description, and category to enable variant management.');
+                              return;
+                            }
+                          } catch (error: any) {
+                            alert(error.message || 'Failed to create draft product');
+                            return;
+                          }
+                        } else {
+                          setShowVariantManagement(!showVariantManagement);
+                        }
+                      }}
+                    >
+                      {showVariantManagement ? 'Hide' : 'Manage'}
+                    </Button>
+                  </div>
+
+                  {showVariantManagement && currentProductId && (
+                    <ProductVariantManager
+                      productId={currentProductId}
+                      onVariantChange={() => {
+                        // Optionally refresh product data or show notification
+                      }}
+                    />
+                  )}
+
+                  {showVariantManagement && !currentProductId && (
+                    <div className="text-sm text-gray-500 text-center py-4">
+                      <p>Creating draft product...</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

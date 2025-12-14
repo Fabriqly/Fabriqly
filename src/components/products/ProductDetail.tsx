@@ -40,6 +40,7 @@ import { ReviewList } from '@/components/reviews/ReviewList';
 import { ReviewForm } from '@/components/reviews/ReviewForm';
 import { Review } from '@/types/firebase';
 import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
+import { ShopMessageModal } from '@/components/messaging/ShopMessageModal';
 
 export function ProductDetail() {
   const params = useParams();
@@ -69,6 +70,7 @@ export function ProductDetail() {
   const [shopRating, setShopRating] = useState<{ average: number; total: number } | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [hasUserReviewed, setHasUserReviewed] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
 
   useEffect(() => {
     if (productId) {
@@ -1016,7 +1018,7 @@ export function ProductDetail() {
                   )}
                 </div>
               </div>
-              <div>
+              <div className="flex items-center gap-2">
                 <Button
                   onClick={() => {
                     const username = shopProfile?.username || product.shop?.username;
@@ -1030,6 +1032,15 @@ export function ProductDetail() {
                   <Store className="w-4 h-4 mr-2" />
                   View Shop
                 </Button>
+                {user && (shopProfile?.userId || product.businessOwnerId) && (
+                  <Button
+                    onClick={() => setShowMessageModal(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Message Shop
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -1308,6 +1319,17 @@ export function ProductDetail() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Message Shop Modal */}
+      {showMessageModal && (shopProfile?.userId || product?.businessOwnerId) && (
+        <ShopMessageModal
+          isOpen={showMessageModal}
+          onClose={() => setShowMessageModal(false)}
+          shopOwnerId={shopProfile?.userId || product?.businessOwnerId || ''}
+          shopOwnerName={shopProfile?.shopName || product?.businessOwner?.businessName || product?.businessOwner?.name || 'Shop Owner'}
+          shopId={shopProfile?.id}
+        />
       )}
       
       <ScrollToTop />

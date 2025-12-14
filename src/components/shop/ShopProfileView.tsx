@@ -25,8 +25,11 @@ import {
   ChevronRight,
   Filter,
   X,
-  Check
+  Check,
+  MessageSquare
 } from 'lucide-react';
+import { ShopMessageModal } from '@/components/messaging/ShopMessageModal';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ShopProfileViewProps {
   shop: ShopProfile;
@@ -35,6 +38,7 @@ interface ShopProfileViewProps {
 }
 
 export default function ShopProfileView({ shop, showEditButton = false, onEdit }: ShopProfileViewProps) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'about' | 'products' | 'contacts' | 'reviews'>('about');
   const [actualRatings, setActualRatings] = useState({
     averageRating: shop.ratings?.averageRating || 0,
@@ -46,6 +50,7 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
   const [productTags, setProductTags] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
   const itemsPerPage = 9;
 
   useEffect(() => {
@@ -342,10 +347,15 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
                 <span className="font-semibold text-gray-900 text-sm">{shop.shopStats?.totalProducts || 0}</span>
                 <span className="text-xs text-gray-600">Products</span>
               </button>
-              <button className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors border border-gray-200 flex items-center gap-1.5 text-xs">
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Message</span>
-              </button>
+              {user && user.id !== shop.userId && (
+                <button 
+                  onClick={() => setShowMessageModal(true)}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors border border-blue-600 flex items-center gap-1.5 text-xs"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Message</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1205,6 +1215,17 @@ export default function ShopProfileView({ shop, showEditButton = false, onEdit }
           <ShopReviewSection shop={shop} />
         </div>
       </div>
+
+      {/* Message Shop Modal */}
+      {showMessageModal && user && user.id !== shop.userId && shop.userId && (
+        <ShopMessageModal
+          isOpen={showMessageModal}
+          onClose={() => setShowMessageModal(false)}
+          shopOwnerId={shop.userId}
+          shopOwnerName={shop.shopName || shop.businessOwnerName}
+          shopId={shop.id}
+        />
+      )}
     </div>
   );
 }
