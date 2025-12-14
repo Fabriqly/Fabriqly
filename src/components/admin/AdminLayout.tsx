@@ -122,6 +122,12 @@ const adminNavigation = [
     description: 'Manage backups and recovery'
   },
   {
+    name: 'System Announcements',
+    href: '/dashboard/admin/system-announcements',
+    icon: MessageSquare,
+    description: 'Send system-wide announcements'
+  },
+  {
     name: 'Settings',
     href: '/dashboard/admin/settings',
     icon: Settings,

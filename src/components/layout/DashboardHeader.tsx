@@ -2,10 +2,10 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Menu, LogOut, User } from 'lucide-react';
+import { Menu, User } from 'lucide-react';
 import LogoName from '@/../public/LogoName.png';
-import { signOut } from 'next-auth/react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { MessageBell } from '@/components/messaging/MessageBell';
 
 interface DashboardHeaderProps {
   user?: {
@@ -18,28 +18,29 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({ user, onMenuClick, showMobileMenu = false }: DashboardHeaderProps) {
-  const handleSignOut = () => {
-    // Redirect admins to login page, others to business login
-    const redirectUrl = user?.role === 'admin' ? '/login' : '/business/login';
-    signOut({ callbackUrl: redirectUrl });
+  const handleMenuClick = () => {
+    // Dispatch custom event to toggle sidebar
+    window.dispatchEvent(new CustomEvent('toggleDashboardSidebar'));
+    // Also call the optional onMenuClick if provided
+    if (onMenuClick) {
+      onMenuClick();
+    }
   };
 
   return (
-    <header className="w-full bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-600 shadow-lg">
+    <header className="fixed top-0 left-0 right-0 w-full bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-600 shadow-lg z-50">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="h-20 flex items-center justify-between">
-          {/* Left side - Logo and Menu */}
+          {/* Left side - Menu and Logo */}
           <div className="flex items-center">
-            {/* Mobile menu button */}
-            {showMobileMenu && (
-              <button
-                type="button"
-                className="mr-4 p-2 rounded-md text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 lg:hidden"
-                onClick={onMenuClick}
-              >
-                <Menu className="h-6 w-6" />
-              </button>
-            )}
+            {/* Mobile menu button - Always show on mobile */}
+            <button
+              type="button"
+              className="mr-4 p-2 rounded-md text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 lg:hidden"
+              onClick={handleMenuClick}
+            >
+              <Menu className="h-6 w-6" />
+            </button>
             
             {/* Logo */}
             <div className="flex items-center">
@@ -55,8 +56,11 @@ export function DashboardHeader({ user, onMenuClick, showMobileMenu = false }: D
             </div>
           </div>
 
-          {/* Right side - User info and logout */}
+          {/* Right side - User info */}
           <div className="flex items-center space-x-4">
+            {/* Messages */}
+            <MessageBell />
+
             {/* Notifications */}
             <NotificationBell />
 
@@ -72,15 +76,6 @@ export function DashboardHeader({ user, onMenuClick, showMobileMenu = false }: D
                 </div>
               </div>
             </div>
-
-            {/* Logout button */}
-            <button
-              onClick={handleSignOut}
-              className="inline-flex items-center px-3 py-2 border border-white/30 text-sm font-medium rounded-md text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 transition-colors"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </button>
           </div>
         </div>
       </div>

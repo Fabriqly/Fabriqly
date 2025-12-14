@@ -1,80 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
-import { LoadingCard } from '@/components/ui/LoadingCard';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { useAuth } from '@/hooks/useAuth';
-import { ProductWithDetails } from '@/types/products';
-
-// Dynamically import ProductCard to reduce initial bundle size
-const ProductCard = dynamic(() => import('@/components/products/ProductCard').then(mod => ({ default: mod.ProductCard })), {
-  loading: () => <LoadingCard />,
-  ssr: true
-});
+import { EmailVerificationBanner } from '@/components/auth/EmailVerificationBanner';
+import { TopProducts } from '@/components/explore/TopProducts';
+import { ForYouFeed } from '@/components/explore/ForYouFeed';
 
 export default function ExplorePage() {
   const { user } = useAuth();
-  const [products, setProducts] = useState<ProductWithDetails[]>([]);
-  const [merchandiseProducts, setMerchandiseProducts] = useState<ProductWithDetails[]>([]);
-  const [graphicsProducts, setGraphicsProducts] = useState<ProductWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [merchandiseLoading, setMerchandiseLoading] = useState(true);
-  const [graphicsLoading, setGraphicsLoading] = useState(true);
-
-  useEffect(() => {
-    // Load all products in parallel for better performance
-    const loadAllProducts = async () => {
-      try {
-        // Set all loading states to true
-        setLoading(true);
-        setMerchandiseLoading(true);
-        setGraphicsLoading(true);
-
-        // Fetch all three endpoints in parallel
-        const [featuredResponse, merchandiseResponse, graphicsResponse] = await Promise.all([
-          fetch('/api/products?limit=8&status=active'),
-          fetch('/api/products?tags=merchandise&status=active&limit=4'),
-          fetch('/api/products?tags=design&status=active&limit=4')
-        ]);
-
-        // Process responses in parallel
-        const [featuredData, merchandiseData, graphicsData] = await Promise.all([
-          featuredResponse.json(),
-          merchandiseResponse.json(),
-          graphicsResponse.json()
-        ]);
-
-        // Update state with results
-        if (featuredResponse.ok && featuredData.success) {
-          setProducts(featuredData.data.products || []);
-        } else {
-          console.error('Error loading products:', featuredData.error);
-        }
-
-        if (merchandiseResponse.ok && merchandiseData.success) {
-          setMerchandiseProducts(merchandiseData.data.products || []);
-        } else {
-          console.error('Error loading merchandise products:', merchandiseData.error);
-        }
-
-        if (graphicsResponse.ok && graphicsData.success) {
-          setGraphicsProducts(graphicsData.data.products || []);
-        } else {
-          console.error('Error loading graphics services:', graphicsData.error);
-        }
-      } catch (error) {
-        console.error('Error loading products:', error);
-      } finally {
-        // Set all loading states to false
-        setLoading(false);
-        setMerchandiseLoading(false);
-        setGraphicsLoading(false);
-      }
-    };
-
-    loadAllProducts();
-  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -82,10 +16,10 @@ export default function ExplorePage() {
       <CustomerHeader user={user} />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Guest Banner - Show only if user is not logged in */}
         {!user && (
-          <div className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg p-4 text-white">
+          <div className="mb-4 sm:mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg p-3 sm:p-4 text-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -106,11 +40,14 @@ export default function ExplorePage() {
           </div>
         )}
 
+        {/* Email Verification Banner */}
+        {user && <EmailVerificationBanner />}
+
         {/* Marketing/Ads Section */}
-        <section className="mb-12">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <section className="mb-8 sm:mb-12">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
             {/* Large promotional card */}
-            <div className="lg:col-span-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-8 text-white min-h-[200px] flex items-center justify-center">
+            <div className="lg:col-span-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-4 sm:p-6 lg:p-8 text-white min-h-[150px] sm:min-h-[200px] flex items-center justify-center">
               <div className="text-center">
                 <h2 className="text-2xl font-bold mb-2">Welcome to Fabriqly</h2>
                 <p className="text-blue-100">Discover amazing designs and custom products</p>
@@ -118,23 +55,23 @@ export default function ExplorePage() {
             </div>
 
             {/* Smaller promotional cards */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <a 
                 href="/explore/merchandise" 
-                className="block bg-gradient-to-r from-green-500 to-teal-600 rounded-lg p-6 text-white min-h-[90px] flex items-center justify-center hover:shadow-lg transition-shadow cursor-pointer"
+                className="block bg-gradient-to-r from-green-500 to-teal-600 rounded-lg p-4 sm:p-6 text-white min-h-[80px] sm:min-h-[90px] flex items-center justify-center hover:shadow-lg transition-shadow cursor-pointer"
               >
                 <div className="text-center">
-                  <h3 className="font-semibold">Merchandise</h3>
-                  <p className="text-green-100 text-sm">Official branded products</p>
+                  <h3 className="font-semibold text-sm sm:text-base">Merchandise</h3>
+                  <p className="text-green-100 text-xs sm:text-sm">Official branded products</p>
                 </div>
               </a>
               <a 
                 href="/explore/graphics-services" 
-                className="block bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg p-6 text-white min-h-[90px] flex items-center justify-center hover:shadow-lg transition-shadow cursor-pointer"
+                className="block bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg p-4 sm:p-6 text-white min-h-[80px] sm:min-h-[90px] flex items-center justify-center hover:shadow-lg transition-shadow cursor-pointer"
               >
                 <div className="text-center">
-                  <h3 className="font-semibold">Graphics Services</h3>
-                  <p className="text-purple-100 text-sm">Professional design work</p>
+                  <h3 className="font-semibold text-sm sm:text-base">Graphics Services</h3>
+                  <p className="text-purple-100 text-xs sm:text-sm">Professional design work</p>
                 </div>
               </a>
             </div>
@@ -143,8 +80,8 @@ export default function ExplorePage() {
 
         {/* Join as Designer or Shop - Only show for customers */}
         {user && user.role === 'customer' && (
-          <section className="mb-12">
-            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-8 border border-indigo-100">
+          <section className="mb-8 sm:mb-12">
+            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-4 sm:p-6 lg:p-8 border border-indigo-100">
               <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">Join Our Community</h2>
                 <p className="text-gray-600 mt-2">Become a designer or open your shop on Fabriqly</p>
@@ -239,8 +176,8 @@ export default function ExplorePage() {
 
         {/* Approved Application Notice */}
         {user && (user.role === 'designer' || user.role === 'business_owner') && (
-          <section className="mb-12">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <section className="mb-8 sm:mb-12">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 sm:p-6">
               <div className="flex items-start">
                 <svg className="w-6 h-6 text-green-600 mt-1 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -270,8 +207,8 @@ export default function ExplorePage() {
 
         {/* Pending Application Notice */}
         {user && (user.role === 'pending_designer' || user.role === 'pending_shop') && (
-          <section className="mb-12">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <section className="mb-8 sm:mb-12">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 sm:p-6">
               <div className="flex items-start">
                 <svg className="w-6 h-6 text-yellow-600 mt-1 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -299,144 +236,14 @@ export default function ExplorePage() {
           </section>
         )}
 
-        {/* Featured Products Section */}
-        <section>
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900">Featured Products</h2>
-              <p className="text-gray-600 mt-2">Discover our most popular items</p>
-            </div>
-            {!loading && products.length > 0 && (
-              <button className="text-indigo-600 hover:text-indigo-500 font-medium">
-                View All →
-              </button>
-            )}
-          </div>
+        {/* Top Products Section */}
+        <TopProducts />
 
-          {/* Products Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {loading ? (
-              // Loading cards
-              Array.from({ length: 8 }).map((_, index) => (
-                <LoadingCard key={index} />
-              ))
-            ) : products.length > 0 ? (
-              // Actual products
-              products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  variant="customer"
-                  showActions={false}
-                />
-              ))
-            ) : (
-              // No products message
-              <div className="col-span-full text-center py-12">
-                <div className="text-gray-400 mb-4">
-                  <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Products Available</h3>
-                <p className="text-gray-500">Check back later for new featured products.</p>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Merchandise Section */}
-        {merchandiseProducts.length > 0 && (
-          <section className="mt-16">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-green-500 to-teal-600 p-2 rounded-lg">
-                  <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-3xl font-bold text-gray-900">Official Merchandise</h2>
-                  <p className="text-gray-600 mt-1">Exclusive branded products and merchandise</p>
-                </div>
-              </div>
-              <a 
-                href="/explore/merchandise" 
-                className="text-green-600 hover:text-green-500 font-medium transition-colors"
-              >
-                View All →
-              </a>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {merchandiseLoading ? (
-                Array.from({ length: 4 }).map((_, index) => (
-                  <LoadingCard key={index} />
-                ))
-              ) : (
-                merchandiseProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    variant="customer"
-                    showActions={false}
-                  />
-                ))
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Graphics Services Section */}
-        {graphicsProducts.length > 0 && (
-          <section className="mt-16">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-purple-500 to-pink-600 p-2 rounded-lg">
-                  <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-3xl font-bold text-gray-900">Graphics & Design Services</h2>
-                  <p className="text-gray-600 mt-1">Professional design work for your creative needs</p>
-                </div>
-              </div>
-              <a 
-                href="/explore/graphics-services" 
-                className="text-purple-600 hover:text-purple-500 font-medium transition-colors"
-              >
-                View All →
-              </a>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {graphicsLoading ? (
-                Array.from({ length: 4 }).map((_, index) => (
-                  <LoadingCard key={index} />
-                ))
-              ) : (
-                graphicsProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    variant="customer"
-                    showActions={false}
-                  />
-                ))
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Additional Sections - Placeholder for future content */}
-        <section className="mt-16">
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">More Coming Soon</h3>
-            <p className="text-gray-600">We're working on bringing you more amazing features and products.</p>
-          </div>
-        </section>
+        {/* For You Feed Section */}
+        <ForYouFeed />
       </main>
+      
+      <ScrollToTop />
     </div>
   );
 }

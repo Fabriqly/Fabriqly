@@ -4,6 +4,7 @@ import { Message, Conversation } from '@/types/firebase';
 import { Timestamp } from 'firebase/firestore';
 import { eventBus } from '@/events/EventBus';
 import { AppError } from '@/errors/AppError';
+import { UserRepository } from '@/repositories/UserRepository';
 
 export interface SendMessageData {
   senderId: string;
@@ -34,10 +35,12 @@ export interface ConversationWithDetails extends Conversation {
 export class MessagingService {
   private messageRepo: MessageRepository;
   private conversationRepo: ConversationRepository;
+  private userRepo: UserRepository;
 
   constructor() {
     this.messageRepo = new MessageRepository();
     this.conversationRepo = new ConversationRepository();
+    this.userRepo = new UserRepository();
   }
 
   /**
@@ -101,12 +104,24 @@ export class MessagingService {
       data.receiverId
     );
 
+    // Get sender name for notification
+    let senderName = 'Someone';
+    try {
+      const sender = await this.userRepo.findById(data.senderId);
+      if (sender) {
+        senderName = sender.displayName || sender.name || sender.email || 'Someone';
+      }
+    } catch (error) {
+      console.error('Error fetching sender name for notification:', error);
+    }
+
     // Emit event for real-time notifications
     await eventBus.emit('message.sent', {
       messageId: message.id,
       conversationId: conversation.id,
       senderId: data.senderId,
       receiverId: data.receiverId,
+      senderName: senderName,
       content: data.content
     });
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { DesignerApplicationForm } from '@/components/applications/DesignerApplicationForm';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 
 export default function ApplyDesignerPage() {
   const router = useRouter();
@@ -39,6 +40,8 @@ export default function ApplyDesignerPage() {
       <div className="container mx-auto px-4 py-8">
         <DesignerApplicationForm onCancel={() => router.back()} />
       </div>
+      
+      <ScrollToTop />
     </div>
   );
 }

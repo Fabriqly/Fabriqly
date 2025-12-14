@@ -31,6 +31,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
   } from 'lucide-react';
   import { CategorySelector } from './CategorySelector';
   import { ProductColorManager } from './ProductColorManager';
+  import { ProductVariantManager } from './ProductVariantManager';
   import { ImageUploader } from './ImageUploader';
 
   interface ProductFormProps {
@@ -41,11 +42,12 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
 // Break down the form into smaller components for better maintainability
 const BasicInfoSection = ({ formData, handleInputChange, categories, shops, loadingShops }: any) => (
-            <div className="space-y-6">
-              <div className="flex items-center space-x-2 mb-4">
-                <Package className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
-              </div>
+  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="flex items-center space-x-2 mb-6">
+      <Package className="w-5 h-5 text-blue-600" />
+      <h3 className="text-lg font-bold text-gray-900">Basic Information</h3>
+    </div>
+    <div className="space-y-6">
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -135,15 +137,17 @@ const BasicInfoSection = ({ formData, handleInputChange, categories, shops, load
                   </p>
                 </div>
               </div>
-            </div>
+    </div>
+  </div>
 );
 
 const PricingInventorySection = ({ formData, handleInputChange }: any) => (
-  <div className="space-y-6">
-    <div className="flex items-center space-x-2 mb-4">
+  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="flex items-center space-x-2 mb-6">
       <DollarSign className="w-5 h-5 text-green-600" />
-      <h3 className="text-lg font-semibold text-gray-900">Pricing & Inventory</h3>
+      <h3 className="text-lg font-bold text-gray-900">Pricing & Inventory</h3>
     </div>
+    <div className="space-y-6">
 
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div>
@@ -207,15 +211,17 @@ const PricingInventorySection = ({ formData, handleInputChange }: any) => (
         </select>
       </div>
     </div>
+    </div>
   </div>
 );
 
 const ProductOptionsSection = ({ formData, handleInputChange }: any) => (
-  <div className="space-y-6">
-    <div className="flex items-center space-x-2 mb-4">
+  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="flex items-center space-x-2 mb-6">
       <Settings className="w-5 h-5 text-purple-600" />
-      <h3 className="text-lg font-semibold text-gray-900">Product Options</h3>
+      <h3 className="text-lg font-bold text-gray-900">Product Options</h3>
     </div>
+    <div className="space-y-6">
 
     <div className="space-y-4">
       <div className="flex items-center space-x-3">
@@ -244,15 +250,17 @@ const ProductOptionsSection = ({ formData, handleInputChange }: any) => (
         </label>
       </div>
     </div>
+    </div>
   </div>
 );
 
 const TagsSection = ({ formData, handleInputChange, tagInput, setTagInput, handleAddTag, handleRemoveTag }: any) => (
-  <div className="space-y-6">
-    <div className="flex items-center space-x-2 mb-4">
+  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="flex items-center space-x-2 mb-6">
       <Tag className="w-5 h-5 text-orange-600" />
-      <h3 className="text-lg font-semibold text-gray-900">Tags</h3>
+      <h3 className="text-lg font-bold text-gray-900">Tags</h3>
     </div>
+    <div className="space-y-6">
 
     <div className="space-y-4">
       <div className="flex space-x-2">
@@ -297,15 +305,17 @@ const TagsSection = ({ formData, handleInputChange, tagInput, setTagInput, handl
         </div>
       )}
     </div>
+    </div>
   </div>
 );
 
 const SpecificationsSection = ({ formData, handleInputChange, specKey, setSpecKey, specValue, setSpecValue, handleAddSpecification, handleRemoveSpecification }: any) => (
-  <div className="space-y-6">
-    <div className="flex items-center space-x-2 mb-4">
+  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="flex items-center space-x-2 mb-6">
       <FileText className="w-5 h-5 text-indigo-600" />
-      <h3 className="text-lg font-semibold text-gray-900">Specifications</h3>
+      <h3 className="text-lg font-bold text-gray-900">Specifications</h3>
     </div>
+    <div className="space-y-6">
 
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
@@ -348,15 +358,17 @@ const SpecificationsSection = ({ formData, handleInputChange, specKey, setSpecKe
         </div>
       )}
     </div>
+    </div>
   </div>
 );
 
 const SEOSection = ({ formData, handleInputChange }: any) => (
-  <div className="space-y-6">
-    <div className="flex items-center space-x-2 mb-4">
+  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="flex items-center space-x-2 mb-6">
       <Settings className="w-5 h-5 text-teal-600" />
-      <h3 className="text-lg font-semibold text-gray-900">SEO Settings</h3>
+      <h3 className="text-lg font-bold text-gray-900">SEO Settings</h3>
     </div>
+    <div className="space-y-6">
 
     <div className="space-y-4">
       <div>
@@ -383,6 +395,7 @@ const SEOSection = ({ formData, handleInputChange }: any) => (
         />
       </div>
     </div>
+    </div>
   </div>
 );
 
@@ -397,9 +410,11 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
   const [shops, setShops] = useState<any[]>([]);
   const [loadingShops, setLoadingShops] = useState(false);
   const [showColorManagement, setShowColorManagement] = useState(false);
+  const [showVariantManagement, setShowVariantManagement] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<any[]>([]);
   const [isDraftCreated, setIsDraftCreated] = useState(false);
   const [currentProductId, setCurrentProductId] = useState<string | undefined>(productId);
+  const [pendingColors, setPendingColors] = useState<any[]>([]);
 
   const [formData, setFormData] = useState<CreateProductData>({
     name: '',
@@ -610,12 +625,43 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
         throw new Error('Please fill in name, description, and category to enable image uploads');
       }
 
-      const draftData = {
-        ...formData,
+      // Clean the data to prevent Firebase fieldPath errors
+      const draftData: any = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        categoryId: formData.categoryId,
         status: 'draft' as ProductStatus,
         price: formData.price || 0,
-        stockQuantity: formData.stockQuantity || 0
+        stockQuantity: formData.stockQuantity || 0,
+        isCustomizable: formData.isCustomizable || false,
+        isDigital: formData.isDigital || false,
       };
+
+      // Only include optional fields if they have values
+      if (formData.shortDescription?.trim()) {
+        draftData.shortDescription = formData.shortDescription.trim();
+      }
+      if (formData.sku?.trim()) {
+        draftData.sku = formData.sku.trim();
+      }
+      if (formData.shopId?.trim()) {
+        draftData.shopId = formData.shopId.trim();
+      }
+      if (formData.weight && formData.weight > 0) {
+        draftData.weight = formData.weight;
+      }
+      if (formData.tags && formData.tags.length > 0) {
+        draftData.tags = formData.tags.filter(tag => tag.trim().length > 0);
+      }
+      if (formData.specifications && Object.keys(formData.specifications).length > 0) {
+        draftData.specifications = formData.specifications;
+      }
+      if (formData.seoTitle?.trim()) {
+        draftData.seoTitle = formData.seoTitle.trim();
+      }
+      if (formData.seoDescription?.trim()) {
+        draftData.seoDescription = formData.seoDescription.trim();
+      }
 
       const response = await fetch('/api/products', {
         method: 'POST',
@@ -627,7 +673,21 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create draft product');
+        // Handle different error response formats
+        let errorMessage = 'Failed to create draft product';
+        if (errorData.error) {
+          if (typeof errorData.error === 'string') {
+            errorMessage = errorData.error;
+          } else if (errorData.error.message) {
+            errorMessage = errorData.error.message;
+          } else if (errorData.error.code) {
+            errorMessage = errorData.error.code;
+          }
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+        console.error('Draft creation failed:', errorMessage, 'Full response:', errorData);
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -696,7 +756,21 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || `Failed to ${isEditMode ? 'update' : 'create'} product`);
+        // Handle different error response formats
+        let errorMessage = `Failed to ${isEditMode ? 'update' : 'create'} product`;
+        if (data.error) {
+          if (typeof data.error === 'string') {
+            errorMessage = data.error;
+          } else if (data.error.message) {
+            errorMessage = data.error.message;
+          } else if (data.error.code) {
+            errorMessage = data.error.code;
+          }
+        } else if (data.message) {
+          errorMessage = data.message;
+        }
+        console.error('Product operation failed:', errorMessage, 'Full response:', data);
+        throw new Error(errorMessage);
       }
 
       const savedProduct = data.data;
@@ -727,19 +801,40 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
         method: 'POST',
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to publish product');
-      }
-
       const data = await response.json();
-      console.log('Product published successfully:', data.data.id);
+      
+      if (!response.ok) {
+        // Handle different error response formats
+        let errorMessage = 'Failed to publish product';
+        if (data.error) {
+          if (typeof data.error === 'string') {
+            errorMessage = data.error;
+          } else if (data.error.message) {
+            errorMessage = data.error.message;
+          } else if (data.error.code) {
+            errorMessage = data.error.code;
+          }
+        } else if (data.message) {
+          errorMessage = data.message;
+        }
+        console.error('Publish failed:', errorMessage, 'Full response:', data);
+        throw new Error(errorMessage);
+      }
+      // The API returns { product: updatedProduct, message: '...' }
+      const updatedProduct = data.product || data.data;
+      
+      if (!updatedProduct) {
+        console.error('No product data in response:', data);
+        throw new Error('Invalid response: product data not found');
+      }
+      
+      console.log('Product published successfully:', updatedProduct.id);
       
       // Update local state
       setFormData(prev => ({ ...prev, status: 'active' }));
       
       if (onSave) {
-        onSave(data.data);
+        onSave(updatedProduct);
       } else {
         router.push('/dashboard/products');
       }
@@ -772,7 +867,7 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
   }
 
   return (
-    <div>
+    <div className="bg-gray-50 min-h-screen">
       <div className="bg-white rounded-lg shadow-sm">
           {/* Header */}
           <div className="px-6 py-4 border-b border-gray-200">
@@ -825,8 +920,150 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
             </div>
           )}
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-8">
+          {/* Split View Layout */}
+          <div className="flex flex-col lg:flex-row gap-6 p-6">
+            {/* Left Column - Image Upload and Product Colors (Sticky on Desktop, Hidden on Mobile) */}
+            <div className="hidden lg:block w-full lg:w-1/3 lg:sticky lg:top-6 lg:self-start space-y-6">
+              {/* Product Images Section */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center space-x-2 mb-6">
+                  <ImageIcon className="w-5 h-5 text-blue-600" />
+                  <h3 className="text-lg font-bold text-gray-900">Product Images</h3>
+                </div>
+
+                <div className="space-y-4">
+                  <ImageUploader
+                    productId={currentProductId || ''}
+                    onImagesUploaded={(images) => {
+                      setUploadedImages(images);
+                    }}
+                    existingImages={uploadedImages}
+                    maxImages={5}
+                    onCreateDraft={createDraftProduct}
+                    disabled={!formData.name.trim() || !formData.description.trim() || !formData.categoryId}
+                  />
+                  
+                  {!currentProductId && !isDraftCreated && (
+                    <div className="text-sm text-blue-600 bg-blue-50 border border-blue-200 p-3 rounded-md">
+                      <p className="flex items-start">
+                        <AlertCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                        <span><strong>Tip:</strong> Fill in the basic information and save to enable image uploads, or upload images will create a draft product automatically.</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Product Colors Section */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-2">
+                    <Package className="w-5 h-5 text-purple-600" />
+                    <h3 className="text-lg font-bold text-gray-900">Product Colors</h3>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      // If no productId exists, create a draft first
+                      if (!currentProductId) {
+                        try {
+                          const draftId = await createDraftProduct();
+                          if (draftId) {
+                            setCurrentProductId(draftId);
+                            setIsDraftCreated(true);
+                            setShowColorManagement(true);
+                          } else {
+                            alert('Please fill in name, description, and category to enable color management.');
+                            return;
+                          }
+                        } catch (error: any) {
+                          alert(error.message || 'Failed to create draft product');
+                          return;
+                        }
+                      } else {
+                        setShowColorManagement(!showColorManagement);
+                      }
+                    }}
+                  >
+                    {showColorManagement ? 'Hide' : 'Manage'}
+                  </Button>
+                </div>
+
+                {showColorManagement && currentProductId && (
+                  <ProductColorManager
+                    productId={currentProductId}
+                    onColorChange={() => {
+                      // Optionally refresh product data or show notification
+                    }}
+                  />
+                )}
+
+                {showColorManagement && !currentProductId && (
+                  <div className="text-sm text-gray-500 text-center py-4">
+                    <p>Creating draft product...</p>
+                  </div>
+                )}
+
+                {/* Variant Management Section */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-2">
+                      <Package className="w-5 h-5 text-blue-600" />
+                      <h3 className="text-lg font-bold text-gray-900">Product Variants & Sizes</h3>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        // If no productId exists, create a draft first
+                        if (!currentProductId) {
+                          try {
+                            const draftId = await createDraftProduct();
+                            if (draftId) {
+                              setCurrentProductId(draftId);
+                              setIsDraftCreated(true);
+                              setShowVariantManagement(true);
+                            } else {
+                              alert('Please fill in name, description, and category to enable variant management.');
+                              return;
+                            }
+                          } catch (error: any) {
+                            alert(error.message || 'Failed to create draft product');
+                            return;
+                          }
+                        } else {
+                          setShowVariantManagement(!showVariantManagement);
+                        }
+                      }}
+                    >
+                      {showVariantManagement ? 'Hide' : 'Manage'}
+                    </Button>
+                  </div>
+
+                  {showVariantManagement && currentProductId && (
+                    <ProductVariantManager
+                      productId={currentProductId}
+                      onVariantChange={() => {
+                        // Optionally refresh product data or show notification
+                      }}
+                    />
+                  )}
+
+                  {showVariantManagement && !currentProductId && (
+                    <div className="text-sm text-gray-500 text-center py-4">
+                      <p>Creating draft product...</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Form Details (Scrollable) */}
+            <div className="w-full lg:w-2/3 space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
             <BasicInfoSection 
               formData={formData} 
               handleInputChange={handleInputChange} 
@@ -845,59 +1082,6 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
               handleInputChange={handleInputChange} 
             />
 
-            {/* Product Images */}
-            <div className="space-y-6">
-              <div className="flex items-center space-x-2 mb-4">
-                <ImageIcon className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Product Images</h3>
-              </div>
-
-              <div className="space-y-4">
-                <ImageUploader
-                  productId={currentProductId || ''}
-                  onImagesUploaded={(images) => {
-                    setUploadedImages(prev => [...prev, ...images]);
-                  }}
-                  existingImages={uploadedImages}
-                  maxImages={5}
-                  onCreateDraft={createDraftProduct}
-                />
-                
-                {!currentProductId && !isDraftCreated && (
-                  <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-md">
-                    <p>💡 <strong>Tip:</strong> Fill in the basic information above and save to enable image uploads, or upload images will create a draft product automatically.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Product Colors - Only show for existing products */}
-            {currentProductId && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                    <Package className="w-5 h-5 text-purple-600" />
-                    <h3 className="text-lg font-semibold text-gray-900">Product Colors</h3>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setShowColorManagement(!showColorManagement)}
-                    >
-                      {showColorManagement ? 'Hide Colors' : 'Manage Colors'}
-                    </Button>
-                  </div>
-
-                  {showColorManagement && (
-                    <ProductColorManager
-                    productId={currentProductId}
-                      onColorChange={() => {
-                        // Optionally refresh product data or show notification
-                      }}
-                    />
-                  )}
-                </div>
-              )}
 
             <TagsSection 
               formData={formData}
@@ -924,32 +1108,64 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
               handleInputChange={handleInputChange} 
             />
 
-              {/* Actions */}
-              <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCancel}
-                  disabled={loading}
-                >
-                  Cancel
-                </Button>
-                
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="flex items-center space-x-2"
-                >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4" />
-                  )}
-                  <span>{isEditMode ? 'Update Product' : 'Save Product'}</span>
-                </Button>
+            {/* Mobile Only - Image Upload Section (Placed at the end) */}
+            <div className="lg:hidden bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center space-x-2 mb-6">
+                <ImageIcon className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-bold text-gray-900">Product Images</h3>
               </div>
-            </form>
+
+              <div className="space-y-4">
+                <ImageUploader
+                  productId={currentProductId || ''}
+                  onImagesUploaded={(images) => {
+                    setUploadedImages(images);
+                  }}
+                  existingImages={uploadedImages}
+                  maxImages={5}
+                  onCreateDraft={createDraftProduct}
+                  disabled={!formData.name.trim() || !formData.description.trim() || !formData.categoryId}
+                />
+                
+                {!currentProductId && !isDraftCreated && (
+                  <div className="text-sm text-blue-600 bg-blue-50 border border-blue-200 p-3 rounded-md">
+                    <p className="flex items-start">
+                      <AlertCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                      <span><strong>Tip:</strong> Fill in the basic information and save to enable image uploads, or upload images will create a draft product automatically.</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCancel}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </Button>
+                  
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="flex items-center space-x-2"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    <span>{isEditMode ? 'Update Product' : 'Save Product'}</span>
+                  </Button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
+    </div>
     );
   }

@@ -6,9 +6,9 @@ import { ResponseBuilder } from '@/utils/ResponseBuilder';
 import { ErrorHandler } from '@/errors/ErrorHandler';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // POST /api/categories/[id]/image - Upload category image

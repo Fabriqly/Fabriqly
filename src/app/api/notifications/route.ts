@@ -63,7 +63,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: notifications
+      // Exclude message notifications; messages are handled by the header MessageBell.
+      data: (notifications || []).filter(n => n.type !== 'message_received')
     });
   } catch (error: any) {
     console.error('Error fetching notifications:', error);
@@ -123,18 +124,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const notification = await notificationService.createNotification(notificationData);
+    // For system announcements, allow bypassing preferences if explicitly requested
+    const bypassPreferences = body.bypassPreferences === true && notificationData.type === 'system_announcement';
 
-    return NextResponse.json({
-      success: true,
-      data: notification
-    });
+    try {
+      const notification = await notificationService.createNotification(notificationData, bypassPreferences);
+
+      return NextResponse.json({
+        success: true,
+        data: notification,
+        message: 'Notification created successfully'
+      });
+    } catch (error: any) {
+      // Check if error is due to preferences
+      if (error.message?.includes('preferences')) {
+        return NextResponse.json(
+          { 
+            success: false,
+            error: 'Notification creation disabled by user preferences. Set bypassPreferences: true to override.',
+            details: error.message
+          },
+          { status: 403 }
+        );
+      }
+      throw error; // Re-throw other errors
+    }
   } catch (error: any) {
     console.error('Error creating notification:', error);
     return NextResponse.json(
       { 
         success: false,
-        error: error.message || 'Failed to create notification' 
+        error: error.message || 'Failed to create notification',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }
     );

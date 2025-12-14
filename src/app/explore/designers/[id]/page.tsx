@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { DesignerProfileDisplay } from '@/components/designer/DesignerProfileDisplay';
 import { DesignerProfile } from '@/types/enhanced-products';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { useAuth } from '@/hooks/useAuth';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -93,6 +94,8 @@ export default function DesignerProfilePage() {
           onEdit={canEdit ? handleEdit : undefined}
         />
       </div>
+      
+      <ScrollToTop />
     </div>
   );
 }

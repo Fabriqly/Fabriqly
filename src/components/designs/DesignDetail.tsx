@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { DesignReviewSection } from '@/components/reviews/DesignReviewSection';
 import { useAuth } from '@/hooks/useAuth';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 
 interface DesignDetailProps {
   design: DesignWithDetails;
@@ -55,6 +56,109 @@ export function DesignDetail({
   const [totalReviews, setTotalReviews] = useState(0);
   const [activeTab, setActiveTab] = useState<'details' | 'reviews'>('details');
   const [reviews, setReviews] = useState<Review[]>([]);
+
+  // Helper function to extract storage path from Supabase URL
+  const extractStoragePath = (url: string): { path: string; bucket: string } | null => {
+    try {
+      // Supabase URL format: https://[project].supabase.co/storage/v1/object/public/[bucket]/[path]
+      // or: https://[project].supabase.co/storage/v1/object/sign/[bucket]/[path]?...
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/').filter(p => p); // Remove empty strings
+      
+      // Find the bucket index (usually after 'public' or 'sign')
+      const bucketIndex = pathParts.findIndex(part => part === 'public' || part === 'sign');
+      if (bucketIndex === -1 || bucketIndex + 1 >= pathParts.length) {
+        return null;
+      }
+      
+      const bucket = pathParts[bucketIndex + 1];
+      let path = pathParts.slice(bucketIndex + 2).join('/');
+      
+      // IMPORTANT: Do NOT remove "designs/" or "products/" prefix from path
+      // These are actual folder names in the bucket structure, not bucket name prefixes
+      // Files are uploaded with folder: "designs/{timestamp}" so the path is "designs/1765198037779/1765198037779.jpg"
+      // The Edge Function needs the full path including the "designs/" folder prefix
+      
+      // Only remove bucket name if it's actually a duplicate (shouldn't happen with current upload structure)
+      // e.g., if path is "designs-private/designs/..." and bucket is "designs-private", remove the duplicate
+      if (path.startsWith(bucket + '/')) {
+        path = path.substring(bucket.length + 1);
+        console.log(`Removed duplicate bucket prefix, new path: ${path}`);
+      }
+      
+      // Determine the actual bucket
+      // If it's a signed URL, it's definitely private
+      // If it's public URL, check if bucket name contains '-private'
+      const isSignedUrl = pathParts.includes('sign');
+      let actualBucket = bucket;
+      
+      // If it's a public URL but we want watermarking, try private bucket first
+      // But also allow fallback to public bucket
+      if (!isSignedUrl) {
+        // For designs, try private bucket first, but we'll fallback in WatermarkedImage
+        if (bucket === 'designs' || bucket === 'products') {
+          actualBucket = bucket + '-private';
+        } else {
+          actualBucket = bucket;
+        }
+      }
+      
+      return { path, bucket: actualBucket };
+    } catch (e) {
+      console.error('Error extracting storage path:', e);
+      return null;
+    }
+  };
+
+  // Convert image URLs to storage info for WatermarkedImage
+  const getImageStorageInfo = (url: string | undefined) => {
+    if (!url) return null;
+    
+    // Try to extract path from URL
+    const storageInfo = extractStoragePath(url);
+    if (storageInfo) {
+      // Ensure path includes "designs/" prefix if it's missing
+      // Some older files might be stored without the prefix
+      let finalPath = storageInfo.path;
+      if (storageInfo.bucket === 'designs-private' || storageInfo.bucket === 'designs') {
+        // If path doesn't start with "designs/" and looks like a timestamp path, add it
+        if (!finalPath.startsWith('designs/') && /^\d+\//.test(finalPath)) {
+          finalPath = `designs/${finalPath}`;
+          console.log(`[DesignDetail] Added designs/ prefix: ${storageInfo.path} -> ${finalPath}`);
+        }
+      }
+      
+      console.log(`[DesignDetail] Storage info: bucket=${storageInfo.bucket}, path=${finalPath}, originalUrl=${url.substring(0, 100)}...`);
+      
+      return {
+        ...storageInfo,
+        path: finalPath
+      };
+    }
+    
+    // If we can't extract, assume it's in designs-private bucket
+    // Extract filename from URL
+    try {
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/');
+      const fileName = pathParts[pathParts.length - 1];
+      if (fileName) {
+        // Try to find the folder structure from the URL
+        const folderIndex = pathParts.findIndex(part => part === 'designs');
+        if (folderIndex !== -1 && folderIndex + 1 < pathParts.length) {
+          const folder = pathParts.slice(folderIndex + 1, -1).join('/');
+          return {
+            path: folder ? `${folder}/${fileName}` : fileName,
+            bucket: 'designs-private' // Default to private bucket
+          };
+        }
+      }
+    } catch (e) {
+      // URL parsing failed
+    }
+    
+    return null;
+  };
 
   const images = [
     design.thumbnailUrl,
@@ -231,13 +335,33 @@ export function DesignDetail({
           <div className="lg:col-span-7 space-y-4">
             {/* Main Image */}
             <div className="aspect-[3/2] max-h-[400px] bg-white rounded-xl overflow-hidden relative border border-slate-200">
-              {currentImage ? (
-                <img
-                  src={currentImage}
-                  alt={design.designName}
-                  className="w-full h-full object-contain"
-                />
-              ) : (
+              {currentImage ? (() => {
+                const storageInfo = getImageStorageInfo(currentImage);
+                if (storageInfo) {
+                  return (
+                    <WatermarkedImage
+                      storagePath={storageInfo.path}
+                      storageBucket={storageInfo.bucket}
+                      designId={design.id}
+                      alt={design.designName}
+                      className="w-full h-full object-contain"
+                      fallbackSrc={currentImage}
+                    />
+                  );
+                }
+                // Fallback to regular img if we can't extract storage info
+                return (
+                  <img
+                    src={currentImage}
+                    alt={design.designName}
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      console.error('Design image failed to load:', currentImage);
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                );
+              })() : (
                 <div className="w-full h-full flex items-center justify-center text-slate-400">
                   <ImageIcon className="w-24 h-24" />
                 </div>
@@ -289,11 +413,31 @@ export function DesignDetail({
                         : 'border-slate-200 hover:border-slate-300'
                     }`}
                   >
-                    <img
-                      src={image}
-                      alt={`${design.designName} ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
+                    {(() => {
+                      const storageInfo = getImageStorageInfo(image);
+                      if (storageInfo) {
+                        return (
+                          <WatermarkedImage
+                            storagePath={storageInfo.path}
+                            storageBucket={storageInfo.bucket}
+                            designId={design.id}
+                            alt={`${design.designName} ${index + 1}`}
+                            className="w-full h-full object-cover"
+                            fallbackSrc={image}
+                          />
+                        );
+                      }
+                      return (
+                        <img
+                          src={image}
+                          alt={`${design.designName} ${index + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            console.error('Thumbnail image failed to load:', image);
+                          }}
+                        />
+                      );
+                    })()}
                   </button>
                 ))}
               </div>

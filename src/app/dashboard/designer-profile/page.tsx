@@ -226,7 +226,7 @@ export default function DesignerProfilePage() {
         <DashboardSidebar user={user} />
 
         {/* Main Content */}
-        <div className="flex-1">
+        <div className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
             <div className="max-w-4xl mx-auto">
         {/* Header */}

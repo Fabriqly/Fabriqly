@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 import { Loader } from 'lucide-react';
@@ -70,6 +71,8 @@ export default function NotificationsPage() {
           </div>
         </main>
       </div>
+      
+      <ScrollToTop />
     </div>
   );
 }

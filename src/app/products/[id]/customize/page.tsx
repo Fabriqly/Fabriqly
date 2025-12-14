@@ -7,6 +7,7 @@ import { CustomizationRequestForm } from '@/components/customization/Customizati
 import { ProductWithDetails } from '@/types/products';
 import { Loader, AlertCircle, ArrowLeft } from 'lucide-react';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
 
@@ -145,8 +146,12 @@ export default function CustomizeProductPage() {
       try {
         const referrerUrl = new URL(document.referrer);
         const referrerPathname = referrerUrl.pathname;
+        const referrerQuery = referrerUrl.searchParams.get('q') || referrerUrl.searchParams.get('query') || '';
         
-        if (referrerPathname.startsWith('/explore/merchandise')) {
+        if (referrerPathname === '/search' || referrerPathname.startsWith('/search')) {
+          const searchPath = referrerQuery ? `/search?q=${encodeURIComponent(referrerQuery)}` : '/search';
+          return { label: 'Search', path: searchPath };
+        } else if (referrerPathname.startsWith('/explore/merchandise')) {
           return { label: 'Merchandise', path: '/explore/merchandise' };
         } else if (referrerPathname.startsWith('/explore/shops')) {
           return { label: 'Shops', path: '/explore/shops' };
@@ -254,6 +259,8 @@ export default function CustomizeProductPage() {
           colorPriceAdjustment={colorPriceAdjustment}
         />
       </div>
+      
+      <ScrollToTop />
     </div>
   );
 }

@@ -19,7 +19,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const count = await notificationService.getUnreadCount(session.user.id);
+    // Exclude message notifications; messages are handled by the header MessageBell.
+    const allUnread = await notificationService.getUserNotifications(session.user.id, { isRead: false }, { limit: 500 });
+    const count = (allUnread || []).filter(n => n.type !== 'message_received').length;
 
     return NextResponse.json({
       success: true,
@@ -36,5 +38,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
-

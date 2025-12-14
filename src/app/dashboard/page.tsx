@@ -10,6 +10,7 @@ import { Product } from '@/types/products';
 import { User, Settings, Palette, DollarSign, TrendingUp, Clock } from 'lucide-react';
 import { FinanceSummary } from '@/services/FinanceService';
 import Link from 'next/link';
+import { EmailVerificationBanner } from '@/components/auth/EmailVerificationBanner';
 
 function DashboardContent() {
   const { user, isCustomer, isDesigner, isBusinessOwner, isAdmin, isLoading } = useAuth();
@@ -101,9 +102,11 @@ function DashboardContent() {
         {/* Dashboard Sidebar */}
         <DashboardSidebar user={user} />
 
-        {/* Main Content */}
-        <div className="flex-1">
+        {/* Main Content - Add left margin for fixed sidebar on desktop */}
+        <div className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
+        {/* Email Verification Banner */}
+        <EmailVerificationBanner />
         {/* Welcome Section */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <div className="flex items-center">
@@ -233,7 +236,7 @@ function DashboardContent() {
         )}
 
         {/* Role-based Content */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {isCustomer && (
             <>
               <div className="bg-white rounded-lg shadow p-6">
@@ -278,21 +281,40 @@ function DashboardContent() {
 
           {isBusinessOwner && (
             <>
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">My Shop</h3>
-                <p className="text-gray-600 text-sm mb-4">
-                  Manage your shop settings and products.
-                </p>
-                <Button size="sm">Manage Shop</Button>
-              </div>
-              
-              
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Orders</h3>
-                <p className="text-gray-600 text-sm mb-4">
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-base font-bold text-gray-900">Orders</h3>
+                  <Link href="/dashboard/orders">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="bg-indigo-50/50 hover:bg-indigo-50 border-indigo-200 text-indigo-700"
+                    >
+                      View Orders
+                    </Button>
+                  </Link>
+                </div>
+                <p className="text-gray-600 text-sm">
                   View and process customer orders.
                 </p>
-                <Button variant="outline" size="sm">View Orders</Button>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-base font-bold text-gray-900">Manage Products</h3>
+                  <Link href="/dashboard/products">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="bg-indigo-50/50 hover:bg-indigo-50 border-indigo-200 text-indigo-700"
+                    >
+                      Manage Products
+                    </Button>
+                  </Link>
+                </div>
+                <p className="text-gray-600 text-sm">
+                  Manage your shop settings and products.
+                </p>
               </div>
             </>
           )}
@@ -318,20 +340,30 @@ function DashboardContent() {
           )}
 
           {/* Common sections for all roles */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Profile Settings</h3>
-            <p className="text-gray-600 text-sm mb-4">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-base font-bold text-gray-900">Profile Settings</h3>
+              <Link href="/profile">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="bg-indigo-50/50 hover:bg-indigo-50 border-indigo-200 text-indigo-700"
+                >
+                  Edit Profile
+                </Button>
+              </Link>
+            </div>
+            <p className="text-gray-600 text-sm">
               Update your profile information and preferences.
             </p>
-            <Button variant="outline" size="sm">Edit Profile</Button>
           </div>
         </div>
 
         {/* Stats Section */}
         <div className="mt-8 bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Stats</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center bg-gray-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-blue-600">
                 {isBusinessOwner ? (
                   productsLoading ? '...' : productStats.total
@@ -343,7 +375,7 @@ function DashboardContent() {
                 {isCustomer ? 'Orders' : isDesigner ? 'Designs' : isBusinessOwner ? 'Total Products' : 'Total Users'}
               </div>
             </div>
-            <div className="text-center">
+            <div className="text-center bg-gray-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-green-600">
                 {isBusinessOwner ? (
                   productsLoading ? '...' : productStats.active
@@ -355,7 +387,7 @@ function DashboardContent() {
                 {isCustomer ? 'Spent' : isBusinessOwner ? 'Active Products' : 'Reviews'}
               </div>
             </div>
-            <div className="text-center">
+            <div className="text-center bg-gray-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-purple-600">
                 {isBusinessOwner ? (
                   productsLoading ? '...' : productStats.draft
@@ -367,7 +399,7 @@ function DashboardContent() {
                 {isBusinessOwner ? 'Draft Products' : 'Reviews'}
               </div>
             </div>
-            <div className="text-center">
+            <div className="text-center bg-gray-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-orange-600">
                 {isBusinessOwner ? (
                   productsLoading ? '...' : productStats.outOfStock

@@ -19,6 +19,7 @@ interface ImageUploaderProps {
   existingImages?: ProductImage[];
   maxImages?: number;
   onCreateDraft?: () => Promise<string | null>;
+  disabled?: boolean;
 }
 
 export function ImageUploader({ 
@@ -26,7 +27,8 @@ export function ImageUploader({
   onImagesUploaded, 
   existingImages = [],
   maxImages = 10,
-  onCreateDraft
+  onCreateDraft,
+  disabled = false
 }: ImageUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -34,21 +36,7 @@ export function ImageUploader({
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = async (files: FileList) => {
-    if (files.length === 0) return;
-
-    const fileArray = Array.from(files);
-    const remainingSlots = maxImages - existingImages.length;
-    const filesToUpload = fileArray.slice(0, remainingSlots);
-
-    if (filesToUpload.length < fileArray.length) {
-      alert(`Only ${remainingSlots} images can be uploaded. Maximum ${maxImages} images allowed.`);
-    }
-
-    await uploadImages(filesToUpload);
-  };
-
-  const uploadImages = async (files: File[]) => {
+  const uploadImages = useCallback(async (files: File[]) => {
     setError(null);
     
     // If no productId, try to create a draft product first
@@ -95,7 +83,18 @@ export function ImageUploader({
         
         try {
           const data = JSON.parse(responseText);
-          onImagesUploaded?.(data.images);
+          // After successful upload, fetch all images to get the complete list
+          const allImagesResponse = await fetch(`/api/products/${currentProductId}/images`);
+          if (allImagesResponse.ok) {
+            const allImagesData = await allImagesResponse.json();
+            const allImages = allImagesData.images || allImagesData.data || [];
+            onImagesUploaded?.(allImages);
+          } else {
+            // Fallback: merge new images with existing ones
+            const newImages = data.images || [];
+            const mergedImages = [...existingImages, ...newImages];
+            onImagesUploaded?.(mergedImages);
+          }
           setError(null);
         } catch (parseError) {
           console.error('JSON parse error:', parseError);
@@ -122,27 +121,70 @@ export function ImageUploader({
     } finally {
       setUploading(false);
     }
-  };
+  }, [productId, existingImages, maxImages, onCreateDraft, onImagesUploaded]);
 
-  const handleDeleteImage = async (imageId: string) => {
+  const handleFileSelect = useCallback(async (files: FileList) => {
+    if (disabled) return;
+    if (files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    const remainingSlots = maxImages - existingImages.length;
+    const filesToUpload = fileArray.slice(0, remainingSlots);
+
+    if (filesToUpload.length < fileArray.length) {
+      alert(`Only ${remainingSlots} images can be uploaded. Maximum ${maxImages} images allowed.`);
+    }
+
+    await uploadImages(filesToUpload);
+  }, [disabled, maxImages, existingImages.length, uploadImages]);
+
+  const handleDeleteImage = useCallback(async (imageId: string) => {
     try {
-      const response = await fetch(`/api/products/${productId}/images/${imageId}`, {
+      // Use the current productId (might be from draft creation)
+      const currentProductId = productId || (existingImages.length > 0 ? existingImages[0].productId : null);
+      
+      if (!currentProductId) {
+        throw new Error('Product ID not available');
+      }
+
+      const response = await fetch(`/api/products/${currentProductId}/images/${imageId}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
-        // Remove from local state
-        const updatedImages = existingImages.filter(img => img.id !== imageId);
-        onImagesUploaded?.(updatedImages);
+        // After successful deletion, fetch all images to get the updated list
+        const allImagesResponse = await fetch(`/api/products/${currentProductId}/images`);
+        if (allImagesResponse.ok) {
+          const allImagesData = await allImagesResponse.json();
+          const allImages = allImagesData.images || allImagesData.data || [];
+          onImagesUploaded?.(allImages);
+        } else {
+          // Fallback: remove from local state
+          const updatedImages = existingImages.filter(img => img.id !== imageId);
+          onImagesUploaded?.(updatedImages);
+        }
       } else {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete image');
+        // Handle different error response formats
+        let errorMessage = 'Failed to delete image';
+        if (errorData.error) {
+          if (typeof errorData.error === 'string') {
+            errorMessage = errorData.error;
+          } else if (errorData.error.message) {
+            errorMessage = errorData.error.message;
+          } else if (errorData.error.code) {
+            errorMessage = errorData.error.code;
+          }
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+        throw new Error(errorMessage);
       }
     } catch (error: any) {
       console.error('Error deleting image:', error);
       alert(error.message || 'Failed to delete image');
     }
-  };
+  }, [productId, existingImages, onImagesUploaded]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -162,15 +204,17 @@ export function ImageUploader({
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileSelect(e.dataTransfer.files);
     }
-  }, []);
+  }, [handleFileSelect]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     if (e.target.files) {
       handleFileSelect(e.target.files);
     }
   };
 
   const openFileDialog = () => {
+    if (disabled) return;
     fileInputRef.current?.click();
   };
 
@@ -182,14 +226,16 @@ export function ImageUploader({
       {canUploadMore && (
         <div
           className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${
-            dragActive 
-              ? 'border-blue-400 bg-blue-50' 
-              : 'border-gray-300 hover:border-gray-400'
+            disabled
+              ? 'border-gray-200 bg-gray-50 opacity-50 pointer-events-none'
+              : dragActive 
+                ? 'border-blue-400 bg-blue-50' 
+                : 'border-gray-300 hover:border-gray-400'
           }`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
+          onDragEnter={disabled ? undefined : handleDrag}
+          onDragLeave={disabled ? undefined : handleDrag}
+          onDragOver={disabled ? undefined : handleDrag}
+          onDrop={disabled ? undefined : handleDrop}
         >
           <div className="text-center">
             <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -209,7 +255,7 @@ export function ImageUploader({
               type="button"
               variant="outline"
               onClick={openFileDialog}
-              disabled={uploading}
+              disabled={uploading || disabled}
               className="mt-4"
             >
               {uploading ? (
@@ -293,18 +339,15 @@ export function ImageUploader({
                 </div>
                 
                 {/* Image Actions */}
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
-                  <div className="flex space-x-2">
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDeleteImage(image.id)}
-                      className="flex items-center space-x-1"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span>Delete</span>
-                    </Button>
-                  </div>
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleDeleteImage(image.id)}
+                    className="p-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
                 
                 {/* Primary Badge */}

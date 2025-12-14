@@ -371,25 +371,8 @@ export class NotificationEventHandlers {
 
     // ===== MESSAGE NOTIFICATIONS =====
 
-    // Notify user when message is received
-    eventBus.on('message.sent', async (event) => {
-      try {
-        await this.notificationService.sendNotification(
-          event.data.receiverId,
-          'message_received',
-          {
-            senderId: event.data.senderId,
-            senderName: event.data.senderName,
-            conversationId: event.data.conversationId,
-            preview: event.data.content?.substring(0, 100),
-            relatedEntityId: event.data.conversationId,
-            relatedEntityType: 'message'
-          }
-        );
-      } catch (error) {
-        console.error('Failed to send message notification:', error);
-      }
-    });
+    // NOTE: message notifications are created directly in `POST /api/messages`
+    // so we do not duplicate them here.
 
     // ===== REVIEW NOTIFICATIONS =====
 

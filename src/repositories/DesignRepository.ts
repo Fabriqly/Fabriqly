@@ -2,7 +2,9 @@ import { BaseRepository, QueryFilter } from './BaseRepository';
 import { Design, DesignFilters } from '@/types/enhanced-products';
 import { Collections } from '@/services/firebase';
 import { Timestamp } from 'firebase/firestore';
+import { Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { CacheService } from '@/services/CacheService';
+import { FirebaseAdminService } from '@/services/firebase-admin';
 
 export class DesignRepository extends BaseRepository<Design> {
   constructor() {
@@ -292,11 +294,20 @@ export class DesignRepository extends BaseRepository<Design> {
     const sortBy = filters.sortBy || 'createdAt';
     const sortOrder = filters.sortOrder || 'desc';
 
-    return this.findAll({
-      filters: queryFilters,
-      orderBy: { field: sortBy, direction: sortOrder },
-      limit: filters.limit || 20
-    });
+    // Support cursor-based pagination via createdAt
+    // Convert cursor (timestamp in ms) to Firestore Timestamp for proper comparison
+    const startAfterValue = filters.cursor 
+      ? AdminTimestamp.fromMillis(parseInt(filters.cursor.toString()))
+      : undefined;
+    const limit = filters.limit || 20;
+
+    return FirebaseAdminService.queryDocuments(
+      Collections.DESIGNS,
+      queryFilters,
+      { field: sortBy, direction: sortOrder },
+      limit,
+      startAfterValue
+    ) as unknown as Design[];
   }
 
   async getDesignStats(designerId?: string): Promise<{
@@ -397,6 +408,5 @@ export class DesignRepository extends BaseRepository<Design> {
     
     // Note: This is a simplified approach. In a production system, you'd want
     // to track cache keys more systematically or use a cache with pattern-based deletion
-    console.log('⚠️ Cache invalidation: All design caches cleared');
   }
 }

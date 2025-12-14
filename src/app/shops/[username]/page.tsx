@@ -7,6 +7,7 @@ import { ShopProfile } from '@/types/shop-profile';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function ShopProfilePage() {
@@ -90,6 +91,8 @@ export default function ShopProfilePage() {
           onEdit={canEdit ? handleEdit : undefined}
         />
       </div>
+      
+      <ScrollToTop />
     </div>
   );
 }

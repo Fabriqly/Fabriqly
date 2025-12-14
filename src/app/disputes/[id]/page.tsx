@@ -41,7 +41,7 @@ export default function DisputeDetailPage() {
 
   const content = (
     <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
-      <Link href="/disputes">
+      <Link href={isDesigner ? "/dashboard/disputes" : "/disputes"}>
         <Button variant="outline" className="mb-6">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Disputes
@@ -58,8 +58,10 @@ export default function DisputeDetailPage() {
         <DashboardHeader user={session.user} showMobileMenu={true} />
         <div className="flex flex-1">
           <DashboardSidebar user={session.user} />
-          <div className="flex-1 overflow-y-auto">
-            {content}
+          <div className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
+            <div className="container mx-auto px-4 py-8">
+              {content}
+            </div>
           </div>
         </div>
       </div>
