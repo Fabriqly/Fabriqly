@@ -37,7 +37,7 @@ interface CartContextType {
   closeCart: () => void;
   getItemCount: () => number;
   getTotalAmount: () => number;
-  isItemInCart: (productId: string, variants: Record<string, string>, colorId?: string, selectedDesign?: { name: string; price: number }, selectedSize?: { name: string; price: number }) => boolean;
+  isItemInCart: (productIdOrDesignId: string, variants: Record<string, string>, colorId?: string, selectedDesign?: { name: string; price: number }, selectedSize?: { name: string; price: number }) => boolean;
   refreshCart: () => Promise<void>;
   applyCoupon: (code: string) => Promise<{ success: boolean; error?: string }>;
   removeCoupon: () => Promise<void>;
@@ -488,12 +488,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'REMOVE_COUPON' });
   };
 
-  const isItemInCart = (productId: string, variants: Record<string, string>, colorId?: string, selectedDesign?: { name: string; price: number }, selectedSize?: { name: string; price: number }) => {
+  const isItemInCart = (productIdOrDesignId: string, variants: Record<string, string>, colorId?: string, selectedDesign?: { name: string; price: number }, selectedSize?: { name: string; price: number }) => {
     if (!state.cart) return false;
+    
+    // Check if it's a design (designs have simple IDs: design-{designId})
+    const designItemId = `design-${productIdOrDesignId}`;
+    if (state.cart.items.some(item => item.id === designItemId)) {
+      return true;
+    }
+    
+    // Check if it's a product (products have complex IDs with variants)
     const designId = selectedDesign?.name || 'no-design';
     const sizeId = selectedSize?.name || 'no-size';
-    const itemId = `${productId}-${JSON.stringify(variants)}-${colorId || 'default'}-${designId}-${sizeId}`;
-    return state.cart.items.some(item => item.id === itemId);
+    const productItemId = `product-${productIdOrDesignId}-${JSON.stringify(variants)}-${colorId || 'default'}-${designId}-${sizeId}`;
+    return state.cart.items.some(item => item.id === productItemId);
   };
 
   const contextValue: CartContextType = {

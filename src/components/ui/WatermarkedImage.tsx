@@ -10,6 +10,9 @@ interface WatermarkedImageProps extends React.ImgHTMLAttributes<HTMLImageElement
   designId?: string // For purchase verification (alternative to productId)
   userId?: string // Current user ID (optional, will be fetched if not provided)
   fallbackSrc?: string // Fallback image URL if watermarking fails
+  // Optimization props - pass these to skip API calls
+  isFree?: boolean // If design is free (skips purchase verification)
+  designType?: 'template' | 'custom' | 'premium' // Design type (helps determine if watermark needed)
 }
 
 export function WatermarkedImage({
@@ -19,6 +22,8 @@ export function WatermarkedImage({
   designId,
   userId,
   fallbackSrc,
+  isFree: isFreeProp,
+  designType: designTypeProp,
   alt,
   className,
   ...props
@@ -38,60 +43,165 @@ export function WatermarkedImage({
         // Get current user if not provided
         let currentUserId = userId || (session?.user as any)?.id
 
-        // Determine if user has purchased OR if design is free (via API route for server-side verification)
-        // Also check design type (Premium designs always watermarked unless purchased)
-        let hasPurchased = false
-        let isFree = false
-        let designType: 'template' | 'custom' | 'premium' | null = null
-        
-        if (currentUserId && (productId || designId)) {
-          try {
-            const params = new URLSearchParams()
-            if (productId) params.append('productId', productId)
-            if (designId) params.append('designId', designId)
+        // Check if this is a product (products should NEVER be watermarked)
+        const isProduct = productId !== undefined || 
+                         storageBucket === 'products' || 
+                         storageBucket === 'products-private' ||
+                         storagePath.startsWith('products/')
+
+        // If it's a product, optimize by checking bucket type first
+        if (isProduct) {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+          if (supabaseUrl) {
+            const isPublicBucket = !storageBucket.endsWith('-private')
             
-            const response = await fetch(`/api/purchases/verify?${params.toString()}`)
-            if (response.ok) {
-              const data = await response.json()
-              hasPurchased = data.hasPurchased || false
-              isFree = data.isFree || false
-              designType = data.designType || null
-            }
-          } catch (err) {
-            console.error('Error verifying purchase:', err)
-            // Fail securely - assume not purchased and not free
-            hasPurchased = false
-            isFree = false
-            designType = null
-          }
-        }
-        
-        // For non-authenticated users, we still need to check if design is free and type
-        // (Free designs should be accessible without login, but Premium always watermarked)
-        if (!currentUserId && designId) {
-          try {
-            const response = await fetch(`/api/purchases/verify?designId=${designId}`)
-            if (response.ok) {
-              const data = await response.json()
-              isFree = data.isFree || false
-              designType = data.designType || null
+            // OPTIMIZATION: If public bucket, use direct public URL (no API call needed)
+            if (isPublicBucket) {
+              let finalPath = storagePath
               
-              // Premium designs: Always watermarked (even if free) - don't treat as purchased
-              if (designType === 'premium') {
-                hasPurchased = false // Premium always needs purchase
-              } else if (isFree) {
-                // Template/Custom free designs: no watermark
-                hasPurchased = true
+              // Remove duplicate bucket prefix if present
+              const bucketName = storageBucket.replace('-private', '')
+              if (finalPath.startsWith(`${bucketName}/`)) {
+                finalPath = finalPath.substring(bucketName.length + 1)
               }
+              
+              // Add prefix only if missing
+              if (!finalPath.startsWith('products/') && (storageBucket === 'products' || storageBucket === 'products-private')) {
+                if (/^\d+\//.test(finalPath) || /^[a-zA-Z0-9]+\//.test(finalPath)) {
+                  finalPath = `products/${finalPath}`
+                }
+              }
+              
+              // Remove bucket prefix again for URL construction to avoid duplicate
+              let urlPath = finalPath
+              if (urlPath.startsWith(`${bucketName}/`)) {
+                urlPath = urlPath.substring(bucketName.length + 1)
+              }
+              
+              const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucketName}/${urlPath}`
+              setDisplayUrl(publicUrl)
+              setLoading(false)
+              return
             }
-          } catch (err) {
-            // If check fails, assume not free and not premium
-            isFree = false
-            designType = null
+            
+            // For private buckets, get signed URL (requires API call)
+            try {
+              const signedUrlParams = new URLSearchParams({
+                bucket: storageBucket,
+                path: storagePath
+              })
+              if (productId) {
+                signedUrlParams.append('productId', productId)
+              }
+              const response = await fetch(`/api/images/signed-url?${signedUrlParams.toString()}`)
+              
+              if (response.ok) {
+                const data = await response.json()
+                if (data.signedUrl) {
+                  setDisplayUrl(data.signedUrl)
+                  setLoading(false)
+                  return
+                }
+              }
+            } catch (err) {
+              console.error('Error getting signed URL for product:', err)
+              // Fall through to public URL attempt
+            }
           }
         }
 
-        // Determine if we should serve clean image (no watermark):
+        // OPTIMIZATION: Check if design is in public bucket first (fastest path)
+        const isPublicBucket = !storageBucket.endsWith('-private')
+        
+        // For designs only: Determine if user has purchased OR if design is free
+        // Also check design type (Premium designs always watermarked unless purchased)
+        let hasPurchased = false
+        let isFree = isFreeProp ?? false // Use prop if provided, otherwise fetch
+        let designType: 'template' | 'custom' | 'premium' | null = designTypeProp ?? null
+        
+        // OPTIMIZATION: If we have free status and design type from props, and it's a public bucket,
+        // we can skip the API call entirely for free Template/Custom designs
+        if (isPublicBucket && isFree && designType && designType !== 'premium') {
+          // Free Template/Custom design in public bucket - use direct public URL (no API calls)
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+          if (supabaseUrl) {
+            let finalPath = storagePath
+            const bucketName = storageBucket.replace('-private', '')
+            
+            // Normalize path
+            if (finalPath.startsWith(`${bucketName}/`)) {
+              finalPath = finalPath.substring(bucketName.length + 1)
+            }
+            if (!finalPath.startsWith('designs/') && (storageBucket === 'designs' || storageBucket === 'designs-private')) {
+              if (/^\d+\//.test(finalPath) || /^[a-zA-Z0-9]+\//.test(finalPath)) {
+                finalPath = `designs/${finalPath}`
+              }
+            }
+            
+            let urlPath = finalPath
+            if (urlPath.startsWith(`${bucketName}/`)) {
+              urlPath = urlPath.substring(bucketName.length + 1)
+            }
+            
+            const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucketName}/${urlPath}`
+            setDisplayUrl(publicUrl)
+            setLoading(false)
+            return
+          }
+        }
+        
+        // Only fetch purchase/design info if we don't have it from props
+        if (designId && (isFreeProp === undefined || designTypeProp === undefined)) {
+          if (currentUserId && designId) {
+            try {
+              const params = new URLSearchParams()
+              params.append('designId', designId)
+              
+              const response = await fetch(`/api/purchases/verify?${params.toString()}`)
+              if (response.ok) {
+                const data = await response.json()
+                hasPurchased = data.hasPurchased || false
+                if (isFreeProp === undefined) isFree = data.isFree || false
+                if (designTypeProp === undefined) designType = data.designType || null
+              }
+            } catch (err) {
+              console.error('Error verifying purchase:', err)
+              // Fail securely - assume not purchased and not free
+              hasPurchased = false
+              if (isFreeProp === undefined) isFree = false
+              if (designTypeProp === undefined) designType = null
+            }
+          }
+          
+          // For non-authenticated users, we still need to check if design is free and type
+          if (!currentUserId && designId) {
+            try {
+              const response = await fetch(`/api/purchases/verify?designId=${designId}`)
+              if (response.ok) {
+                const data = await response.json()
+                if (isFreeProp === undefined) isFree = data.isFree || false
+                if (designTypeProp === undefined) designType = data.designType || null
+                
+                // Premium designs: Always watermarked (even if free) - don't treat as purchased
+                if (designType === 'premium') {
+                  hasPurchased = false // Premium always needs purchase
+                } else if (isFree) {
+                  // Template/Custom free designs: no watermark
+                  hasPurchased = true
+                }
+              }
+            } catch (err) {
+              // If check fails, assume not free and not premium
+              if (isFreeProp === undefined) isFree = false
+              if (designTypeProp === undefined) designType = null
+            }
+          }
+        } else if (designId && isFree && designType && designType !== 'premium') {
+          // We have props indicating it's free Template/Custom - no need to check purchase
+          hasPurchased = true
+        }
+
+        // Determine if we should serve clean image (no watermark) - DESIGNS ONLY:
         // 1. Premium designs: Only if purchased (even if free, premium needs purchase)
         // 2. Template/Custom designs: If free OR purchased
         const shouldServeClean = designType === 'premium' 
@@ -99,10 +209,39 @@ export function WatermarkedImage({
           : (isFree || (hasPurchased && currentUserId)) // Template/Custom: free or purchased
         
         if (shouldServeClean) {
-          // Free design or purchased - get signed URL for clean image
+          // Free design or purchased - optimize by checking bucket type first
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+          
+          // OPTIMIZATION: If public bucket and free Template/Custom, use direct public URL (no API call)
+          if (isPublicBucket && isFree && designType && designType !== 'premium') {
+            if (supabaseUrl) {
+              let finalPath = storagePath
+              const bucketName = storageBucket.replace('-private', '')
+              
+              // Normalize path
+              if (finalPath.startsWith(`${bucketName}/`)) {
+                finalPath = finalPath.substring(bucketName.length + 1)
+              }
+              if (!finalPath.startsWith('designs/') && (storageBucket === 'designs' || storageBucket === 'designs-private')) {
+                if (/^\d+\//.test(finalPath) || /^[a-zA-Z0-9]+\//.test(finalPath)) {
+                  finalPath = `designs/${finalPath}`
+                }
+              }
+              
+              let urlPath = finalPath
+              if (urlPath.startsWith(`${bucketName}/`)) {
+                urlPath = urlPath.substring(bucketName.length + 1)
+              }
+              
+              const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucketName}/${urlPath}`
+              setDisplayUrl(publicUrl)
+              setLoading(false)
+              return
+            }
+          }
+          
+          // For private buckets or purchased designs, get signed URL (requires API call)
           try {
-            // Call API to get signed URL (server-side only for security)
-            // Include designId for free design check if available
             const signedUrlParams = new URLSearchParams({
               bucket: storageBucket,
               path: storagePath
@@ -126,7 +265,7 @@ export function WatermarkedImage({
           }
         }
 
-        // Not free AND not purchased - use watermarked version via Edge Function
+        // Not free AND not purchased - use watermarked version via Edge Function (DESIGNS ONLY)
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
         if (!supabaseUrl) {
           throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set')
@@ -141,38 +280,121 @@ export function WatermarkedImage({
           throw new Error('Could not extract project ref from Supabase URL')
         }
 
-        // Ensure path includes "designs/" prefix if needed
+        // Normalize path - remove duplicate bucket prefix if present
         let finalPath = storagePath;
+        
+        // Remove duplicate bucket prefix if path already starts with bucket name
+        // e.g., if bucket is "designs" and path is "designs/123/image.jpg", remove the duplicate
+        const bucketName = storageBucket.replace('-private', '');
+        if (finalPath.startsWith(`${bucketName}/`)) {
+          finalPath = finalPath.substring(bucketName.length + 1);
+          console.log(`[WatermarkedImage] Removed duplicate bucket prefix: ${storagePath} -> ${finalPath}`);
+        }
+        
+        // Handle designs bucket - add prefix only if missing
         if ((storageBucket === 'designs-private' || storageBucket === 'designs') && !finalPath.startsWith('designs/')) {
           // If path doesn't start with "designs/" and looks like a timestamp path, add it
-          if (/^\d+\//.test(finalPath)) {
+          if (/^\d+\//.test(finalPath) || /^[a-zA-Z0-9]+\//.test(finalPath)) {
             finalPath = `designs/${finalPath}`;
             console.log(`[WatermarkedImage] Added designs/ prefix: ${storagePath} -> ${finalPath}`);
           }
         }
         
-        console.log(`[WatermarkedImage] Calling watermark API: bucket=${storageBucket}, path=${finalPath}`);
+        // Handle products bucket - add prefix only if missing
+        if ((storageBucket === 'products-private' || storageBucket === 'products') && !finalPath.startsWith('products/')) {
+          // If path doesn't start with "products/" and looks like a product path, add it
+          if (/^\d+\//.test(finalPath) || /^[a-zA-Z0-9]+\//.test(finalPath)) {
+            finalPath = `products/${finalPath}`;
+            console.log(`[WatermarkedImage] Added products/ prefix: ${storagePath} -> ${finalPath}`);
+          }
+        }
         
-        // Try private bucket first, but if it fails, we'll fallback to public bucket
-        // Use our Next.js API route as proxy (handles auth automatically)
-        // This allows <img> tags to work without requiring auth headers
-        const functionUrl = `/api/watermark?path=${encodeURIComponent(finalPath)}&bucket=${encodeURIComponent(storageBucket)}`
+        // Double-check: Products should NEVER reach this point (they should have returned earlier)
+        // This is a safety check to ensure products never use watermark API
+        const isProductCheck = productId !== undefined || 
+                               storageBucket === 'products' || 
+                               storageBucket === 'products-private' ||
+                               finalPath.startsWith('products/')
         
-        // If bucket ends with '-private', also prepare a fallback URL for public bucket
-        const fallbackBucket = storageBucket.endsWith('-private') 
-          ? storageBucket.replace('-private', '') 
-          : null
+        if (isProductCheck) {
+          // Products should never be watermarked - use public URL or signed URL
+          const publicBucket = storageBucket.endsWith('-private') ? storageBucket.replace('-private', '') : storageBucket
+          const publicUrl = `${supabaseUrl}/storage/v1/object/public/${publicBucket}/${finalPath}`
+          console.log(`[WatermarkedImage] Product detected - using public URL (no watermark): ${publicUrl}`)
+          setDisplayUrl(publicUrl)
+          setLoading(false)
+          return
+        }
         
-        // Set the URL - if it fails to load, the img onError will handle fallback
-        setDisplayUrl(functionUrl)
+        // From here on, only DESIGNS are handled
+        // isPublicBucket is already declared above (line 114)
         
-        // Store fallback info for error handling
-        if (fallbackBucket) {
-          // We'll handle fallback in onError of the img tag
+        // Get the actual bucket name (without -private suffix) for URL construction
+        const actualBucket = storageBucket.replace('-private', '')
+        
+        // Remove bucket prefix from path if it exists (to avoid duplicate in URL)
+        // e.g., if bucket is "designs" and path is "designs/123/image.jpg", use just "123/image.jpg"
+        let urlPath = finalPath
+        if (urlPath.startsWith(`${actualBucket}/`)) {
+          urlPath = urlPath.substring(actualBucket.length + 1)
+        }
+        
+        if (isPublicBucket) {
+          // For public design buckets, we should still watermark them
+          // Use watermark API even for public buckets to ensure all designs are protected
+          console.log(`[WatermarkedImage] Public bucket detected, but using watermark API for design protection: bucket=${storageBucket}, path=${finalPath}`)
+          
+          // Use our Next.js API route as proxy (handles auth automatically)
+          const functionUrl = `/api/watermark?path=${encodeURIComponent(finalPath)}&bucket=${encodeURIComponent(storageBucket)}`
+          
+          // Set the URL - if it fails to load, the img onError will handle fallback
+          setDisplayUrl(functionUrl)
+          
+          // Store fallback info for error handling (fallback to public URL if watermark API fails)
+          ;(window as any).__watermarkFallback = {
+            path: storagePath,
+            bucket: storageBucket,
+            projectRef,
+            isPublic: true,
+            normalizedPath: urlPath
+          }
+          return
+          
+          // OLD CODE (commented out - was bypassing watermark for public buckets):
+          // const publicUrl = `${supabaseUrl}/storage/v1/object/public/${actualBucket}/${urlPath}`
+          // console.log(`[WatermarkedImage] Using public URL for public design bucket: ${publicUrl}`)
+          // setDisplayUrl(publicUrl)
+          
+          // Store fallback info in case public URL fails
+          ;(window as any).__watermarkFallback = {
+            path: storagePath,
+            bucket: storageBucket,
+            projectRef,
+            isPublic: true,
+            normalizedPath: urlPath // Store normalized path without duplicate bucket prefix
+          }
+        } else {
+          // For private design buckets, use watermark API (DESIGNS ONLY)
+          // Use finalPath (which may include designs/ prefix) for watermark API
+          console.log(`[WatermarkedImage] Calling watermark API for private design bucket: bucket=${storageBucket}, path=${finalPath}`);
+          
+          // Use our Next.js API route as proxy (handles auth automatically)
+          // This allows <img> tags to work without requiring auth headers
+          const functionUrl = `/api/watermark?path=${encodeURIComponent(finalPath)}&bucket=${encodeURIComponent(storageBucket)}`
+          
+          // Prepare fallback URL for public bucket (if private bucket fails)
+          const fallbackBucket = storageBucket.replace('-private', '')
+          
+          // Set the URL - if it fails to load, the img onError will handle fallback
+          setDisplayUrl(functionUrl)
+          
+          // Store fallback info for error handling
           ;(window as any).__watermarkFallback = {
             path: storagePath,
             bucket: fallbackBucket,
-            projectRef
+            projectRef,
+            isPublic: false,
+            normalizedPath: urlPath // Store normalized path without duplicate bucket prefix for public URL fallback
           }
         }
       } catch (err) {
@@ -206,7 +428,12 @@ export function WatermarkedImage({
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const currentRetry = retryCount
-    console.error('Image load error:', displayUrl, 'retry:', currentRetry)
+    // Log as warning for first retry (expected fallback), error for final failure
+    if (currentRetry === 0) {
+      console.warn('[WatermarkedImage] Image load error, attempting fallback:', displayUrl)
+    } else {
+      console.error('[WatermarkedImage] Image load error after retries:', displayUrl, 'retry:', currentRetry)
+    }
     
     // Prevent infinite retry loops
     if (currentRetry >= maxRetries) {
@@ -215,23 +442,60 @@ export function WatermarkedImage({
       return
     }
     
-    // If watermark function failed (404), try fallback to public bucket
+    // Handle fallback based on what failed
     const fallback = (window as any).__watermarkFallback
-    if (fallback && displayUrl?.includes('/api/watermark') && currentRetry === 0) {
-      // Ensure fallback path has designs/ prefix if needed
+    if (fallback && currentRetry === 0) {
+      // Ensure fallback path has bucket prefix if needed
       let fallbackPath = fallback.path
+      
+      // Handle designs bucket
       if ((fallback.bucket === 'designs' || fallback.bucket === 'designs-private') && !fallbackPath.startsWith('designs/')) {
-        if (/^\d+\//.test(fallbackPath)) {
+        if (/^\d+\//.test(fallbackPath) || /^[a-zA-Z0-9]+\//.test(fallbackPath)) {
           fallbackPath = `designs/${fallbackPath}`
         }
       }
       
-      const fallbackUrl = `/api/watermark?path=${encodeURIComponent(fallbackPath)}&bucket=${encodeURIComponent(fallback.bucket)}`
-      console.log('Watermark failed, trying fallback bucket:', fallbackUrl)
-      setDisplayUrl(fallbackUrl)
-      setRetryCount(prev => prev + 1)
-      setError(false) // Reset error to try again
-      return
+      // Handle products bucket
+      if ((fallback.bucket === 'products' || fallback.bucket === 'products-private') && !fallbackPath.startsWith('products/')) {
+        if (/^\d+\//.test(fallbackPath) || /^[a-zA-Z0-9]+\//.test(fallbackPath)) {
+          fallbackPath = `products/${fallbackPath}`
+        }
+      }
+      
+      // If public URL failed, try watermark API as fallback
+      if (fallback.isPublic && displayUrl?.includes('/storage/v1/object/public/')) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        if (supabaseUrl) {
+          const watermarkUrl = `/api/watermark?path=${encodeURIComponent(fallbackPath)}&bucket=${encodeURIComponent(fallback.bucket)}`
+          console.log('[WatermarkedImage] Public URL failed, trying watermark API:', watermarkUrl)
+          setDisplayUrl(watermarkUrl)
+          setRetryCount(prev => prev + 1)
+          setError(false)
+          return
+        }
+      }
+      
+      // If watermark API failed, try public bucket URL as fallback
+      if (!fallback.isPublic && displayUrl?.includes('/api/watermark')) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        if (supabaseUrl) {
+          // Use normalized path if available, otherwise use fallbackPath
+          let normalizedPath = fallback.normalizedPath || fallbackPath
+          
+          // Remove duplicate bucket prefix if present
+          const bucketName = fallback.bucket.replace('-private', '')
+          if (normalizedPath.startsWith(`${bucketName}/`)) {
+            normalizedPath = normalizedPath.substring(bucketName.length + 1)
+          }
+          
+          const publicUrl = `${supabaseUrl}/storage/v1/object/public/${fallback.bucket}/${normalizedPath}`
+          console.log('[WatermarkedImage] Watermark API failed, trying public URL:', publicUrl)
+          setDisplayUrl(publicUrl)
+          setRetryCount(prev => prev + 1)
+          setError(false)
+          return
+        }
+      }
     }
     
     // If watermark API failed and we have fallbackSrc, use it as final fallback

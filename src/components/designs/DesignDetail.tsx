@@ -28,6 +28,9 @@ import {
 import { DesignReviewSection } from '@/components/reviews/DesignReviewSection';
 import { useAuth } from '@/hooks/useAuth';
 import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
+import { useCart } from '@/contexts/CartContext';
+import { useSession } from 'next-auth/react';
+import { ShoppingCart, Check, LogIn, CreditCard } from 'lucide-react';
 
 interface DesignDetailProps {
   design: DesignWithDetails;
@@ -50,12 +53,17 @@ export function DesignDetail({
 }: DesignDetailProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const { data: session } = useSession();
+  const { addItem, isItemInCart } = useCart();
   const [loading, setLoading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [averageRating, setAverageRating] = useState(0);
   const [totalReviews, setTotalReviews] = useState(0);
   const [activeTab, setActiveTab] = useState<'details' | 'reviews'>('details');
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [hasPurchased, setHasPurchased] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isAddedToCart, setIsAddedToCart] = useState(false);
 
   // Helper function to extract storage path from Supabase URL
   const extractStoragePath = (url: string): { path: string; bucket: string } | null => {
@@ -224,18 +232,98 @@ export function DesignDetail({
     });
   };
 
-  const handleDownload = async () => {
-    if (!onDownload) return;
+  // Check if user has purchased this design
+  useEffect(() => {
+    const checkPurchase = async () => {
+      if (!user?.id || !design.id) return;
+      
+      try {
+        const response = await fetch(`/api/purchases/verify?designId=${design.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setHasPurchased(data.hasPurchased || false);
+        }
+      } catch (error) {
+        console.error('Error checking purchase status:', error);
+      }
+    };
     
+    checkPurchase();
+  }, [user?.id, design.id]);
+
+  const handleDownload = async () => {
     setLoading(true);
     try {
-      await onDownload(design.id);
+      // If purchased, use the download API for clean image
+      if (hasPurchased) {
+        const response = await fetch(`/api/download/design/${design.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.downloadUrl) {
+            // Trigger download
+            const link = document.createElement('a');
+            link.href = data.downloadUrl;
+            link.download = `${design.designName}.${design.fileFormat}`;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            return;
+          }
+        }
+      }
+      
+      // For free designs or if download API fails, use the original download handler
+      if (onDownload) {
+        await onDownload(design.id);
+      }
     } catch (error) {
       console.error('Download failed:', error);
+      alert('Failed to download design. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleAddToCart = async () => {
+    if (!session?.user) {
+      router.push(`/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+
+    if (isAddingToCart || design.pricing?.isFree) return;
+
+    setIsAddingToCart(true);
+    try {
+      await addItem({
+        itemType: 'design',
+        designId: design.id,
+        quantity: 1,
+        designerId: design.designerId,
+      });
+      setIsAddedToCart(true);
+      setTimeout(() => setIsAddedToCart(false), 2000);
+    } catch (error) {
+      console.error('Error adding design to cart:', error);
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!session?.user) {
+      router.push(`/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+
+    if (design.pricing?.isFree) return;
+
+    // Add to cart and redirect to checkout
+    await handleAddToCart();
+    router.push('/checkout');
+  };
+
+  const isDesignInCart = design.id ? isItemInCart(design.id, {}, undefined, undefined, undefined) : false;
 
   const handleLike = async () => {
     if (!onLike) return;
@@ -343,6 +431,8 @@ export function DesignDetail({
                       storagePath={storageInfo.path}
                       storageBucket={storageInfo.bucket}
                       designId={design.id}
+                      isFree={design.pricing?.isFree}
+                      designType={design.designType}
                       alt={design.designName}
                       className="w-full h-full object-contain"
                       fallbackSrc={currentImage}
@@ -421,6 +511,8 @@ export function DesignDetail({
                             storagePath={storageInfo.path}
                             storageBucket={storageInfo.bucket}
                             designId={design.id}
+                            isFree={design.pricing?.isFree}
+                            designType={design.designType}
                             alt={`${design.designName} ${index + 1}`}
                             className="w-full h-full object-cover"
                             fallbackSrc={image}
@@ -514,15 +606,73 @@ export function DesignDetail({
 
             {/* Actions */}
             <div className="space-y-3">
-              <Button
-                onClick={handleDownload}
-                loading={loading}
-                disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                {design.pricing?.isFree ? 'Download Free' : 'Download'}
-              </Button>
+              {design.pricing?.isFree ? (
+                // Free design - show download button
+                <Button
+                  onClick={handleDownload}
+                  loading={loading}
+                  disabled={loading}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Free
+                </Button>
+              ) : hasPurchased ? (
+                // Purchased design - show download button for clean image
+                <Button
+                  onClick={handleDownload}
+                  loading={loading}
+                  disabled={loading}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Original
+                </Button>
+              ) : (
+                // Paid design - show Buy Now and Add to Cart buttons
+                <>
+                  <Button
+                    onClick={handleBuyNow}
+                    disabled={isAddingToCart || isDesignInCart}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    {isAddingToCart ? (
+                      <>
+                        <span className="animate-spin mr-2">⏳</span>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Buy Now
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleAddToCart}
+                    disabled={isAddingToCart || isDesignInCart}
+                    variant="outline"
+                    className="w-full border-indigo-600 text-indigo-600 hover:bg-indigo-50"
+                  >
+                    {isAddedToCart ? (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        Added to Cart
+                      </>
+                    ) : isDesignInCart ? (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        In Cart
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        {isAddingToCart ? 'Adding...' : 'Add to Cart'}
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
             </div>
 
             {/* Designer Info */}

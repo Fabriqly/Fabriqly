@@ -30,15 +30,52 @@ export function MessageBell() {
   };
 
   // Poll unread count (API-based, reliable even when Firebase auth isn't ready)
+  // Use Page Visibility API to pause polling when tab is hidden
   useEffect(() => {
     if (!session?.user?.id) return;
+    
+    let isPageVisible = !document.hidden;
+    
+    const handleVisibilityChange = () => {
+      isPageVisible = !document.hidden;
+      if (isPageVisible) {
+        // Page became visible, fetch immediately and resume polling
+        fetchUnreadCount();
+      } else {
+        // Page hidden, clear polling to save resources
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
+      }
+    };
+    
+    // Initial fetch
     fetchUnreadCount();
-    pollingRef.current = setInterval(fetchUnreadCount, 5000);
+    
+    // Poll every 30 seconds (instead of 5 seconds) when page is visible
+    const startPolling = () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+      if (isPageVisible) {
+        pollingRef.current = setInterval(() => {
+          if (isPageVisible) {
+            fetchUnreadCount();
+          }
+        }, 30000); // 30 seconds instead of 5 seconds
+      }
+    };
+    
+    startPolling();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id]);

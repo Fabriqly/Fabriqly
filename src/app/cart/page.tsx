@@ -20,18 +20,26 @@ import {
   Trash,
   AlertTriangle,
   Store,
-  X
+  X,
+  User,
+  ImageIcon
 } from 'lucide-react';
 import { ShopProfile } from '@/types/shop-profile';
 import { CartItem } from '@/types/cart';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
+import { DesignWithDetails } from '@/types/enhanced-products';
 
 interface GroupedCartItem extends CartItem {
   shop?: ShopProfile;
+  designer?: DesignWithDetails['designer'];
 }
 
 interface ShopGroup {
   shop: ShopProfile | null;
-  businessOwnerId: string;
+  businessOwnerId?: string;
+  designerId?: string;
+  designer?: DesignWithDetails['designer'];
+  groupType: 'product' | 'design';
   items: GroupedCartItem[];
 }
 
@@ -64,8 +72,16 @@ export default function CartPage() {
 
     const loadShopProfiles = async () => {
       setLoadingShops(true);
-      const uniqueOwnerIds = [...new Set(state.cart.items.map(item => item.businessOwnerId))];
+      
+      // Separate product and design items
+      const productItems = state.cart.items.filter(item => item.itemType === 'product');
+      const designItems = state.cart.items.filter(item => item.itemType === 'design');
+      
+      const uniqueOwnerIds = [...new Set(productItems.map(item => item.businessOwnerId).filter(Boolean))];
+      const uniqueDesignerIds = [...new Set(designItems.map(item => item.designerId).filter(Boolean))];
+      
       const shopMap: Record<string, ShopProfile | null> = {};
+      const designerMap: Record<string, DesignWithDetails['designer'] | null> = {};
 
       // Fetch shop profiles for all unique business owners
       await Promise.all(
@@ -85,15 +101,60 @@ export default function CartPage() {
         })
       );
 
+      // Fetch designer profiles for all unique designers
+      // Note: designerId in cart items is the profile ID, not userId
+      await Promise.all(
+        uniqueDesignerIds.map(async (designerId) => {
+          try {
+            const response = await fetch(`/api/designer-profiles/${designerId}`);
+            
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+              // If not JSON (likely HTML 404 page), try by userId
+              const userResponse = await fetch(`/api/designer-profiles?userId=${designerId}`);
+              if (userResponse.ok) {
+                const userContentType = userResponse.headers.get('content-type');
+                if (userContentType && userContentType.includes('application/json')) {
+                  const userData = await userResponse.json();
+                  if (userData.profiles && userData.profiles.length > 0) {
+                    designerMap[designerId] = userData.profiles[0];
+                    return;
+                  }
+                }
+              }
+              designerMap[designerId] = null;
+              return;
+            }
+            
+            if (!response.ok) {
+              designerMap[designerId] = null;
+              return;
+            }
+            
+            const data = await response.json();
+            if (data.profile) {
+              designerMap[designerId] = data.profile;
+            } else {
+              designerMap[designerId] = null;
+            }
+          } catch (error) {
+            console.error(`Error loading designer for ${designerId}:`, error);
+            designerMap[designerId] = null;
+          }
+        })
+      );
+
       setShopProfiles(shopMap);
 
-      // Group items by businessOwnerId
-      const grouped = state.cart.items.reduce((acc, item) => {
-        const ownerId = item.businessOwnerId;
+      // Group product items by businessOwnerId
+      const productGroups = productItems.reduce((acc, item) => {
+        const ownerId = item.businessOwnerId!;
         if (!acc[ownerId]) {
           acc[ownerId] = {
             shop: shopMap[ownerId] || null,
             businessOwnerId: ownerId,
+            groupType: 'product' as const,
             items: []
           };
         }
@@ -101,7 +162,23 @@ export default function CartPage() {
         return acc;
       }, {} as Record<string, ShopGroup>);
 
-      setGroupedItems(Object.values(grouped));
+      // Group design items by designerId
+      const designGroups = designItems.reduce((acc, item) => {
+        const designerId = item.designerId!;
+        if (!acc[designerId]) {
+          acc[designerId] = {
+            designer: designerMap[designerId] || null,
+            designerId: designerId,
+            groupType: 'design' as const,
+            items: []
+          };
+        }
+        acc[designerId].items.push({ ...item, designer: designerMap[designerId] || undefined });
+        return acc;
+      }, {} as Record<string, ShopGroup>);
+
+      // Combine both groups
+      setGroupedItems([...Object.values(productGroups), ...Object.values(designGroups)]);
       setLoadingShops(false);
     };
 
@@ -118,9 +195,11 @@ export default function CartPage() {
       }
 
       try {
+        // Only validate stock for product items (designs don't have stock)
+        const productItems = state.cart.items.filter(item => item.itemType === 'product');
         const stockValidationRequest = {
-          items: state.cart.items.map(item => ({
-            productId: item.productId,
+          items: productItems.map(item => ({
+            productId: item.productId!,
             quantity: item.quantity
           }))
         };
@@ -168,6 +247,15 @@ export default function CartPage() {
   }, [state.cart?.items]);
 
   const handleQuantityChange = (itemId: string, newQuantity: number) => {
+    // Find the item to check if it's a design
+    const item = state.cart?.items.find(i => i.id === itemId);
+    const isDesign = item?.itemType === 'design';
+    
+    // Designs are digital products - quantity should always be 1
+    if (isDesign) {
+      return; // Don't allow quantity changes for designs
+    }
+    
     if (newQuantity < 1) {
       removeItem(itemId);
     } else {
@@ -179,7 +267,8 @@ export default function CartPage() {
     const item = state.cart?.items.find(cartItem => cartItem.id === itemId);
     if (!item) return;
 
-    if (inactiveWarnings[item.productId] || stockWarnings[item.productId]) {
+    // Designs don't have stock/inactive warnings
+    if (item.itemType === 'product' && (inactiveWarnings[item.productId!] || stockWarnings[item.productId!])) {
       return;
     }
 
@@ -197,7 +286,7 @@ export default function CartPage() {
       setSelectedItems(new Set());
     } else {
       const validItems = state.cart?.items.filter(item => 
-        !inactiveWarnings[item.productId] && !stockWarnings[item.productId]
+        item.itemType === 'design' || (!inactiveWarnings[item.productId!] && !stockWarnings[item.productId!])
       ) || [];
       setSelectedItems(new Set(validItems.map(item => item.id)));
     }
@@ -206,7 +295,7 @@ export default function CartPage() {
   const handleSelectShopItems = (group: ShopGroup) => {
     const shopItemIds = group.items.map(item => item.id);
     const validShopItems = group.items.filter(item => 
-      !inactiveWarnings[item.productId] && !stockWarnings[item.productId]
+      item.itemType === 'design' || (!inactiveWarnings[item.productId!] && !stockWarnings[item.productId!])
     );
     const validShopItemIds = validShopItems.map(item => item.id);
     
@@ -226,7 +315,7 @@ export default function CartPage() {
 
   const isShopAllSelected = (group: ShopGroup) => {
     const validShopItems = group.items.filter(item => 
-      !inactiveWarnings[item.productId] && !stockWarnings[item.productId]
+      item.itemType === 'design' || (!inactiveWarnings[item.productId!] && !stockWarnings[item.productId!])
     );
     if (validShopItems.length === 0) return false;
     return validShopItems.every(item => selectedItems.has(item.id));
@@ -245,9 +334,9 @@ export default function CartPage() {
     
     const selectedCartItems = state.cart?.items.filter(item => selectedItems.has(item.id)) || [];
     
-    const hasInvalidItems = selectedCartItems.some(item => 
-      inactiveWarnings[item.productId] || stockWarnings[item.productId]
-    );
+      const hasInvalidItems = selectedCartItems.some(item => 
+        item.itemType === 'product' && (inactiveWarnings[item.productId!] || stockWarnings[item.productId!])
+      );
     
     if (hasInvalidItems) {
       alert('Cannot proceed to checkout with inactive or out-of-stock items. Please remove them from your selection.');
@@ -276,6 +365,12 @@ export default function CartPage() {
   };
 
   const getShopName = (group: ShopGroup) => {
+    if (group.groupType === 'design') {
+      if (group.designer) {
+        return group.designer.businessName || group.designer.displayName || 'Designer';
+      }
+      return 'Designer';
+    }
     if (group.shop) {
       return group.shop.shopName || group.shop.businessName || 'Shop';
     }
@@ -360,9 +455,14 @@ export default function CartPage() {
             ) : (
               /* Shop Groups */
               <div className="space-y-4 md:space-y-6">
-                {groupedItems.map((group, groupIndex) => (
-                  <div key={group.businessOwnerId} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    {/* Shop Header */}
+                {groupedItems.map((group, groupIndex) => {
+                  // Create unique key for both product and design groups
+                  const groupKey = group.businessOwnerId || group.designerId || `group-${groupIndex}`;
+                  const isDesignGroup = group.groupType === 'design';
+                  
+                  return (
+                  <div key={groupKey} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    {/* Shop/Designer Header */}
                     <div className="flex items-center space-x-2 px-3 md:px-4 py-2 bg-gray-50 border-b border-gray-200">
                       <input
                         type="checkbox"
@@ -370,9 +470,17 @@ export default function CartPage() {
                         onChange={() => handleSelectShopItems(group)}
                         className="rounded border-gray-300 cursor-pointer"
                       />
-                      <Store className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                      {isDesignGroup ? (
+                        <User className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                      ) : (
+                        <Store className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                      )}
                       <div className="flex-1 min-w-0">
-                        {group.shop?.username ? (
+                        {isDesignGroup ? (
+                          <h3 className="font-semibold text-xs md:text-sm text-gray-900 truncate">
+                            {group.designer?.businessName || group.designer?.displayName || 'Designer'}
+                          </h3>
+                        ) : group.shop?.username ? (
                           <Link 
                             href={`/shops/${group.shop.username}`}
                             className="font-semibold text-xs md:text-sm text-gray-900 hover:text-blue-600 transition-colors truncate block"
@@ -385,10 +493,11 @@ export default function CartPage() {
                       </div>
                     </div>
 
-                    {/* Items from this shop */}
+                    {/* Items from this shop/designer */}
                     <div className="divide-y divide-gray-100">
                       {group.items.map((item) => {
-                        const isInvalid = inactiveWarnings[item.productId] || stockWarnings[item.productId];
+                        const isInvalid = item.itemType === 'product' && (inactiveWarnings[item.productId!] || stockWarnings[item.productId!]);
+                        const isDesign = item.itemType === 'design';
                         return (
                           <div
                             key={item.id}
@@ -400,41 +509,103 @@ export default function CartPage() {
                                 type="checkbox"
                                 checked={selectedItems.has(item.id)}
                                 onChange={() => handleItemSelect(item.id)}
-                                disabled={!!(inactiveWarnings[item.productId] || stockWarnings[item.productId])}
+                                disabled={!!isInvalid}
                                 className={`rounded border-gray-300 ${
-                                  !!(inactiveWarnings[item.productId] || stockWarnings[item.productId])
+                                  isInvalid
                                     ? 'opacity-50 cursor-not-allowed'
                                     : 'cursor-pointer'
                                 }`}
                               />
                             </div>
 
-                            {/* Product Image */}
+                            {/* Product/Design Image */}
                             <div className="flex-shrink-0">
-                              <Link href={`/products/${item.productId}`}>
-                                <div className="w-16 h-16 md:w-20 md:h-20 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
-                                  {item.product.images && item.product.images.length > 0 ? (
-                                    <img
-                                      src={item.product.images[0].imageUrl}
-                                      alt={item.product.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <Package className="w-4 h-4 md:w-6 md:h-6 text-gray-400" />
-                                    </div>
-                                  )}
-                                </div>
-                              </Link>
+                              {isDesign ? (
+                                <Link href={`/explore/designs/${item.designId}`}>
+                                  <div className="w-16 h-16 md:w-20 md:h-20 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
+                                    {(() => {
+                                      // Debug logging
+                                      console.log('Rendering design image:', {
+                                        designId: item.designId,
+                                        hasStoragePath: !!item.design?.storagePath,
+                                        hasStorageBucket: !!item.design?.storageBucket,
+                                        storagePath: item.design?.storagePath,
+                                        storageBucket: item.design?.storageBucket,
+                                        thumbnailUrl: item.design?.thumbnailUrl
+                                      });
+                                      
+                                      // Try to use storagePath/storageBucket if available
+                                      if (item.design?.storagePath && item.design?.storageBucket && item.designId) {
+                                        return (
+                                          <WatermarkedImage
+                                            storagePath={item.design.storagePath}
+                                            storageBucket={item.design.storageBucket}
+                                            designId={item.designId}
+                                            isFree={false}
+                                            designType={item.design.designType}
+                                            alt={item.design.name || 'Design'}
+                                            className="w-full h-full object-cover"
+                                            fallbackSrc={item.design.thumbnailUrl}
+                                          />
+                                        );
+                                      }
+                                      // Fallback to thumbnailUrl if storage info not available
+                                      if (item.design?.thumbnailUrl) {
+                                        return (
+                                          <img
+                                            src={item.design.thumbnailUrl}
+                                            alt={item.design.name || 'Design'}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              console.error('Design thumbnail failed to load:', item.design?.thumbnailUrl);
+                                              e.currentTarget.style.display = 'none';
+                                            }}
+                                          />
+                                        );
+                                      }
+                                      // Final fallback
+                                      return (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <ImageIcon className="w-4 h-4 md:w-6 md:h-6 text-gray-400" />
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                </Link>
+                              ) : (
+                                <Link href={`/products/${item.productId}`}>
+                                  <div className="w-16 h-16 md:w-20 md:h-20 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
+                                    {item.product?.images && item.product.images.length > 0 ? (
+                                      <img
+                                        src={item.product.images[0].imageUrl}
+                                        alt={item.product.name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <Package className="w-4 h-4 md:w-6 md:h-6 text-gray-400" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </Link>
+                              )}
                             </div>
 
-                            {/* Product Details */}
+                            {/* Product/Design Details */}
                             <div className="flex-1 min-w-0">
-                              <Link href={`/products/${item.productId}`}>
-                                <h4 className="font-medium text-xs md:text-sm text-gray-900 truncate hover:text-blue-600 cursor-pointer">
-                                  {item.product.name}
-                                </h4>
-                              </Link>
+                              {isDesign ? (
+                                <Link href={`/explore/designs/${item.designId}`}>
+                                  <h4 className="font-medium text-xs md:text-sm text-gray-900 truncate hover:text-blue-600 cursor-pointer">
+                                    {item.design?.name || 'Design'}
+                                  </h4>
+                                </Link>
+                              ) : (
+                                <Link href={`/products/${item.productId}`}>
+                                  <h4 className="font-medium text-xs md:text-sm text-gray-900 truncate hover:text-blue-600 cursor-pointer">
+                                    {item.product?.name || 'Product'}
+                                  </h4>
+                                </Link>
+                              )}
                               
                               {/* Design and Size */}
                               {(item.selectedDesign || item.selectedSize) && (
@@ -467,52 +638,70 @@ export default function CartPage() {
                               )}
 
                               {/* Warnings */}
-                              {inactiveWarnings[item.productId] && (
+                              {!isDesign && inactiveWarnings[item.productId!] && (
                                 <div className="flex items-center space-x-1 mt-1">
                                   <AlertTriangle className="w-3 h-3 text-red-500" />
                                   <p className="text-xs text-red-600">
-                                    Product is {inactiveWarnings[item.productId].status}
+                                    Product is {inactiveWarnings[item.productId!].status}
                                   </p>
                                 </div>
                               )}
 
-                              {stockWarnings[item.productId] && (
+                              {!isDesign && stockWarnings[item.productId!] && (
                                 <div className="flex items-center space-x-1 mt-1">
                                   <AlertTriangle className="w-3 h-3 text-red-500" />
                                   <p className="text-xs text-red-600">
-                                    Only {stockWarnings[item.productId].available} available
+                                    Only {stockWarnings[item.productId!].available} available
                                   </p>
+                                </div>
+                              )}
+
+                              {isDesign && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  <span className="capitalize">{item.design?.designType || 'Design'}</span>
+                                  {item.design?.designType === 'premium' && (
+                                    <span className="ml-1 text-indigo-600">Premium</span>
+                                  )}
                                 </div>
                               )}
 
                               {/* Quantity and Price Controls */}
                               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mt-3">
                                 <div className="flex items-center space-x-2">
-                                  <button
-                                    onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                                    disabled={!!(inactiveWarnings[item.productId] || stockWarnings[item.productId])}
-                                    className={`p-1 rounded ${
-                                      !!(inactiveWarnings[item.productId] || stockWarnings[item.productId])
-                                        ? 'cursor-not-allowed opacity-50'
-                                        : 'hover:bg-gray-100'
-                                    }`}
-                                  >
-                                    <Minus className="w-4 h-4" />
-                                  </button>
-                                  <span className="text-xs md:text-sm font-medium w-6 md:w-8 text-center">
-                                    {item.quantity}
-                                  </span>
-                                  <button
-                                    onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                                    disabled={!!(inactiveWarnings[item.productId] || stockWarnings[item.productId])}
-                                    className={`p-1 rounded ${
-                                      !!(inactiveWarnings[item.productId] || stockWarnings[item.productId])
-                                        ? 'cursor-not-allowed opacity-50'
-                                        : 'hover:bg-gray-100'
-                                    }`}
-                                  >
-                                    <Plus className="w-4 h-4" />
-                                  </button>
+                                  {isDesign ? (
+                                    // Designs are digital - quantity is always 1
+                                    <span className="text-xs md:text-sm font-medium w-6 md:w-8 text-center text-gray-600">
+                                      1
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                                        disabled={!!isInvalid}
+                                        className={`p-1 rounded ${
+                                          isInvalid
+                                            ? 'cursor-not-allowed opacity-50'
+                                            : 'hover:bg-gray-100'
+                                        }`}
+                                      >
+                                        <Minus className="w-4 h-4" />
+                                      </button>
+                                      <span className="text-xs md:text-sm font-medium w-6 md:w-8 text-center">
+                                        {item.quantity}
+                                      </span>
+                                      <button
+                                        onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                                        disabled={!!isInvalid}
+                                        className={`p-1 rounded ${
+                                          isInvalid
+                                            ? 'cursor-not-allowed opacity-50'
+                                            : 'hover:bg-gray-100'
+                                        }`}
+                                      >
+                                        <Plus className="w-4 h-4" />
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                                 
                                 <div className="flex items-center space-x-2 sm:space-x-3">
@@ -534,7 +723,8 @@ export default function CartPage() {
                       })}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

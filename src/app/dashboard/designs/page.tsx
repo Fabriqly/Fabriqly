@@ -386,7 +386,7 @@ export default function DesignsDashboard() {
                       <DesignCard
                         key={design.id}
                         design={design}
-                        variant={viewMode === 'grid' ? 'catalog' : 'portfolio'}
+                        variant={viewMode === 'grid' ? 'dashboard-grid' : 'dashboard-list'}
                         showActions={true}
                         onEdit={setEditingDesign}
                         onDelete={handleDeleteDesign}

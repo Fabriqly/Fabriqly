@@ -53,8 +53,15 @@ interface Order {
 }
 
 interface OrderItem {
-  productId: string;
+  itemType?: 'product' | 'design';
+  productId?: string;
+  designId?: string;
   productName?: string;
+  designName?: string;
+  designType?: 'template' | 'custom' | 'premium';
+  thumbnailUrl?: string;
+  storagePath?: string;
+  storageBucket?: string;
   quantity: number;
   price: number;
   customizations?: Record<string, any>;
@@ -366,7 +373,9 @@ export default function OrdersPage() {
           (order.shopName && order.shopName.toLowerCase().includes(searchLower)) ||
           order.items.some(item => 
             (item.productName && item.productName.toLowerCase().includes(searchLower)) ||
-            item.productId.toLowerCase().includes(searchLower)
+            (item.designName && item.designName.toLowerCase().includes(searchLower)) ||
+            (item.productId && item.productId.toLowerCase().includes(searchLower)) ||
+            (item.designId && item.designId.toLowerCase().includes(searchLower))
           );
         
         // Status filter mapping
@@ -665,50 +674,106 @@ export default function OrdersPage() {
                       <div className="space-y-3 md:space-y-4">
                         {(expandedOrders.has(order.id) ? order.items : order.items.slice(0, 2)).map((item, index) => (
                           <div key={index} className="flex items-start gap-3 md:gap-4">
-                            {/* Product Image */}
+                            {/* Product/Design Image */}
                             <div className="w-16 h-16 md:w-20 md:h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                              {item.product?.images && item.product.images.length > 0 ? (
-                                <img
-                                  src={item.product.images[0].imageUrl}
-                                  alt={item.product.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : item.customizations?.designerFinalFileUrl ? (
-                                <img 
-                                  src={item.customizations.designerFinalFileUrl as string}
-                                  alt="Design Preview"
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <Package className="w-6 h-6 text-gray-400" />
-                                </div>
-                              )}
+                              {(() => {
+                                const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
+                                
+                                // Handle design items
+                                if (isDesign && item.thumbnailUrl) {
+                                  return (
+                                    <img
+                                      src={item.thumbnailUrl}
+                                      alt={item.designName || 'Design'}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  );
+                                }
+                                
+                                // Handle product items
+                                if (item.product?.images && item.product.images.length > 0) {
+                                  return (
+                                    <img
+                                      src={item.product.images[0].imageUrl}
+                                      alt={item.product.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  );
+                                }
+                                
+                                // Handle customization preview
+                                if (item.customizations?.designerFinalFileUrl) {
+                                  return (
+                                    <img 
+                                      src={item.customizations.designerFinalFileUrl as string}
+                                      alt="Design Preview"
+                                      className="w-full h-full object-cover"
+                                    />
+                                  );
+                                }
+                                
+                                // Fallback
+                                return (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Package className="w-6 h-6 text-gray-400" />
+                                  </div>
+                                );
+                              })()}
                             </div>
                             
                             <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 min-w-0">
                               <div className="flex-1 min-w-0">
                                 <span className="font-medium text-sm md:text-base block truncate">
-                                  {item.product?.name || item.productName || `Product ${item.productId.slice(-8)}`}
+                                  {(() => {
+                                    const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
+                                    
+                                    if (isDesign) {
+                                      return item.designName || `Design ${item.designId?.slice(-8) || 'Unknown'}`;
+                                    }
+                                    
+                                    return item.product?.name || item.productName || (item.productId ? `Product ${item.productId.slice(-8)}` : 'Unknown Product');
+                                  })()}
                                 </span>
                                 
-                                {/* Variant Info */}
-                                {(item.selectedDesign || item.selectedSize || (item.selectedVariants && Object.keys(item.selectedVariants).length > 0) || item.selectedColorId) && (
-                                  <div className="text-sm text-gray-400 mt-1 space-y-0.5">
-                                    {item.selectedDesign && (
-                                      <div>Design: {item.selectedDesign.name}</div>
-                                    )}
-                                    {item.selectedSize && (
-                                      <div>Size: {item.selectedSize.name}</div>
-                                    )}
-                                    {item.selectedVariants && Object.entries(item.selectedVariants).map(([key, value]) => (
-                                      <div key={key}>{key}: {value}</div>
-                                    ))}
-                                    {item.selectedColorId && (
-                                      <div>Color: {item.selectedColorName || item.selectedColorId}</div>
-                                    )}
-                                  </div>
-                                )}
+                                {/* Design Type Badge (for design items) */}
+                                {(() => {
+                                  const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
+                                  if (isDesign && item.designType) {
+                                    return (
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        <span className="capitalize">{item.designType}</span>
+                                        {item.designType === 'premium' && (
+                                          <span className="ml-1 text-indigo-600">Premium</span>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+
+                                {/* Variant Info (for product items) */}
+                                {(() => {
+                                  const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
+                                  if (!isDesign && (item.selectedDesign || item.selectedSize || (item.selectedVariants && Object.keys(item.selectedVariants).length > 0) || item.selectedColorId)) {
+                                    return (
+                                      <div className="text-sm text-gray-400 mt-1 space-y-0.5">
+                                        {item.selectedDesign && (
+                                          <div>Design: {item.selectedDesign.name}</div>
+                                        )}
+                                        {item.selectedSize && (
+                                          <div>Size: {item.selectedSize.name}</div>
+                                        )}
+                                        {item.selectedVariants && Object.entries(item.selectedVariants).map(([key, value]) => (
+                                          <div key={key}>{key}: {value}</div>
+                                        ))}
+                                        {item.selectedColorId && (
+                                          <div>Color: {item.selectedColorName || item.selectedColorId}</div>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
 
                                 {/* Customization Info (for custom orders) */}
                                 {item.customizations && (item.customizations.customizationRequestId || item.customizations.designerName || item.customizations.printingShopName) && (

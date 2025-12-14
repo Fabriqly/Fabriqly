@@ -157,70 +157,141 @@ serve(async (req) => {
       console.error('No file data returned (fileData is null/undefined)')
     }
 
-    // If download failed, try public bucket as fallback
+    // If download failed, try multiple fallback strategies
     if (downloadError || !fileData) {
-      console.log(`Download failed from ${bucket}, trying public bucket fallback...`)
+      console.log(`Download failed from ${bucket}, trying fallback strategies...`)
       
-      // Try public bucket if we were using private bucket
+      // Strategy 1: Try public bucket if we were using private bucket
       const publicBucket = bucket.endsWith('-private') 
         ? bucket.replace('-private', '') 
         : null
       
+      const pathsToTry = [
+        normalizedPath,
+        originalPath,
+        // Try without designs/ prefix (for older files)
+        normalizedPath.startsWith('designs/') ? normalizedPath.substring(7) : null,
+        originalPath.startsWith('designs/') ? originalPath.substring(7) : null,
+        // Try with just timestamp/filename if path has designs/ prefix
+        normalizedPath.includes('/') ? normalizedPath.split('/').slice(-2).join('/') : null,
+      ].filter(p => p !== null && p !== normalizedPath && p !== originalPath) as string[]
+      
+      // Try public bucket with all path variations
       if (publicBucket && publicBucket !== bucket) {
-        // Try downloading from public bucket with same path
-        console.log(`Attempting download from public bucket: ${publicBucket}, path: ${normalizedPath}`)
-        const { data: publicFileData, error: publicError } = await supabase
-          .storage
-          .from(publicBucket)
-          .download(normalizedPath)
-        
-        if (!publicError && publicFileData) {
-          console.log(`Successfully downloaded from public bucket: ${publicBucket}`)
-          fileData = publicFileData
-          downloadError = null
-        } else {
-          // Try original path in public bucket
-          if (normalizedPath !== originalPath) {
-            console.log(`Trying original path in public bucket: ${originalPath}`)
-            const { data: publicFileData2, error: publicError2 } = await supabase
-              .storage
-              .from(publicBucket)
-              .download(originalPath)
-            
-            if (!publicError2 && publicFileData2) {
-              console.log(`Successfully downloaded from public bucket with original path`)
-              fileData = publicFileData2
-              downloadError = null
-              normalizedPath = originalPath
+        for (const tryPath of [normalizedPath, originalPath, ...pathsToTry]) {
+          console.log(`Attempting download from public bucket: ${publicBucket}, path: ${tryPath}`)
+          const { data: publicFileData, error: publicError } = await supabase
+            .storage
+            .from(publicBucket)
+            .download(tryPath)
+          
+          if (!publicError && publicFileData) {
+            console.log(`Successfully downloaded from public bucket: ${publicBucket} with path: ${tryPath}`)
+            fileData = publicFileData
+            downloadError = null
+            normalizedPath = tryPath
+            break
+          }
+        }
+      }
+      
+      // Strategy 2: Try private bucket with path variations (if not already tried)
+      if ((downloadError || !fileData) && bucket.endsWith('-private')) {
+        for (const tryPath of pathsToTry) {
+          console.log(`Attempting download from private bucket with alternative path: ${tryPath}`)
+          const { data: altFileData, error: altError } = await supabase
+            .storage
+            .from(bucket)
+            .download(tryPath)
+          
+          if (!altError && altFileData) {
+            console.log(`Successfully downloaded from private bucket with alternative path: ${tryPath}`)
+            fileData = altFileData
+            downloadError = null
+            normalizedPath = tryPath
+            break
+          }
+        }
+      }
+      
+      // Strategy 3: Try to find the file by listing the bucket
+      if (downloadError || !fileData) {
+        console.log(`All path variations failed. Attempting to locate file by listing bucket...`)
+        const timestampMatch = imagePath.match(/(\d+)/)
+        if (timestampMatch) {
+          const timestamp = timestampMatch[1]
+          // Try listing with different prefixes
+          const listPaths = [
+            timestamp,
+            `designs/${timestamp}`,
+            imagePath.split('/').slice(0, -1).join('/'), // Directory from original path
+          ]
+          
+          for (const listPath of listPaths) {
+            try {
+              const { data: listData, error: listError } = await supabase
+                .storage
+                .from(bucket)
+                .list(listPath, { limit: 20, offset: 0 })
+              
+              if (listData && listData.length > 0) {
+                console.log(`Found ${listData.length} files in "${listPath}":`, listData.map(f => f.name))
+                // Try to find a file matching our filename
+                const fileName = imagePath.split('/').pop() || imagePath
+                const matchingFile = listData.find(f => f.name === fileName || f.name.includes(fileName.split('.')[0]))
+                if (matchingFile) {
+                  const foundPath = listPath === timestamp ? `${listPath}/${matchingFile.name}` : `${listPath}/${matchingFile.name}`
+                  console.log(`Trying to download found file: ${foundPath}`)
+                  const { data: foundFileData, error: foundError } = await supabase
+                    .storage
+                    .from(bucket)
+                    .download(foundPath)
+                  
+                  if (!foundError && foundFileData) {
+                    console.log(`Successfully downloaded found file: ${foundPath}`)
+                    fileData = foundFileData
+                    downloadError = null
+                    normalizedPath = foundPath
+                    break
+                  }
+                }
+              }
+            } catch (listErr) {
+              // Continue to next list path
             }
           }
         }
       }
       
-      // If still failed after trying public bucket, return error
+      // If still failed after all strategies, return error
       if (downloadError || !fileData) {
-        console.error('Error downloading image from both buckets:', {
+        console.error('Error downloading image from both buckets after all fallback strategies:', {
           error: downloadError,
           bucket,
           path: imagePath,
           normalizedPath,
+          originalPath,
           errorMessage: downloadError?.message,
           errorStatus: downloadError?.statusCode,
           errorCode: downloadError?.error,
           fullError: JSON.stringify(downloadError)
         })
         
-        return new Response(
-          JSON.stringify({ 
-            error: 'Failed to download image', 
-            details: downloadError?.message || downloadError?.error || 'Unknown error',
-            bucket,
-            path: imagePath,
-            normalizedPath,
-            triedPublicBucket: !!publicBucket
-          }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        // Return a 1x1 transparent PNG instead of JSON error so the image tag doesn't break
+        // The frontend will handle this gracefully
+        const transparentPng = Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          'base64'
         )
+        return new Response(transparentPng, {
+          status: 404,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'image/png',
+            'Cache-Control': 'no-cache',
+            'X-Image-Error': 'File not found in storage',
+          },
+        })
       }
     }
 
@@ -230,157 +301,162 @@ serve(async (req) => {
     const imageBytes = new Uint8Array(imageBuffer)
     console.log('Image buffer created, size:', imageBytes.length, 'bytes')
 
-    // Get watermark text from environment or use default
-    const watermarkText = Deno.env.get('WATERMARK_TEXT') || 'Fabriqly'
-    const watermarkOpacity = parseFloat(Deno.env.get('WATERMARK_OPACITY') || '0.4')
-
-    // For now, we'll use a simple approach with Canvas API
-    // Note: Deno doesn't have native Canvas support, so we'll use a library
-    // Using a simpler approach: return the image with a note that watermarking
-    // should be done client-side or via a proper image processing service
+    // Get watermark configuration from environment
+    // WATERMARK_IMAGE_PATH: Path to watermark image in Supabase storage (e.g., "watermarks/logo.png")
+    // WATERMARK_IMAGE_BUCKET: Bucket containing watermark image (default: "watermarks" or "public")
+    // WATERMARK_OPACITY: Opacity of watermark overlay (0.0-1.0, default: 0.15 for ~15%)
+    const watermarkImagePath = Deno.env.get('WATERMARK_IMAGE_PATH') || 'watermarks/watermark.png'
+    const watermarkImageBucket = Deno.env.get('WATERMARK_IMAGE_BUCKET') || 'watermarks'
+    const watermarkOpacity = parseFloat(Deno.env.get('WATERMARK_OPACITY') || '0.15')
     
     // Use ImageScript for watermarking
-    // Note: For production, consider using a more robust image processing library
-    // or a service like Cloudinary/ImageKit that has built-in watermarking
     try {
       const { Image } = await import('https://deno.land/x/imagescript@1.2.15/mod.ts')
       
-      // Decode the image
+      // Decode the main image
       const image = await Image.decode(imageBytes)
       
-      // Tiled watermark pattern for better IP protection
-      // Instead of single overlay, tile watermark across entire image
-      // Use lower opacity (10-15%) as per best practices for digital art protection
-      const tileOpacity = 0x1A / 255.0 // ~10% opacity (0x1A = 26/255 ≈ 10%)
-      
-      // Tile dimensions - create repeating pattern
-      const tileWidth = Math.max(200, Math.floor(image.width / 4))
-      const tileHeight = Math.max(100, Math.floor(image.height / 6))
-      
-      // Text size for each tile
-      const textSize = Math.max(24, Math.min(tileWidth, tileHeight) / 6)
-      
-      // Helper function to set a pixel with alpha blending
-      const setPixelWithBlend = (px: number, py: number, overlayR: number, overlayG: number, overlayB: number, alpha: number) => {
-        if (px < 0 || px >= image.width || py < 0 || py >= image.height) return
+      // Load watermark image from Supabase storage
+      let watermarkImage: Image | null = null
+      try {
+        console.log(`Loading watermark image from bucket: ${watermarkImageBucket}, path: ${watermarkImagePath}`)
+        const { data: watermarkData, error: watermarkError } = await supabase
+          .storage
+          .from(watermarkImageBucket)
+          .download(watermarkImagePath)
         
-        // Get current pixel color
-        let currentR: number, currentG: number, currentB: number
-        try {
-          const currentColor = image.getPixelAt(px + 1, py + 1) // 1-based
-          currentR = currentColor & 0xFF
-          currentG = (currentColor >> 8) & 0xFF
-          currentB = (currentColor >> 16) & 0xFF
-        } catch {
-          // Fallback to bitmap access
-          const pixelIndex = (py * image.width + px) * 4
-          if (pixelIndex + 3 >= image.bitmap.length) return
-          currentR = image.bitmap[pixelIndex]
-          currentG = image.bitmap[pixelIndex + 1]
-          currentB = image.bitmap[pixelIndex + 2]
+        if (watermarkError || !watermarkData) {
+          console.warn(`Failed to load watermark image: ${watermarkError?.message || 'No data'}`)
+          console.warn('Falling back to text watermark or returning original image')
+          // Fallback: return original image if watermark can't be loaded
+          // You could also fall back to text watermark here if desired
+          return new Response(imageBytes, {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': fileData.type || 'image/png',
+              'Cache-Control': 'public, max-age=3600',
+            },
+          })
         }
         
-        // Alpha blend: newColor = overlayColor * alpha + currentColor * (1 - alpha)
-        const newR = Math.floor(overlayR * alpha + currentR * (1 - alpha))
-        const newG = Math.floor(overlayG * alpha + currentG * (1 - alpha))
-        const newB = Math.floor(overlayB * alpha + currentB * (1 - alpha))
-        
-        // Set pixel
-        const newColor = (0xFF << 24) | (newB << 16) | (newG << 8) | newR
-        try {
-          image.setPixelAt(px + 1, py + 1, newColor)
-        } catch {
-          const pixelIndex = (py * image.width + px) * 4
-          if (pixelIndex + 3 < image.bitmap.length) {
-            image.bitmap[pixelIndex] = newR
-            image.bitmap[pixelIndex + 1] = newG
-            image.bitmap[pixelIndex + 2] = newB
-            image.bitmap[pixelIndex + 3] = 0xFF
-          }
-        }
+        const watermarkBuffer = await watermarkData.arrayBuffer()
+        const watermarkBytes = new Uint8Array(watermarkBuffer)
+        watermarkImage = await Image.decode(watermarkBytes)
+        console.log(`Watermark image loaded: ${watermarkImage.width}x${watermarkImage.height}px`)
+      } catch (watermarkLoadError) {
+        console.error('Error loading watermark image:', watermarkLoadError)
+        // Fallback: return original image
+        return new Response(imageBytes, {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': fileData.type || 'image/png',
+            'Cache-Control': 'public, max-age=3600',
+          },
+        })
       }
       
-      // Helper function to draw text "FABRIQLY" in a tile
-      const drawTextInTile = (startX: number, startY: number, tileW: number, tileH: number, textSize: number) => {
-        const textColor = { r: 255, g: 255, b: 255 } // White
-        const strokeWidth = Math.max(2, Math.floor(textSize / 8))
-        const charWidth = Math.floor(textSize * 0.5)
-        const charHeight = textSize
-        const spacing = Math.floor(textSize * 0.15)
-        const textX = startX + Math.floor(tileW / 2) - Math.floor((charWidth + spacing) * 4)
-        const textY = startY + Math.floor(tileH / 2) - Math.floor(charHeight / 2)
-        
-        let currentX = textX
-        
-        // Draw "FABRIQLY" using simple rectangles
-        const drawCharRect = (rx: number, ry: number, rw: number, rh: number) => {
-          for (let ry2 = ry; ry2 < ry + rh && ry2 < startY + tileH; ry2++) {
-            for (let rx2 = rx; rx2 < rx + rw && rx2 < startX + tileW; rx2++) {
-              setPixelWithBlend(rx2, ry2, textColor.r, textColor.g, textColor.b, tileOpacity)
+      if (!watermarkImage) {
+        console.error('Watermark image is null')
+        return new Response(imageBytes, {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': fileData.type || 'image/png',
+            'Cache-Control': 'public, max-age=3600',
+          },
+        })
+      }
+      
+      // Scale watermark to cover entire image (object-fit: cover style)
+      // Calculate scale to cover the entire image while maintaining aspect ratio
+      const scaleX = image.width / watermarkImage.width
+      const scaleY = image.height / watermarkImage.height
+      // Use the larger scale to ensure the watermark covers the entire image
+      const coverScale = Math.max(scaleX, scaleY)
+      
+      const scaledWatermarkWidth = Math.floor(watermarkImage.width * coverScale)
+      const scaledWatermarkHeight = Math.floor(watermarkImage.height * coverScale)
+      
+      // Resize watermark image to cover size
+      const scaledWatermark = watermarkImage.clone()
+      scaledWatermark.resize(scaledWatermarkWidth, scaledWatermarkHeight)
+      
+      // Calculate center position (for centering the watermark)
+      const offsetX = Math.floor((scaledWatermarkWidth - image.width) / 2)
+      const offsetY = Math.floor((scaledWatermarkHeight - image.height) / 2)
+      
+      // Composite watermark over the entire image
+      for (let imgY = 0; imgY < image.height; imgY++) {
+        for (let imgX = 0; imgX < image.width; imgX++) {
+          // Calculate corresponding position in scaled watermark
+          const watermarkX = imgX + offsetX
+          const watermarkY = imgY + offsetY
+          
+          // Skip if outside watermark bounds
+          if (watermarkX < 0 || watermarkX >= scaledWatermarkWidth || 
+              watermarkY < 0 || watermarkY >= scaledWatermarkHeight) {
+            continue
+          }
+          
+          // Get watermark pixel
+          let watermarkR: number, watermarkG: number, watermarkB: number, watermarkA: number
+          try {
+            const watermarkColor = scaledWatermark.getPixelAt(watermarkX + 1, watermarkY + 1)
+            watermarkR = watermarkColor & 0xFF
+            watermarkG = (watermarkColor >> 8) & 0xFF
+            watermarkB = (watermarkColor >> 16) & 0xFF
+            watermarkA = ((watermarkColor >> 24) & 0xFF) / 255.0
+          } catch {
+            const pixelIndex = (watermarkY * scaledWatermarkWidth + watermarkX) * 4
+            if (pixelIndex + 3 >= scaledWatermark.bitmap.length) continue
+            watermarkR = scaledWatermark.bitmap[pixelIndex]
+            watermarkG = scaledWatermark.bitmap[pixelIndex + 1]
+            watermarkB = scaledWatermark.bitmap[pixelIndex + 2]
+            watermarkA = scaledWatermark.bitmap[pixelIndex + 3] / 255.0
+          }
+          
+          // Skip transparent pixels
+          if (watermarkA < 0.01) continue
+          
+          // Get current image pixel
+          let currentR: number, currentG: number, currentB: number
+          try {
+            const currentColor = image.getPixelAt(imgX + 1, imgY + 1)
+            currentR = currentColor & 0xFF
+            currentG = (currentColor >> 8) & 0xFF
+            currentB = (currentColor >> 16) & 0xFF
+          } catch {
+            const pixelIndex = (imgY * image.width + imgX) * 4
+            if (pixelIndex + 3 >= image.bitmap.length) continue
+            currentR = image.bitmap[pixelIndex]
+            currentG = image.bitmap[pixelIndex + 1]
+            currentB = image.bitmap[pixelIndex + 2]
+          }
+          
+          // Alpha blend with watermark opacity
+          // Final alpha = watermarkAlpha * watermarkOpacity
+          const finalAlpha = watermarkA * watermarkOpacity
+          const newR = Math.floor(watermarkR * finalAlpha + currentR * (1 - finalAlpha))
+          const newG = Math.floor(watermarkG * finalAlpha + currentG * (1 - finalAlpha))
+          const newB = Math.floor(watermarkB * finalAlpha + currentB * (1 - finalAlpha))
+          
+          // Set pixel
+          const newColor = (0xFF << 24) | (newB << 16) | (newG << 8) | newR
+          try {
+            image.setPixelAt(imgX + 1, imgY + 1, newColor)
+          } catch {
+            const pixelIndex = (imgY * image.width + imgX) * 4
+            if (pixelIndex + 3 < image.bitmap.length) {
+              image.bitmap[pixelIndex] = newR
+              image.bitmap[pixelIndex + 1] = newG
+              image.bitmap[pixelIndex + 2] = newB
+              image.bitmap[pixelIndex + 3] = 0xFF
             }
           }
         }
-        
-        // F
-        drawCharRect(currentX, textY, strokeWidth, charHeight)
-        drawCharRect(currentX, textY, Math.floor(charWidth * 0.7), strokeWidth)
-        drawCharRect(currentX, textY + Math.floor(charHeight * 0.45), Math.floor(charWidth * 0.5), strokeWidth)
-        currentX += charWidth + spacing
-        
-        // A
-        drawCharRect(currentX + Math.floor(charWidth * 0.2), textY, strokeWidth, charHeight)
-        drawCharRect(currentX + Math.floor(charWidth * 0.6), textY, strokeWidth, charHeight)
-        drawCharRect(currentX, textY + Math.floor(charHeight * 0.7), charWidth, strokeWidth)
-        currentX += charWidth + spacing
-        
-        // B
-        drawCharRect(currentX, textY, strokeWidth, charHeight)
-        drawCharRect(currentX, textY, Math.floor(charWidth * 0.7), strokeWidth)
-        drawCharRect(currentX, textY + Math.floor(charHeight * 0.65), Math.floor(charWidth * 0.7), strokeWidth)
-        currentX += charWidth + spacing
-        
-        // R
-        drawCharRect(currentX, textY, strokeWidth, charHeight)
-        drawCharRect(currentX, textY, Math.floor(charWidth * 0.7), strokeWidth)
-        drawCharRect(currentX + Math.floor(charWidth * 0.5), textY + Math.floor(charHeight * 0.5), strokeWidth, Math.floor(charHeight * 0.5))
-        currentX += charWidth + spacing
-        
-        // I
-        drawCharRect(currentX + Math.floor(charWidth * 0.3), textY, strokeWidth, charHeight)
-        currentX += charWidth + spacing
-        
-        // Q
-        drawCharRect(currentX + Math.floor(charWidth * 0.1), textY, Math.floor(charWidth * 0.8), strokeWidth)
-        drawCharRect(currentX + Math.floor(charWidth * 0.1), textY + Math.floor(charHeight * 0.85), Math.floor(charWidth * 0.8), strokeWidth)
-        drawCharRect(currentX, textY + Math.floor(charHeight * 0.1), strokeWidth, Math.floor(charHeight * 0.8))
-        drawCharRect(currentX + Math.floor(charWidth * 0.8), textY + Math.floor(charHeight * 0.1), strokeWidth, Math.floor(charHeight * 0.8))
-        drawCharRect(currentX + Math.floor(charWidth * 0.7), textY + Math.floor(charHeight * 0.7), Math.floor(charWidth * 0.3), strokeWidth)
-        currentX += charWidth + spacing
-        
-        // L
-        drawCharRect(currentX, textY, strokeWidth, charHeight)
-        drawCharRect(currentX, textY + Math.floor(charHeight * 0.85), charWidth, strokeWidth)
-        currentX += charWidth + spacing
-        
-        // Y
-        drawCharRect(currentX + Math.floor(charWidth * 0.3), textY, strokeWidth, Math.floor(charHeight * 0.6))
-        drawCharRect(currentX, textY + Math.floor(charHeight * 0.5), Math.floor(charWidth * 0.7), strokeWidth)
-        drawCharRect(currentX + Math.floor(charWidth * 0.5), textY + Math.floor(charHeight * 0.6), strokeWidth, Math.floor(charHeight * 0.4))
       }
       
-      // Tile the watermark across the entire image
-      // Create repeating pattern that covers the whole image
-      for (let tileY = 0; tileY < image.height; tileY += tileHeight) {
-        for (let tileX = 0; tileX < image.width; tileX += tileWidth) {
-          // Draw "FABRIQLY" text in each tile
-          drawTextInTile(tileX, tileY, tileWidth, tileHeight, textSize)
-        }
-      }
+      console.log(`Cover-style watermark applied: ${scaledWatermarkWidth}x${scaledWatermarkHeight}px watermark over ${image.width}x${image.height}px image, opacity: ${(watermarkOpacity * 100).toFixed(1)}%`)
       
-      console.log(`Tiled watermark applied across entire image: ${Math.ceil(image.width / tileWidth)}x${Math.ceil(image.height / tileHeight)} tiles, opacity: 10%`)
-      
-      // Text watermark is now integrated into the tiled pattern above
-      // No separate text watermark needed - it's part of each tile
       const encoded = await image.encode()
       console.log('Watermark applied successfully! Encoded image size:', encoded.length, 'bytes')
       

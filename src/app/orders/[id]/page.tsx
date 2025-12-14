@@ -15,8 +15,10 @@ import {
   CreditCard,
   Loader,
   Eye,
-  AlertCircle
+  AlertCircle,
+  Download
 } from 'lucide-react';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 import Link from 'next/link';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
 import { ScrollToTop } from '@/components/common/ScrollToTop';
@@ -56,8 +58,14 @@ interface Order {
 }
 
 interface OrderItem {
-  productId: string;
+  productId?: string;
+  designId?: string;
+  itemType?: 'product' | 'design';
   productName?: string;
+  designName?: string;
+  designType?: 'template' | 'custom' | 'premium';
+  storagePath?: string;
+  storageBucket?: string;
   quantity: number;
   price: number;
   customizations?: Record<string, any>;
@@ -489,11 +497,34 @@ export default function OrderDetailPage() {
               <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
                 <h2 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Order Items</h2>
                 <div className="space-y-4 md:space-y-6">
-                  {order.items.map((item, index) => (
+                  {order.items.map((item, index) => {
+                    const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
+                    // Designs can be downloaded once payment is confirmed (designs are auto-delivered, so status may be 'delivered' or 'processing')
+                    const canDownload = order.paymentStatus === 'paid' && isDesign && item.designId && 
+                                      (order.status === 'delivered' || order.status === 'processing');
+                    
+                    return (
                     <div key={index} className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-4 pb-4 border-b last:border-0 last:pb-0">
-                      {/* Product Image */}
+                      {/* Product/Design Image */}
                       <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                        {item.product?.images && item.product.images.length > 0 ? (
+                        {isDesign ? (
+                          // Design item - show watermarked image
+                          item.storagePath && item.storageBucket ? (
+                            <WatermarkedImage
+                              storagePath={item.storagePath}
+                              storageBucket={item.storageBucket}
+                              designId={item.designId}
+                              isFree={false}
+                              designType={item.designType}
+                              alt={item.designName || 'Design'}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package className="w-6 h-6 text-gray-400" />
+                            </div>
+                          )
+                        ) : item.product?.images && item.product.images.length > 0 ? (
                           <img
                             src={item.product.images[0].imageUrl}
                             alt={item.product.name}
@@ -512,11 +543,25 @@ export default function OrderDetailPage() {
                         )}
                       </div>
 
-                      {/* Product Details */}
+                      {/* Product/Design Details */}
                       <div className="flex-1 min-w-0 w-full sm:w-auto">
-                        <h3 className="font-medium text-sm md:text-base text-gray-900 mb-1 break-words">
-                          {item.product?.name || item.productName || `Product ${item.productId.slice(-8)}`}
-                        </h3>
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-medium text-sm md:text-base text-gray-900 mb-1 break-words flex-1">
+                            {isDesign 
+                              ? (item.designName || `Design ${item.designId?.slice(-8)}`)
+                              : (item.product?.name || item.productName || `Product ${item.productId?.slice(-8)}`)
+                            }
+                          </h3>
+                          {isDesign && item.designType && (
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              item.designType === 'premium' 
+                                ? 'bg-purple-100 text-purple-700' 
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {item.designType}
+                            </span>
+                          )}
+                        </div>
                         
                         {/* Variant Info */}
                         {(item.selectedDesign || item.selectedSize || (item.selectedVariants && Object.keys(item.selectedVariants).length > 0) || item.selectedColorId) && (
@@ -557,7 +602,7 @@ export default function OrderDetailPage() {
                         )}
 
                         {/* Price and Quantity Row */}
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 space-y-1 sm:space-y-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 space-y-2 sm:space-y-0">
                           <div className="flex items-center space-x-4 text-sm">
                             <span className="text-gray-600">
                               {formatPrice(item.unitPrice || item.price)}
@@ -566,13 +611,50 @@ export default function OrderDetailPage() {
                               x{item.quantity}
                             </span>
                           </div>
-                          <span className="font-semibold text-gray-900">
-                            {formatPrice(item.totalPrice || (item.price * item.quantity))}
-                          </span>
+                          <div className="flex items-center space-x-3">
+                            <span className="font-semibold text-gray-900">
+                              {formatPrice(item.totalPrice || (item.price * item.quantity))}
+                            </span>
+                            {/* Download button for purchased designs */}
+                            {canDownload && item.designId && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const response = await fetch(`/api/download/design/${item.designId}`);
+                                    if (response.ok) {
+                                      const data = await response.json();
+                                      if (data.downloadUrl) {
+                                        // Open download URL in new tab
+                                        const link = document.createElement('a');
+                                        link.href = data.downloadUrl;
+                                        link.download = item.designName || 'design';
+                                        link.target = '_blank';
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                      } else {
+                                        alert('Download URL not available');
+                                      }
+                                    } else {
+                                      const error = await response.json();
+                                      alert(error.error || 'Failed to generate download link');
+                                    }
+                                  } catch (error) {
+                                    console.error('Download error:', error);
+                                    alert('Failed to download design');
+                                  }
+                                }}
+                                className="flex items-center space-x-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-md transition-colors"
+                              >
+                                <Download className="w-3 h-3" />
+                                <span>Download Original</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
 

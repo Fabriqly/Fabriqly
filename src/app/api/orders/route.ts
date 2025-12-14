@@ -67,11 +67,15 @@ export async function GET(request: NextRequest) {
 
     const result = await orderService.getOrders(searchOptions, session.user.id);
 
-    // Fetch product names and images for all order items
+    // Separate product and design items
     const productIds = new Set<string>();
+    const designIds = new Set<string>();
     result.orders.forEach(order => {
-      order.items.forEach(item => {
-        if (item.productId) {
+      order.items.forEach((item: any) => {
+        const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
+        if (isDesign && item.designId) {
+          designIds.add(item.designId);
+        } else if (item.productId) {
           productIds.add(item.productId);
         }
       });
@@ -119,11 +123,56 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    // Enrich orders with product names, images, and variant information
+    // Fetch all designs in parallel
+    const designMap = new Map<string, { name: string; thumbnailUrl?: string; designType?: string }>();
+    if (designIds.size > 0) {
+      const { DesignRepository } = await import('@/repositories/DesignRepository');
+      const designRepository = new DesignRepository();
+      
+      await Promise.all(
+        Array.from(designIds).map(async (designId) => {
+          try {
+            const design = await designRepository.findById(designId);
+            if (design) {
+              designMap.set(designId, {
+                name: design.designName || `Design ${designId.slice(-8)}`,
+                thumbnailUrl: design.thumbnailUrl,
+                designType: design.designType
+              });
+            }
+          } catch (error) {
+            console.error(`Error fetching design ${designId}:`, error);
+            designMap.set(designId, {
+              name: `Design ${designId.slice(-8)}`
+            });
+          }
+        })
+      );
+    }
+
+    // Enrich orders with product/design names, images, and variant information
     const enrichedOrders = result.orders.map(order => ({
       ...order,
-      items: order.items.map(item => {
-        const productData = productMap.get(item.productId);
+      items: order.items.map((item: any) => {
+        const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
+        
+        // Handle design items
+        if (isDesign && item.designId) {
+          const designData = designMap.get(item.designId);
+          return {
+            ...item,
+            itemType: 'design' as const,
+            designId: item.designId,
+            designName: item.designName || designData?.name || `Design ${item.designId?.slice(-8) || 'Unknown'}`,
+            designType: item.designType || designData?.designType,
+            thumbnailUrl: designData?.thumbnailUrl,
+            storagePath: item.storagePath,
+            storageBucket: item.storageBucket
+          };
+        }
+        
+        // Handle product items
+        const productData = item.productId ? productMap.get(item.productId) : undefined;
         
         // Extract variant information from customizations
         const customizations = item.customizations || {};
@@ -142,8 +191,9 @@ export async function GET(request: NextRequest) {
         
         return {
           ...item,
-          productName: productData?.name || `Product ${item.productId.slice(-8)}`,
-          product: productData ? {
+          itemType: item.itemType || 'product' as const,
+          productName: productData?.name || (item.productId ? `Product ${item.productId.slice(-8)}` : 'Unknown Product'),
+          product: productData && item.productId ? {
             id: item.productId,
             name: productData.name,
             images: productData.images
@@ -222,10 +272,29 @@ export async function POST(request: NextRequest) {
     const order = await orderService.createOrder(orderData);
 
     return NextResponse.json({ order }, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating order:', error);
+    
+    // Return more detailed error information for debugging
+    const errorMessage = error.message || 'Internal server error';
+    const errorDetails = error.details || (error.errors ? { errors: error.errors } : undefined);
+    
+    // If it's a validation error, return 400 with details
+    if (error.statusCode === 400 || error.code === 'BAD_REQUEST') {
+      return NextResponse.json(
+        { 
+          error: errorMessage,
+          details: errorDetails
+        },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: errorMessage,
+        details: errorDetails
+      },
       { status: 500 }
     );
   }

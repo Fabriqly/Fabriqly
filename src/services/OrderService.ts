@@ -47,18 +47,28 @@ export class OrderService implements IOrderService {
         throw AppError.badRequest('Invalid order data', validation.errors);
       }
 
-      // Calculate totals
-      const subtotal = data.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      // Separate product and design items FIRST
+      const productItems = data.items.filter(item => (item as any).itemType !== 'design' && item.productId);
+      const designItems = data.items.filter(item => (item as any).itemType === 'design' && (item as any).designId);
+      
+      // Calculate subtotals separately
+      const productSubtotal = productItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const designSubtotal = designItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const subtotal = productSubtotal + designSubtotal; // Total subtotal for display
+      
+      // Check if this is a design-only order (no shipping)
+      const isDesignOnlyOrder = designItems.length > 0 && productItems.length === 0;
+      const effectiveShippingCost = isDesignOnlyOrder ? 0 : (data.shippingCost || 0);
       
       // Apply discounts/coupons with scope awareness
       let productDiscountAmount = 0; // Discount on products/subtotal
       let shippingDiscountAmount = 0; // Discount on shipping
       const appliedDiscounts: AppliedDiscount[] = [];
       
-      console.log('[OrderService] Creating order with couponCode:', data.couponCode, 'subtotal:', subtotal);
+      console.log('[OrderService] Creating order with couponCode:', data.couponCode, 'subtotal:', subtotal, 'isDesignOnly:', isDesignOnlyOrder);
       
       if (data.couponCode) {
-        const productIds = data.items.map(item => item.productId);
+        const productIds = productItems.map(item => item.productId!);
         
         // Fetch products to get category IDs
         const products = await Promise.all(
@@ -79,9 +89,10 @@ export class OrderService implements IOrderService {
           // This will be refined when we get the discount scope
         }
 
+        // For coupons, use product subtotal only (designs shouldn't be discounted)
         const couponResult = await this.couponService.applyCoupon(data.couponCode, {
           userId: data.customerId,
-          orderAmount: subtotal,
+          orderAmount: productSubtotal, // Only product subtotal for coupon validation
           productIds,
           categoryIds,
           shippingCost: shipping,
@@ -115,8 +126,8 @@ export class OrderService implements IOrderService {
               shipping
             );
           } else if (discount.scope === 'product') {
-            // Product discount applies to matching products only
-            const matchingItems = data.items.filter(item => 
+            // Product discount applies to matching products only (not designs)
+            const matchingItems = productItems.filter(item => 
               discount.targetIds?.includes(item.productId)
             );
             const matchingAmount = matchingItems.reduce((sum, item) => 
@@ -124,16 +135,16 @@ export class OrderService implements IOrderService {
             );
             productDiscountAmount = this.discountService.calculateDiscount(
               discount,
-              subtotal,
+              productSubtotal,
               matchingAmount
             );
           } else if (discount.scope === 'category') {
-            // Category discount applies to matching category products
+            // Category discount applies to matching category products (not designs)
             const matchingProducts = products.filter(p => 
               p && p.categoryId && discount.targetIds?.includes(p.categoryId)
             );
             const matchingProductIds = matchingProducts.map(p => p!.id);
-            const matchingItems = data.items.filter(item => 
+            const matchingItems = productItems.filter(item => 
               matchingProductIds.includes(item.productId)
             );
             const matchingAmount = matchingItems.reduce((sum, item) => 
@@ -141,14 +152,14 @@ export class OrderService implements IOrderService {
             );
             productDiscountAmount = this.discountService.calculateDiscount(
               discount,
-              subtotal,
+              productSubtotal,
               matchingAmount
             );
           } else {
-            // Order-level discount applies to entire subtotal
+            // Order-level discount applies to product subtotal only (designs are never discounted)
             productDiscountAmount = this.discountService.calculateDiscount(
               discount,
-              subtotal
+              productSubtotal
             );
           }
 
@@ -167,12 +178,15 @@ export class OrderService implements IOrderService {
       }
 
       // Calculate tax on subtotal after product discount (shipping discount doesn't affect tax)
+      // Tax applies to both products and designs, but discount only applies to products
       const taxableAmount = Math.max(0, subtotal - productDiscountAmount);
       const tax = taxableAmount * 0.08; // 8% tax
       const shipping = data.shippingCost || 0;
-      const shippingAfterDiscount = Math.max(0, shipping - shippingDiscountAmount);
+      const shippingAfterDiscount = Math.max(0, effectiveShippingCost - shippingDiscountAmount);
       
-      // Total = (subtotal - product discount) + tax + (shipping - shipping discount)
+      // Total = (productSubtotal + designSubtotal - productDiscount) + tax + (shipping - shipping discount)
+      // Designs are never discounted, so: (productSubtotal - productDiscount) + designSubtotal + tax + shipping
+      // For design-only orders, shipping is 0
       const totalAmount = taxableAmount + tax + shippingAfterDiscount;
 
       console.log('[OrderService] Order totals calculated:', {
@@ -197,7 +211,7 @@ export class OrderService implements IOrderService {
         subtotal,
         discountAmount: totalDiscountAmount > 0 ? totalDiscountAmount : undefined,
         tax,
-        shippingCost: shipping,
+        shippingCost: effectiveShippingCost, // 0 for design-only orders
         totalAmount,
         status: 'pending' as const,
         paymentStatus: 'pending' as const,
@@ -701,13 +715,13 @@ export class OrderService implements IOrderService {
     }
 
     if (data.items) {
-      // Validate stock availability for each item
+      // Validate items - handle products and designs differently
       for (let index = 0; index < data.items.length; index++) {
-        const item = data.items[index];
+        const item = data.items[index] as any;
+        const isDesign = item.itemType === 'design';
+        const isProduct = item.itemType === 'product' || (!item.itemType && item.productId);
         
-        if (!item.productId) {
-          errors.push(`Item ${index + 1}: Product ID is required`);
-        }
+        // Validate quantity and price for all items
         if (!item.quantity || item.quantity <= 0) {
           errors.push(`Item ${index + 1}: Valid quantity is required`);
         }
@@ -715,36 +729,65 @@ export class OrderService implements IOrderService {
           errors.push(`Item ${index + 1}: Valid price is required`);
         }
 
-        // Check stock availability and product status
-        if (item.productId && item.quantity > 0) {
-          try {
-            const product = await this.productRepository.findById(item.productId);
-            if (!product) {
-              errors.push(`Item ${index + 1}: Product not found`);
-            } else if (product.status !== 'active') {
-              errors.push(`Item ${index + 1}: "${product.name}" is no longer available (product is ${product.status})`);
-            } else if (product.stockQuantity < item.quantity) {
-              errors.push(`Item ${index + 1}: "${product.name}" is out of stock. Available: ${product.stockQuantity}, Requested: ${item.quantity}`);
+        // For design items, validate designId instead of productId
+        if (isDesign) {
+          if (!item.designId) {
+            errors.push(`Item ${index + 1}: Design ID is required`);
+          }
+          // Designs are digital - no stock validation needed
+        } 
+        // For product items, validate productId and check stock
+        else if (isProduct) {
+          if (!item.productId) {
+            errors.push(`Item ${index + 1}: Product ID is required`);
+          }
+          
+          // Check stock availability and product status
+          if (item.productId && item.quantity > 0) {
+            try {
+              const product = await this.productRepository.findById(item.productId);
+              if (!product) {
+                errors.push(`Item ${index + 1}: Product not found`);
+              } else if (product.status !== 'active') {
+                errors.push(`Item ${index + 1}: "${product.name}" is no longer available (product is ${product.status})`);
+              } else if (product.stockQuantity < item.quantity) {
+                errors.push(`Item ${index + 1}: "${product.name}" is out of stock. Available: ${product.stockQuantity}, Requested: ${item.quantity}`);
+              }
+            } catch (error) {
+              console.error(`Error checking product ${item.productId}:`, error);
+              errors.push(`Item ${index + 1}: Unable to verify product availability`);
             }
-          } catch (error) {
-            console.error(`Error checking product ${item.productId}:`, error);
-            errors.push(`Item ${index + 1}: Unable to verify product availability`);
+          }
+        } else {
+          // Unknown item type - require either productId or designId
+          if (!item.productId && !item.designId) {
+            errors.push(`Item ${index + 1}: Either Product ID or Design ID is required`);
           }
         }
       }
     }
 
-    if (!data.shippingAddress) {
-      errors.push('Shipping address is required');
-    } else {
-      const addressErrors = this.validateAddress(data.shippingAddress);
-      errors.push(...addressErrors.map(error => `Shipping address: ${error}`));
+    // Check if this is a design-only order (no shipping needed)
+    const productItems = data.items.filter((item: any) => (item as any).itemType !== 'design' && item.productId);
+    const designItems = data.items.filter((item: any) => (item as any).itemType === 'design' && (item as any).designId);
+    const isDesignOnlyOrder = designItems.length > 0 && productItems.length === 0;
+    
+    // Shipping address is only required for orders with physical products
+    if (!isDesignOnlyOrder) {
+      if (!data.shippingAddress) {
+        errors.push('Shipping address is required');
+      } else {
+        const addressErrors = this.validateAddress(data.shippingAddress);
+        errors.push(...addressErrors.map(error => `Shipping address: ${error}`));
+      }
+      
+      // Billing address validation only for orders with physical products
+      if (data.billingAddress) {
+        const addressErrors = this.validateAddress(data.billingAddress);
+        errors.push(...addressErrors.map(error => `Billing address: ${error}`));
+      }
     }
-
-    if (data.billingAddress) {
-      const addressErrors = this.validateAddress(data.billingAddress);
-      errors.push(...addressErrors.map(error => `Billing address: ${error}`));
-    }
+    // For design-only orders, skip address validation entirely
 
     if (!data.paymentMethod) {
       errors.push('Payment method is required');
