@@ -40,6 +40,8 @@ import { RatingDisplay } from '@/components/reviews/RatingDisplay';
 import { ReviewList } from '@/components/reviews/ReviewList';
 import { ReviewForm } from '@/components/reviews/ReviewForm';
 import { Review } from '@/types/firebase';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
+import { ShopMessageModal } from '@/components/messaging/ShopMessageModal';
 
 export function ProductDetail() {
   const params = useParams();
@@ -71,6 +73,7 @@ export function ProductDetail() {
   const [shopRating, setShopRating] = useState<{ average: number; total: number } | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [hasUserReviewed, setHasUserReviewed] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
 
   useEffect(() => {
     if (productId) {
@@ -659,11 +662,22 @@ export function ProductDetail() {
             {/* Main Image */}
             <div className="aspect-[3/2] max-h-[400px] bg-white rounded-xl overflow-hidden relative border border-slate-200">
               {currentImage ? (
-                <img
-                  src={currentImage.imageUrl}
-                  alt={currentImage.altText || product.name}
-                  className="w-full h-full object-contain"
-                />
+                currentImage.storagePath && currentImage.storageBucket ? (
+                  <WatermarkedImage
+                    storagePath={currentImage.storagePath}
+                    storageBucket={currentImage.storageBucket}
+                    productId={product.id}
+                    alt={currentImage.altText || product.name}
+                    className="w-full h-full object-contain"
+                    fallbackSrc={currentImage.imageUrl}
+                  />
+                ) : (
+                  <img
+                    src={currentImage.imageUrl}
+                    alt={currentImage.altText || product.name}
+                    className="w-full h-full object-contain"
+                  />
+                )
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-400">
                   <ImageIcon className="w-24 h-24" />
@@ -708,11 +722,22 @@ export function ProductDetail() {
                       : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <img
-                    src={image.imageUrl}
-                    alt={image.altText || product.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {image.storagePath && image.storageBucket ? (
+                    <WatermarkedImage
+                      storagePath={image.storagePath}
+                      storageBucket={image.storageBucket}
+                      productId={product.id}
+                      alt={image.altText || product.name}
+                      className="w-full h-full object-cover"
+                      fallbackSrc={image.imageUrl}
+                    />
+                  ) : (
+                    <img
+                      src={image.imageUrl}
+                      alt={image.altText || product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                 </button>
               ))}
             </div>
@@ -1093,7 +1118,7 @@ export function ProductDetail() {
                   )}
                 </div>
               </div>
-              <div>
+              <div className="flex items-center gap-2">
                 <Button
                   onClick={() => {
                     const username = shopProfile?.username || product.shop?.username;
@@ -1107,6 +1132,15 @@ export function ProductDetail() {
                   <Store className="w-4 h-4 mr-2" />
                   View Shop
                 </Button>
+                {user && (shopProfile?.userId || product.businessOwnerId) && (
+                  <Button
+                    onClick={() => setShowMessageModal(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Message Shop
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -1385,6 +1419,17 @@ export function ProductDetail() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Message Shop Modal */}
+      {showMessageModal && (shopProfile?.userId || product?.businessOwnerId) && (
+        <ShopMessageModal
+          isOpen={showMessageModal}
+          onClose={() => setShowMessageModal(false)}
+          shopOwnerId={shopProfile?.userId || product?.businessOwnerId || ''}
+          shopOwnerName={shopProfile?.shopName || product?.businessOwner?.businessName || product?.businessOwner?.name || 'Shop Owner'}
+          shopId={shopProfile?.id}
+        />
       )}
       
       <ScrollToTop />

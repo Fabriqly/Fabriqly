@@ -3,7 +3,7 @@ import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
 
 // GET /api/categories/breadcrumbs/[id] - Get breadcrumb path for a category
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: categoryId } = await params;
 

@@ -6,9 +6,9 @@ import { authOptions } from '@/lib/auth';
 const reviewService = new ReviewService();
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 /**

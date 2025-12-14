@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { signOut, useSession } from 'next-auth/react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { MessageBell } from '@/components/messaging/MessageBell';
 import LogoName from '@/../public/LogoName.png';
 
 interface CustomerHeaderProps {
@@ -122,13 +123,7 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
             <CartButton />
 
             {/* Messages */}
-            <button className="relative p-2 text-white hover:bg-white/10 rounded-lg transition-colors">
-              <MessageCircle className="w-5 h-5" />
-              {/* Message Badge */}
-              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                0
-              </span>
-            </button>
+            <MessageBell />
 
             {/* Notifications */}
             <NotificationBell />
