@@ -454,4 +454,3 @@ function DesignerCard({ designer }: { designer: DesignerProfile }) {
   );
 }
 
-

@@ -30,23 +30,34 @@ service cloud.firestore {
     
     // Messages collection
     match /messages/{messageId} {
-      // Helper function to check if user is participant in conversation
-      function isConversationParticipant() {
-        let conversationId = resource.data.conversationId;
-        if (conversationId == null) {
-          return false;
+      // Helper function to check if user can access message
+      // For queries, we prioritize senderId/receiverId checks (fast and efficient)
+      function canAccessMessage() {
+        // Fast path: user is sender or receiver (works perfectly for queries)
+        if (resource.data.senderId == request.auth.uid ||
+            resource.data.receiverId == request.auth.uid) {
+          return true;
         }
-        let conversation = get(/databases/$(database)/documents/conversations/$(conversationId));
-        return conversation != null && request.auth.uid in conversation.data.participants;
+        
+        // Fallback: check conversation participation (only if needed)
+        // This handles edge cases but might be slower for queries
+        let conversationId = resource.data.conversationId;
+        if (conversationId != null && conversationId != '') {
+          // Try to get conversation, handle errors gracefully
+          let conversation = get(/databases/$(database)/documents/conversations/$(conversationId));
+          if (conversation != null && 
+              conversation.data != null &&
+              conversation.data.participants != null) {
+            return request.auth.uid in conversation.data.participants;
+          }
+        }
+        
+        return false;
       }
       
       // Users can read messages where they are sender, receiver, or participant in conversation
-      // This allows queries by conversationId to work
-      allow read: if isAuthenticated() && (
-        resource.data.senderId == request.auth.uid ||
-        resource.data.receiverId == request.auth.uid ||
-        isConversationParticipant()
-      );
+      // This allows queries by conversationId to work efficiently
+      allow read: if isAuthenticated() && canAccessMessage();
       
       // Users can create messages where they are the sender
       allow create: if isAuthenticated() && 
@@ -65,21 +76,28 @@ service cloud.firestore {
     
     // Conversations collection
     match /conversations/{conversationId} {
+      // Helper function to check if user is participant (works for both queries and single reads)
+      function isParticipant() {
+        // Check if the authenticated user is in the participants array
+        // This works for both queries (where participants array-contains) and single document reads
+        return request.auth != null && 
+               resource.data.participants != null &&
+               request.auth.uid in resource.data.participants;
+      }
+      
       // Users can read conversations they are participants in
-      allow read: if isAuthenticated() && 
-        request.auth.uid in resource.data.participants;
+      // This works for both single document reads and queries with array-contains
+      allow read: if isAuthenticated() && isParticipant();
       
       // Users can create conversations where they are a participant
       allow create: if isAuthenticated() && 
         request.auth.uid in request.resource.data.participants;
       
       // Users can update conversations they are participants in
-      allow update: if isAuthenticated() && 
-        request.auth.uid in resource.data.participants;
+      allow update: if isAuthenticated() && isParticipant();
       
       // Users can delete conversations they are participants in
-      allow delete: if isAuthenticated() && 
-        request.auth.uid in resource.data.participants;
+      allow delete: if isAuthenticated() && isParticipant();
     }
     
     // Notifications collection

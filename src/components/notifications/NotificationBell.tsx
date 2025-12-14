@@ -15,6 +15,7 @@ export function NotificationBell() {
   const [firebaseAuthReady, setFirebaseAuthReady] = useState(false);
   const [authError, setAuthError] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check Firebase Auth state
   useEffect(() => {
@@ -119,13 +120,31 @@ export function NotificationBell() {
     }
   };
 
-  // Initial fetch if Firebase Auth is not ready
+  // Always keep unread count fresh via API polling when Firestore isn't usable.
   useEffect(() => {
-    if (session?.user?.id && !firebaseAuthReady) {
-      fetchUnreadCount();
+    if (!session?.user?.id) return;
+
+    // If Firestore is working, we rely on onSnapshot and don't poll.
+    if (firebaseAuthReady && !authError) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
     }
+
+    // Otherwise poll API.
+    fetchUnreadCount();
+    pollingRef.current = setInterval(fetchUnreadCount, 5000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.id, firebaseAuthReady]);
+  }, [session?.user?.id, firebaseAuthReady, authError]);
 
   if (!session?.user) {
     return null;

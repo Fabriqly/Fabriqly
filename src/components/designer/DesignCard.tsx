@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { DesignWithDetails } from '@/types/enhanced-products';
 import { Button } from '@/components/ui/Button';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 import { 
   Eye, 
   Download, 
@@ -50,19 +51,94 @@ export function DesignCard({
     return format.toUpperCase();
   };
 
-  // Customer variant - matches ProductCard customer style
-  if (variant === 'customer') {
+  // Helper function to extract storage path from Supabase URL
+  const extractStoragePath = (url: string): { path: string; bucket: string } | null => {
+    try {
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/').filter(p => p);
+      const bucketIndex = pathParts.findIndex(part => part === 'public' || part === 'sign');
+      if (bucketIndex === -1 || bucketIndex + 1 >= pathParts.length) {
+        return null;
+      }
+      const bucket = pathParts[bucketIndex + 1];
+      let path = pathParts.slice(bucketIndex + 2).join('/');
+
+      // Ensure path includes "designs/" prefix if needed
+      if ((bucket === 'designs' || bucket === 'designs-private') && !path.startsWith('designs/')) {
+        if (/^\d+\//.test(path)) {
+          path = `designs/${path}`;
+        }
+      }
+
+      const isSignedUrl = pathParts.includes('sign');
+      let actualBucket = bucket;
+      if (!isSignedUrl) {
+        if (bucket === 'designs' || bucket === 'products') {
+          actualBucket = bucket + '-private';
+        } else {
+          actualBucket = bucket;
+        }
+      }
+      return { path, bucket: actualBucket };
+    } catch (e) {
+      console.error('Error extracting storage path:', e);
+      return null;
+    }
+  };
+
+  // Convert image URLs to storage info for WatermarkedImage
+  const getImageStorageInfo = (url: string | undefined) => {
+    if (!url) return null;
+    const storageInfo = extractStoragePath(url);
+    if (storageInfo) {
+      let finalPath = storageInfo.path;
+      if ((storageInfo.bucket === 'designs-private' || storageInfo.bucket === 'designs') && !finalPath.startsWith('designs/')) {
+        if (/^\d+\//.test(finalPath)) {
+          finalPath = `designs/${finalPath}`;
+        }
+      }
+      return {
+        ...storageInfo,
+        path: finalPath
+      };
+    }
+    return null;
+  };
+
+  if (variant === 'catalog') {
+    const [showQuickView, setShowQuickView] = useState(false);
+
     return (
       <div className="bg-white rounded-lg shadow-md hover:-translate-y-1 hover:shadow-xl transition-all duration-300 overflow-hidden group flex flex-col h-full">
         <Link href={`/explore/designs/${design.id}`}>
           <div className="aspect-square bg-gray-100 relative overflow-hidden">
-            {design.thumbnailUrl ? (
-              <img
-                src={design.thumbnailUrl}
-                alt={design.designName}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-            ) : (
+            {design.thumbnailUrl ? (() => {
+              const storageInfo = getImageStorageInfo(design.thumbnailUrl);
+              if (storageInfo) {
+                return (
+                  <WatermarkedImage
+                    storagePath={storageInfo.path}
+                    storageBucket={storageInfo.bucket}
+                    designId={design.id}
+                    alt={design.designName}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fallbackSrc={design.thumbnailUrl}
+                  />
+                );
+              }
+              // Fallback to regular img if we can't extract storage info
+              return (
+                <img
+                  src={design.thumbnailUrl}
+                  alt={design.designName}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  onError={(e) => {
+                    console.error('Design image failed to load:', design.thumbnailUrl);
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              );
+            })() : (
               <div className="w-full h-full flex items-center justify-center text-gray-400">
                 <ImageIcon className="w-12 h-12" />
               </div>
@@ -162,21 +238,64 @@ export function DesignCard({
             <div className="w-full h-full flex items-center justify-center text-gray-400">
               <ImageIcon className="w-12 h-12" />
             </div>
-          )}
-          <div className="absolute top-2 left-2 flex flex-col gap-1">
-            {design.isPublic ? (
-              <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full font-semibold">Public</span>
-            ) : (
-              <span className="bg-gray-100 text-gray-800 text-xs px-2 py-0.5 rounded-full font-semibold">Private</span>
-            )}
-            {design.isFeatured && (
-              <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full font-semibold flex items-center">
-                <Star className="w-3 h-3 mr-0.5 fill-current" />
-                Featured
-              </span>
-            )}
-          </div>
-        </div>
+            
+            {/* Scrollable Content */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+                {/* Image */}
+                <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                  {design.thumbnailUrl ? (() => {
+                    const storageInfo = getImageStorageInfo(design.thumbnailUrl);
+                    if (storageInfo) {
+                      return (
+                        <WatermarkedImage
+                          storagePath={storageInfo.path}
+                          storageBucket={storageInfo.bucket}
+                          designId={design.id}
+                          alt={design.designName}
+                          className="w-full h-full object-cover"
+                          fallbackSrc={design.thumbnailUrl}
+                        />
+                      );
+                    }
+                    // Fallback to regular img if we can't extract storage info
+                    return (
+                      <img
+                        src={design.thumbnailUrl}
+                        alt={design.designName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          console.error('Design image failed to load:', design.thumbnailUrl);
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    );
+                  })() : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <ImageIcon className="w-16 h-16" />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Design Info - Right side with button pinned to bottom */}
+                <div className="flex flex-col h-full min-h-0">
+                  <div className="space-y-4 flex-1">
+                    <div>
+                      <h3 id="quick-view-title" className="text-2xl font-bold text-gray-900 mb-2">{design.designName}</h3>
+                      <p className="text-gray-600">{design.description}</p>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      {design.pricing?.isFree ? (
+                        <span className="text-3xl font-bold text-green-600">Free</span>
+                      ) : design.pricing?.price ? (
+                        <span className="text-3xl font-bold text-indigo-600">
+                          {formatPrice(design.pricing.price)}
+                        </span>
+                      ) : (
+                        <span className="text-3xl font-bold text-indigo-600">Free</span>
+                      )}
+                    </div>
 
         {/* Middle: Content */}
         <div className="p-2.5 flex-1 flex flex-col">
@@ -271,20 +390,42 @@ export function DesignCard({
 
   // List View - Matching ProductList ListCard styling
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-      {/* Mobile View - Simplified Layout */}
-      <div className="md:hidden p-3 flex items-center gap-3">
-        {/* Image */}
-        <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
-          {design.thumbnailUrl ? (
-            <img
-              src={design.thumbnailUrl}
-              alt={design.designName}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400">
-              <ImageIcon className="w-8 h-8" />
+    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-start space-x-4">
+            <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+              {design.thumbnailUrl ? (() => {
+                const storageInfo = getImageStorageInfo(design.thumbnailUrl);
+                if (storageInfo) {
+                  return (
+                    <WatermarkedImage
+                      storagePath={storageInfo.path}
+                      storageBucket={storageInfo.bucket}
+                      designId={design.id}
+                      alt={design.designName}
+                      className="w-full h-full object-cover"
+                      fallbackSrc={design.thumbnailUrl}
+                    />
+                  );
+                }
+                // Fallback to regular img if we can't extract storage info
+                return (
+                  <img
+                    src={design.thumbnailUrl}
+                    alt={design.designName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      console.error('Design image failed to load:', design.thumbnailUrl);
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                );
+              })() : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                  <ImageIcon className="w-8 h-8" />
+                </div>
+              )}
             </div>
           )}
         </div>

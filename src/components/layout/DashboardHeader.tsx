@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Menu, User, Compass } from 'lucide-react';
 import LogoName from '@/../public/LogoName.png';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { MessageBell } from '@/components/messaging/MessageBell';
 
 interface DashboardHeaderProps {
   user?: {
@@ -71,6 +72,9 @@ export function DashboardHeader({ user, onMenuClick, showMobileMenu = false, var
 
           {/* Right side - User info */}
           <div className="flex items-center space-x-4">
+            {/* Messages */}
+            <MessageBell />
+
             {/* Notifications */}
             <NotificationBell />
 
