@@ -38,23 +38,36 @@ export async function GET(request: NextRequest) {
       })
     } catch (signedUrlError: any) {
       // If file not found in private bucket, try public bucket as fallback
-      if (signedUrlError.message?.includes('not found') || signedUrlError.message?.includes('Object not found')) {
+      const isNotFound = signedUrlError.isNotFound || 
+                         signedUrlError.message?.includes('not found') || 
+                         signedUrlError.message?.includes('Object not found')
+      
+      if (isNotFound) {
         const publicBucket = bucket.endsWith('-private') 
           ? bucket.replace('-private', '') 
           : bucket
         
         if (publicBucket !== bucket) {
           try {
-            console.log(`File not found in ${bucket}, trying public bucket ${publicBucket}`)
+            console.log(`[signed-url] File not found in ${bucket}, trying public bucket ${publicBucket} for path: ${path}`)
             const publicSignedUrl = await SupabaseStorageService.getSignedUrl(publicBucket, path, 3600)
             return NextResponse.json({
               signedUrl: publicSignedUrl,
               expiresIn: 3600,
               fromPublicBucket: true
             })
-          } catch (publicError) {
+          } catch (publicError: any) {
             // If public bucket also fails, return 404
-            console.error('File not found in both private and public buckets:', path)
+            const publicIsNotFound = publicError.isNotFound || 
+                                     publicError.message?.includes('not found') || 
+                                     publicError.message?.includes('Object not found')
+            
+            if (publicIsNotFound) {
+              console.log(`[signed-url] File not found in both ${bucket} and ${publicBucket}: ${path}`)
+            } else {
+              console.error(`[signed-url] Error accessing public bucket ${publicBucket}:`, publicError.message)
+            }
+            
             return NextResponse.json(
               { error: 'Image not found', details: 'File does not exist in storage' },
               { status: 404 }
@@ -63,6 +76,7 @@ export async function GET(request: NextRequest) {
         }
         
         // If no public bucket fallback, return 404
+        console.log(`[signed-url] File not found in ${bucket}: ${path} (no public bucket fallback available)`)
         return NextResponse.json(
           { error: 'Image not found', details: 'File does not exist in storage' },
           { status: 404 }

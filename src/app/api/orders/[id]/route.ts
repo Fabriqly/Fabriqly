@@ -46,70 +46,95 @@ export async function GET(
     // Clear cache to ensure fresh data on next request
     await CacheService.invalidate(`order:${id}`);
 
-    // Enrich order items with product information
+    // Enrich order items with product or design information
     const enrichedItems = await Promise.all(
       (order.items || []).map(async (item) => {
+        const orderItem = item as any;
+        const isDesign = orderItem.itemType === 'design' || (orderItem.designId && !orderItem.productId);
+        
         try {
-          // Fetch product details
-          const product = await productRepository.findById(item.productId);
-          
-          // Fetch product images
-          let productImages: any[] = [];
-          try {
-            const allImages = await FirebaseAdminService.queryDocuments(
-              Collections.PRODUCT_IMAGES,
-              [{ field: 'productId', operator: '==' as const, value: item.productId }],
-              { field: 'sortOrder', direction: 'asc' },
-              10 // Limit to 10 images
-            );
-            productImages = (allImages || []).map((img: any) => ({
-              id: img.id,
-              imageUrl: img.imageUrl,
-              altText: img.altText || '',
-              isPrimary: img.isPrimary || false
-            }));
-          } catch (error) {
-            console.error(`Error fetching images for product ${item.productId}:`, error);
-          }
-
-          // Extract variant information from customizations
-          const customizations = item.customizations || {};
-          const selectedDesign = customizations.selectedDesign || (customizations.design ? { name: customizations.design, priceModifier: customizations.designPriceModifier || 0 } : undefined);
-          const selectedSize = customizations.selectedSize || (customizations.size ? { name: customizations.size, priceModifier: customizations.sizePriceModifier || 0 } : undefined);
-          const selectedColorId = customizations.colorId || customizations.selectedColorId;
-          const selectedColorName = customizations.selectedColorName || customizations.colorName;
-          
-          // Create selectedVariants object excluding already extracted fields
-          const selectedVariants: Record<string, any> = {};
-          Object.keys(customizations).forEach(key => {
-            if (!['selectedDesign', 'selectedSize', 'design', 'size', 'colorId', 'selectedColorId', 'selectedColorName', 'colorName', 'designPriceModifier', 'sizePriceModifier'].includes(key)) {
-              selectedVariants[key] = customizations[key];
+          if (isDesign) {
+            // Handle design items
+            const { DesignRepository } = await import('@/repositories/DesignRepository');
+            const designRepository = new DesignRepository();
+            const design = await designRepository.findById(orderItem.designId);
+            
+            return {
+              ...item,
+              itemType: 'design' as const,
+              designId: orderItem.designId,
+              designName: orderItem.designName || design?.designName || `Design ${orderItem.designId?.slice(-8)}`,
+              designType: orderItem.designType || design?.designType,
+              storagePath: orderItem.storagePath || design?.storagePath,
+              storageBucket: orderItem.storageBucket || design?.storageBucket,
+              unitPrice: item.price,
+              totalPrice: item.price * item.quantity
+            };
+          } else {
+            // Handle product items (existing logic)
+            // Fetch product details
+            const product = await productRepository.findById(item.productId!);
+            
+            // Fetch product images
+            let productImages: any[] = [];
+            try {
+              const allImages = await FirebaseAdminService.queryDocuments(
+                Collections.PRODUCT_IMAGES,
+                [{ field: 'productId', operator: '==' as const, value: item.productId }],
+                { field: 'sortOrder', direction: 'asc' },
+                10 // Limit to 10 images
+              );
+              productImages = (allImages || []).map((img: any) => ({
+                id: img.id,
+                imageUrl: img.imageUrl,
+                altText: img.altText || '',
+                isPrimary: img.isPrimary || false
+              }));
+            } catch (error) {
+              console.error(`Error fetching images for product ${item.productId}:`, error);
             }
-          });
 
-          return {
-            ...item,
-            productName: product?.name || `Product ${item.productId.slice(-8)}`,
-            product: product ? {
-              id: product.id,
-              name: product.name,
-              price: product.price,
-              sku: product.sku,
-              images: productImages
-            } : undefined,
-            selectedDesign,
-            selectedSize,
-            selectedColorId,
-            selectedColorName,
-            selectedVariants: Object.keys(selectedVariants).length > 0 ? selectedVariants : undefined,
-            unitPrice: item.price,
-            totalPrice: item.price * item.quantity
-          };
+            // Extract variant information from customizations
+            const customizations = item.customizations || {};
+            const selectedDesign = customizations.selectedDesign || (customizations.design ? { name: customizations.design, priceModifier: customizations.designPriceModifier || 0 } : undefined);
+            const selectedSize = customizations.selectedSize || (customizations.size ? { name: customizations.size, priceModifier: customizations.sizePriceModifier || 0 } : undefined);
+            const selectedColorId = customizations.colorId || customizations.selectedColorId;
+            const selectedColorName = customizations.selectedColorName || customizations.colorName;
+            
+            // Create selectedVariants object excluding already extracted fields
+            const selectedVariants: Record<string, any> = {};
+            Object.keys(customizations).forEach(key => {
+              if (!['selectedDesign', 'selectedSize', 'design', 'size', 'colorId', 'selectedColorId', 'selectedColorName', 'colorName', 'designPriceModifier', 'sizePriceModifier'].includes(key)) {
+                selectedVariants[key] = customizations[key];
+              }
+            });
+
+            return {
+              ...item,
+              itemType: 'product' as const,
+              productName: product?.name || `Product ${item.productId?.slice(-8)}`,
+              product: product ? {
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                sku: product.sku,
+                images: productImages
+              } : undefined,
+              selectedDesign,
+              selectedSize,
+              selectedColorId,
+              selectedColorName,
+              selectedVariants: Object.keys(selectedVariants).length > 0 ? selectedVariants : undefined,
+              unitPrice: item.price,
+              totalPrice: item.price * item.quantity
+            };
+          }
         } catch (error) {
-          console.error(`Error enriching item ${item.productId}:`, error);
+          console.error(`Error enriching item:`, error);
           return {
             ...item,
-            productName: `Product ${item.productId.slice(-8)}`,
+            productName: isDesign ? undefined : `Product ${item.productId?.slice(-8)}`,
+            designName: isDesign ? `Design ${orderItem.designId?.slice(-8)}` : undefined,
             unitPrice: item.price,
             totalPrice: item.price * item.quantity
           };

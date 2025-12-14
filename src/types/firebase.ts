@@ -117,10 +117,23 @@ export interface OrderStatusHistory {
 }
 
 export interface OrderItem {
-  productId: string;
+  productId?: string; // Optional - for product items
+  designId?: string; // Optional - for design items
+  itemType: 'product' | 'design'; // Type of item
   quantity: number;
   price: number;
   customizations?: Record<string, string>;
+  // Design-specific fields
+  designName?: string;
+  designType?: 'template' | 'custom' | 'premium';
+  storagePath?: string;
+  storageBucket?: string;
+  // Product-specific fields (existing)
+  selectedDesign?: { name: string; priceModifier?: number };
+  selectedSize?: { name: string; priceModifier?: number };
+  selectedColorId?: string;
+  selectedColorName?: string;
+  selectedVariants?: Record<string, any>;
 }
 
 // Design types

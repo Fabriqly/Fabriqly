@@ -52,10 +52,21 @@ supabase link --project-ref your-project-ref
 supabase functions deploy watermark
 ```
 
-5. Set environment variables for the function:
+5. Create a watermark bucket and upload your watermark image:
+   - Go to Supabase Dashboard → Storage
+   - Create a bucket named `watermarks` (can be public or private)
+   - Upload your watermark image (PNG with transparency recommended)
+   - Note the path (e.g., `watermarks/logo.png`)
+
+6. Set environment variables for the function:
 ```bash
-supabase secrets set WATERMARK_TEXT="Fabriqly"
-supabase secrets set WATERMARK_OPACITY="0.4"
+# Image watermark configuration
+supabase secrets set WATERMARK_IMAGE_PATH="watermarks/watermark.png"
+supabase secrets set WATERMARK_IMAGE_BUCKET="watermarks"
+supabase secrets set WATERMARK_OPACITY="0.15"  # 0.0-1.0 (15% opacity recommended)
+
+# Optional: If you want to use text watermark instead (legacy)
+# supabase secrets set WATERMARK_TEXT="Fabriqly"
 ```
 
 ### 3. Environment Variables
@@ -182,13 +193,40 @@ curl "http://localhost:54321/functions/v1/watermark?path=test/image.jpg&bucket=p
 - **Purchase Verification**: Cached for 5 minutes to reduce DB queries
 - **Image Optimization**: Edge Function can also resize/optimize images
 
+## Watermark Image Setup
+
+### Recommended Watermark Image Specifications
+
+- **Format**: PNG with transparency (supports alpha channel)
+- **Size**: 200-400px width recommended (will be auto-scaled)
+- **Background**: Transparent (PNG with alpha channel)
+- **Content**: Your logo, brand name, or watermark design
+- **Color**: White or light colors work best (will be applied with opacity)
+
+### Upload Watermark Image
+
+1. Prepare your watermark image (PNG with transparency)
+2. Go to Supabase Dashboard → Storage
+3. Create bucket `watermarks` (can be public or private)
+4. Upload your watermark image
+5. Note the path (e.g., `watermarks/logo.png`)
+6. Set the path in Edge Function secrets:
+   ```bash
+   supabase secrets set WATERMARK_IMAGE_PATH="watermarks/logo.png"
+   ```
+
+### Watermark Opacity
+
+- **Recommended**: 0.15 (15% opacity) for subtle protection
+- **Range**: 0.0 (invisible) to 1.0 (fully opaque)
+- **Best Practice**: Lower opacity (10-20%) is less intrusive but still protects IP
+
 ## Future Enhancements
 
-1. **Better Text Rendering**: Add font file to Edge Function for proper text watermarking
-2. **Logo Watermarking**: Support image-based watermarks (logo overlay)
-3. **Multiple Positions**: Support different watermark positions (center, corner, etc.)
-4. **Watermark Customization**: Allow shops/designers to customize watermark text
-5. **Batch Processing**: Pre-generate watermarked versions for common sizes
+1. **Multiple Watermark Positions**: Support different positions (center, corner, etc.)
+2. **Watermark Customization**: Allow shops/designers to use custom watermarks
+3. **Batch Processing**: Pre-generate watermarked versions for common sizes
+4. **Adaptive Sizing**: Automatically adjust watermark size based on image dimensions
 
 
 

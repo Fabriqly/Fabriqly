@@ -104,20 +104,55 @@ export function MessageDropdown({ onClose }: MessageDropdownProps) {
   };
 
   // Only poll while dropdown is mounted (i.e., open)
+  // Use longer interval and visibility API to reduce unnecessary requests
   useEffect(() => {
     if (!userId) {
       setLoading(false);
       return;
     }
 
+    let isPageVisible = !document.hidden;
+    
+    const handleVisibilityChange = () => {
+      isPageVisible = !document.hidden;
+      if (isPageVisible) {
+        // Page became visible, fetch immediately
+        fetchConversations();
+      } else {
+        // Page hidden, clear polling to save resources
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
+      }
+    };
+
+    // Initial fetch
     fetchConversations();
-    pollingRef.current = setInterval(fetchConversations, 5000);
+    
+    // Poll every 15 seconds (instead of 5) when dropdown is open and page is visible
+    const startPolling = () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+      if (isPageVisible) {
+        pollingRef.current = setInterval(() => {
+          if (isPageVisible) {
+            fetchConversations();
+          }
+        }, 15000); // 15 seconds instead of 5 seconds
+      }
+    };
+    
+    startPolling();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);

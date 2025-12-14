@@ -164,11 +164,15 @@ async function handleInvoicePaid(invoiceData: any) {
         const alreadyProcessed = currentOrder?.paymentStatus === 'paid' || currentOrder?.status === 'processing';
         
         if (!alreadyProcessed) {
-          // Decrement inventory for each item in the order
-          if (order.items && order.items.length > 0) {
-            console.log(`[Invoice Paid] Decrementing inventory for order ${order.id}`);
+          // Decrement inventory only for product items (designs don't have inventory)
+          const productItems = order.items.filter((item: any) => 
+            item.itemType !== 'design' && item.productId && !item.designId
+          );
+          
+          if (productItems.length > 0) {
+            console.log(`[Invoice Paid] Decrementing inventory for ${productItems.length} product items in order ${order.id}`);
             await Promise.all(
-              order.items.map(async (item: any) => {
+              productItems.map(async (item: any) => {
                 try {
                   const result = await productService.decrementStock(
                     item.productId,
@@ -184,13 +188,41 @@ async function handleInvoicePaid(invoiceData: any) {
                 }
               })
             );
+          } else {
+            console.log(`[Invoice Paid] Order ${order.id} has no product items, skipping inventory decrement`);
           }
         } else {
           console.log(`[Invoice Paid] Order ${order.id} already processed, skipping inventory decrement`);
         }
         
         await orderRepository.updatePaymentStatus(order.id, 'paid');
-        await orderRepository.updateOrderStatus(order.id, 'processing');
+        
+        // Check if this is a design-only order (all items are designs)
+        const isDesignOnlyOrder = order.items.every((item: any) => 
+          item.itemType === 'design' || (item.designId && !item.productId)
+        );
+        
+        // Design-only orders are automatically delivered (digital products)
+        if (isDesignOnlyOrder) {
+          console.log(`[Invoice Paid] Design-only order ${order.id} - auto-marking as delivered`);
+          await orderRepository.updateOrderStatus(order.id, 'delivered');
+          
+          // Add status history entry
+          const now = new Date();
+          const statusHistory = order.statusHistory || [];
+          statusHistory.push({
+            status: 'delivered',
+            timestamp: { seconds: Math.floor(now.getTime() / 1000), nanoseconds: 0 } as any,
+            updatedBy: 'system'
+          });
+          await orderRepository.update(order.id, {
+            statusHistory,
+            updatedAt: now
+          });
+        } else {
+          // Product orders go to processing
+          await orderRepository.updateOrderStatus(order.id, 'processing');
+        }
         
         // Clear cache for this order
         await CacheService.invalidate(`order:${order.id}`);
@@ -331,9 +363,13 @@ async function handlePaymentRequestSucceeded(paymentData: any) {
     const alreadyProcessed = order.paymentStatus === 'paid' || order.status === 'processing';
     
     if (!alreadyProcessed) {
-      // Decrement inventory for each item in the order
-      if (order.items && order.items.length > 0) {
-        console.log(`[Payment Request] Decrementing inventory for order ${orderId}`);
+      // Decrement inventory only for product items (designs don't have inventory)
+      const productItems = order.items.filter((item: any) => 
+        item.itemType !== 'design' && item.productId && !item.designId
+      );
+      
+      if (productItems.length > 0) {
+        console.log(`[Payment Request] Decrementing inventory for ${productItems.length} product items in order ${orderId}`);
         const { ProductService } = await import('@/services/ProductService');
         const { ProductRepository } = await import('@/repositories/ProductRepository');
         const { CategoryRepository } = await import('@/repositories/CategoryRepository');
@@ -343,7 +379,7 @@ async function handlePaymentRequestSucceeded(paymentData: any) {
         const productService = new ProductService(productRepository, categoryRepository, activityRepository);
         
         await Promise.all(
-          order.items.map(async (item: any) => {
+          productItems.map(async (item: any) => {
             try {
               const result = await productService.decrementStock(
                 item.productId,
@@ -359,6 +395,8 @@ async function handlePaymentRequestSucceeded(paymentData: any) {
             }
           })
         );
+      } else {
+        console.log(`[Payment Request] Order ${orderId} has no product items, skipping inventory decrement`);
       }
     } else {
       console.log(`[Payment Request] Order ${orderId} already processed, skipping inventory decrement`);
@@ -366,7 +404,33 @@ async function handlePaymentRequestSucceeded(paymentData: any) {
 
     // Update order payment status
     await orderRepository.updatePaymentStatus(orderId, 'paid');
-    await orderRepository.updateOrderStatus(orderId, 'processing');
+    
+    // Check if this is a design-only order (all items are designs)
+    const isDesignOnlyOrder = order.items.every((item: any) => 
+      item.itemType === 'design' || (item.designId && !item.productId)
+    );
+    
+    // Design-only orders are automatically delivered (digital products)
+    if (isDesignOnlyOrder) {
+      console.log(`[Payment Request] Design-only order ${orderId} - auto-marking as delivered`);
+      await orderRepository.updateOrderStatus(orderId, 'delivered');
+      
+      // Add status history entry
+      const now = new Date();
+      const statusHistory = order.statusHistory || [];
+      statusHistory.push({
+        status: 'delivered',
+        timestamp: { seconds: Math.floor(now.getTime() / 1000), nanoseconds: 0 } as any,
+        updatedBy: 'system'
+      });
+      await orderRepository.update(orderId, {
+        statusHistory,
+        updatedAt: now
+      });
+    } else {
+      // Product orders go to processing
+      await orderRepository.updateOrderStatus(orderId, 'processing');
+    }
 
     // Log activity
     await activityRepository.create({
