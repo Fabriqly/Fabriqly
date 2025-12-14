@@ -54,17 +54,20 @@ export default function NotificationsPage() {
     <div className="min-h-screen bg-gray-50">
       <CustomerHeader user={session?.user || null} />
       
-      <div className="flex gap-8 p-8">
-        {/* Left Sidebar - Floating Navigation Card */}
-        <CustomerNavigationSidebar />
+      {/* Mobile: Horizontal Tab Bar (appears right after header) */}
+      <CustomerNavigationSidebar variant="mobile" />
+      
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+        {/* Desktop: Vertical Sidebar (inside flex container) */}
+        <CustomerNavigationSidebar variant="desktop" />
 
         {/* Right Content Area */}
-        <main className="flex-1">
-          <div className="max-w-4xl">
+        <main className="flex-1 w-full">
+          <div className="max-w-4xl mx-auto">
             {/* Page Header */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
-              <p className="text-gray-600 mt-2">Stay updated with your activity</p>
+            <div className="mb-4 md:mb-8">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Notifications</h1>
+              <p className="text-sm md:text-base text-gray-600 mt-1 md:mt-2">Stay updated with your activity</p>
             </div>
             
             <NotificationCenter className="w-full" />

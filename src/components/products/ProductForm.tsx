@@ -11,7 +11,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
     CreateProductData, 
     UpdateProductData, 
     Category,
-    ProductStatus 
+    ProductStatus,
+    ProductVariantOption
   } from '@/types/products';
   import { 
     Save, 
@@ -27,7 +28,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
   AlertCircle,
   Loader2,
   Eye,
-  Send
+  Send,
+  Plus,
+  Trash2
   } from 'lucide-react';
   import { CategorySelector } from './CategorySelector';
   import { ProductColorManager } from './ProductColorManager';
@@ -156,8 +159,16 @@ const PricingInventorySection = ({ formData, handleInputChange }: any) => (
         </label>
         <Input
           type="number"
-          value={formData.price}
-          onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+          value={formData.price === 0 ? '' : formData.price}
+          onChange={(e) => {
+            const val = e.target.value;
+            handleInputChange('price', val === '' ? 0 : parseFloat(val) || 0);
+          }}
+          onBlur={(e) => {
+            if (e.target.value === '') {
+              handleInputChange('price', 0);
+            }
+          }}
           placeholder="0.00"
           min="0"
           step="0.01"
@@ -171,8 +182,16 @@ const PricingInventorySection = ({ formData, handleInputChange }: any) => (
         </label>
         <Input
           type="number"
-          value={formData.stockQuantity}
-          onChange={(e) => handleInputChange('stockQuantity', parseInt(e.target.value) || 0)}
+          value={formData.stockQuantity === 0 ? '' : formData.stockQuantity}
+          onChange={(e) => {
+            const val = e.target.value;
+            handleInputChange('stockQuantity', val === '' ? 0 : parseInt(val) || 0);
+          }}
+          onBlur={(e) => {
+            if (e.target.value === '') {
+              handleInputChange('stockQuantity', 0);
+            }
+          }}
           placeholder="0"
           min="0"
           required
@@ -362,6 +381,159 @@ const SpecificationsSection = ({ formData, handleInputChange, specKey, setSpecKe
   </div>
 );
 
+const VariantsSection = ({ 
+  formData, 
+  handleInputChange, 
+  handleAddDesign, 
+  handleRemoveDesign, 
+  handleUpdateDesign,
+  handleAddSize, 
+  handleRemoveSize, 
+  handleUpdateSize 
+}: any) => (
+  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="flex items-center space-x-2 mb-6">
+      <Settings className="w-5 h-5 text-indigo-600" />
+      <h3 className="text-lg font-bold text-gray-900">Product Variants</h3>
+    </div>
+    <div className="space-y-6">
+      {/* Design Variants */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Design Variants
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddDesign}
+            className="flex items-center space-x-1"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Design</span>
+          </Button>
+        </div>
+        
+        <div className="space-y-2">
+          {formData.designs && formData.designs.length > 0 ? (
+            formData.designs.map((design: ProductVariantOption, index: number) => (
+              <div key={design.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <div className="flex-1 grid grid-cols-2 gap-3">
+                  <Input
+                    value={design.name}
+                    onChange={(e) => handleUpdateDesign(index, 'name', e.target.value)}
+                    placeholder="Design name (e.g., Sunset Vibe)"
+                    className="bg-white"
+                  />
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 z-10" />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={design.priceModifier === 0 ? '' : design.priceModifier}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleUpdateDesign(index, 'priceModifier', val === '' ? 0 : parseFloat(val) || 0);
+                      }}
+                      onBlur={(e) => {
+                        if (e.target.value === '') {
+                          handleUpdateDesign(index, 'priceModifier', 0);
+                        }
+                      }}
+                      placeholder="Extra price (₱)"
+                      className="bg-white pl-9"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRemoveDesign(index)}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">No design variants added yet</p>
+          )}
+        </div>
+      </div>
+
+      {/* Size Variants */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Size Variants
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddSize}
+            className="flex items-center space-x-1"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Size</span>
+          </Button>
+        </div>
+        
+        <div className="space-y-2">
+          {formData.sizes && formData.sizes.length > 0 ? (
+            formData.sizes.map((size: ProductVariantOption, index: number) => (
+              <div key={size.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <div className="flex-1 grid grid-cols-2 gap-3">
+                  <Input
+                    value={size.name}
+                    onChange={(e) => handleUpdateSize(index, 'name', e.target.value)}
+                    placeholder="Size name (e.g., XL)"
+                    className="bg-white"
+                  />
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 z-10" />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={size.priceModifier === 0 ? '' : size.priceModifier}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleUpdateSize(index, 'priceModifier', val === '' ? 0 : parseFloat(val) || 0);
+                      }}
+                      onBlur={(e) => {
+                        if (e.target.value === '') {
+                          handleUpdateSize(index, 'priceModifier', 0);
+                        }
+                      }}
+                      placeholder="Extra price (₱)"
+                      className="bg-white pl-9"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRemoveSize(index)}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">No size variants added yet</p>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 const SEOSection = ({ formData, handleInputChange }: any) => (
   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
     <div className="flex items-center space-x-2 mb-6">
@@ -429,6 +601,8 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
     isCustomizable: false,
     isDigital: false,
     tags: [],
+    designs: [],
+    sizes: [],
     specifications: {},
     seoTitle: '',
     seoDescription: ''
@@ -478,6 +652,8 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
         isCustomizable: productData.isCustomizable || false,
         isDigital: productData.isDigital || false,
         tags: productData.tags || [],
+        designs: productData.designs || [],
+        sizes: productData.sizes || [],
         specifications: productData.specifications || {},
         seoTitle: productData.seoTitle || '',
         seoDescription: productData.seoDescription || ''
@@ -597,6 +773,63 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
     }
   }, [specKey, specValue]);
 
+  // Variant handlers
+  const handleAddDesign = useCallback(() => {
+    const newDesign: ProductVariantOption = {
+      id: `design-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: '',
+      priceModifier: 0
+    };
+    setFormData(prev => ({
+      ...prev,
+      designs: [...(prev.designs || []), newDesign]
+    }));
+  }, []);
+
+  const handleRemoveDesign = useCallback((index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      designs: prev.designs?.filter((_, i) => i !== index) || []
+    }));
+  }, []);
+
+  const handleUpdateDesign = useCallback((index: number, field: 'name' | 'priceModifier', value: string | number) => {
+    setFormData(prev => ({
+      ...prev,
+      designs: prev.designs?.map((design, i) => 
+        i === index ? { ...design, [field]: value } : design
+      ) || []
+    }));
+  }, []);
+
+  const handleAddSize = useCallback(() => {
+    const newSize: ProductVariantOption = {
+      id: `size-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: '',
+      priceModifier: 0
+    };
+    setFormData(prev => ({
+      ...prev,
+      sizes: [...(prev.sizes || []), newSize]
+    }));
+  }, []);
+
+  const handleRemoveSize = useCallback((index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      sizes: prev.sizes?.filter((_, i) => i !== index) || []
+    }));
+  }, []);
+
+  const handleUpdateSize = useCallback((index: number, field: 'name' | 'priceModifier', value: string | number) => {
+    setFormData(prev => ({
+      ...prev,
+      sizes: prev.sizes?.map((size, i) => 
+        i === index ? { ...size, [field]: value } : size
+      ) || []
+    }));
+  }, []);
+
   const handleRemoveSpecification = useCallback((key: string) => {
     setFormData(prev => {
       const newSpecs = { ...prev.specifications };
@@ -661,6 +894,12 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
       }
       if (formData.seoDescription?.trim()) {
         draftData.seoDescription = formData.seoDescription.trim();
+      }
+      if (formData.designs && Array.isArray(formData.designs) && formData.designs.length > 0) {
+        draftData.designs = formData.designs;
+      }
+      if (formData.sizes && Array.isArray(formData.sizes) && formData.sizes.length > 0) {
+        draftData.sizes = formData.sizes;
       }
 
       const response = await fetch('/api/products', {
@@ -739,9 +978,25 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
       }
       
       // Filter out undefined values and prepare clean data
+      // But explicitly include designs and sizes even if empty arrays
       const cleanFormData = Object.fromEntries(
-        Object.entries(formData).filter(([_, value]) => value !== undefined && value !== '')
+        Object.entries(formData).filter(([key, value]) => {
+          // Always include designs and sizes, even if empty arrays
+          if (key === 'designs' || key === 'sizes') {
+            return true;
+          }
+          // Filter out undefined and empty strings for other fields
+          return value !== undefined && value !== '';
+        })
       );
+      
+      // Ensure designs and sizes are always included (as arrays, even if empty)
+      if (!cleanFormData.designs) {
+        cleanFormData.designs = [];
+      }
+      if (!cleanFormData.sizes) {
+        cleanFormData.sizes = [];
+      }
       
       console.log(`${isEditMode ? 'Updating' : 'Creating'} product:`, cleanFormData);
       
@@ -1090,6 +1345,17 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
               setTagInput={setTagInput}
               handleAddTag={handleAddTag}
               handleRemoveTag={handleRemoveTag}
+            />
+
+            <VariantsSection
+              formData={formData}
+              handleInputChange={handleInputChange}
+              handleAddDesign={handleAddDesign}
+              handleRemoveDesign={handleRemoveDesign}
+              handleUpdateDesign={handleUpdateDesign}
+              handleAddSize={handleAddSize}
+              handleRemoveSize={handleRemoveSize}
+              handleUpdateSize={handleUpdateSize}
             />
 
             <SpecificationsSection 

@@ -287,7 +287,7 @@ export default function SearchPage() {
         <DesignCard
           key={item.id}
           design={item.design}
-          variant="catalog"
+          variant="customer"
           showActions={false}
         />
       );

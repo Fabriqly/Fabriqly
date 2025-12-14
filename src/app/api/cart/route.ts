@@ -15,6 +15,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(ResponseBuilder.error('Authentication required'), { status: 401 });
     }
 
+    // Try to get cached cart first (BEFORE database fetch)
+    const cacheKey = `cart-${session.user.id}`;
+    const cached = await CacheService.get(cacheKey);
+    
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const cartRepository = new CartRepository();
     const cart = await cartRepository.findByUserId(session.user.id);
 
@@ -29,14 +37,6 @@ export async function GET(request: NextRequest) {
         createdAt: new Date(),
         updatedAt: new Date()
       }));
-    }
-
-    // Try to get cached cart first
-    const cacheKey = `cart-${session.user.id}`;
-    const cached = await CacheService.get(cacheKey);
-    
-    if (cached) {
-      return NextResponse.json(cached);
     }
 
     // Refresh product images for all cart items (with limits)
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: AddToCartRequest = await request.json();
-    const { productId, quantity, selectedVariants = {}, selectedColorId, selectedColorName, colorPriceAdjustment = 0, businessOwnerId } = body;
+    const { productId, quantity, selectedVariants = {}, selectedColorId, selectedColorName, colorPriceAdjustment = 0, selectedDesign, selectedSize, businessOwnerId } = body;
 
     // Validate required fields
     if (!productId || !quantity || !businessOwnerId) {
@@ -164,7 +164,17 @@ export async function POST(request: NextRequest) {
     // Calculate unit price
     let unitPrice = product.price + colorPriceAdjustment;
     
-    // Add variant price adjustments (if variants exist)
+    // Add design price modifier
+    if (selectedDesign && selectedDesign.price) {
+      unitPrice += selectedDesign.price;
+    }
+    
+    // Add size price modifier
+    if (selectedSize && selectedSize.price) {
+      unitPrice += selectedSize.price;
+    }
+    
+    // Legacy variant support (for old products using ProductVariant system)
     if ((product as any).variants) {
       Object.entries(selectedVariants).forEach(([variantName, variantValue]) => {
         const variant = (product as any).variants?.find(
@@ -196,6 +206,8 @@ export async function POST(request: NextRequest) {
       selectedColorId: selectedColorId || undefined,
       selectedColorName: colorName || undefined,
       colorPriceAdjustment,
+      selectedDesign: selectedDesign || undefined,
+      selectedSize: selectedSize || undefined,
       unitPrice,
       totalPrice: unitPrice * quantity,
       businessOwnerId
@@ -204,6 +216,10 @@ export async function POST(request: NextRequest) {
     // Add to cart
     const cartRepository = new CartRepository();
     const cart = await cartRepository.addItemToCart(session.user.id, cartItem);
+
+    // Invalidate cache after cart update
+    const cacheKey = `cart-${session.user.id}`;
+    await CacheService.invalidate(cacheKey);
 
     return NextResponse.json(ResponseBuilder.success(cart));
   } catch (error) {
@@ -222,6 +238,10 @@ export async function DELETE(request: NextRequest) {
 
     const cartRepository = new CartRepository();
     const cart = await cartRepository.clearCart(session.user.id);
+
+    // Invalidate cache after cart update
+    const cacheKey = `cart-${session.user.id}`;
+    await CacheService.invalidate(cacheKey);
 
     return NextResponse.json(ResponseBuilder.success(cart));
   } catch (error) {

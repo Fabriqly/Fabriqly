@@ -64,28 +64,28 @@ export function NotificationItem({
 
   return (
     <div
-      className={`p-4 border-b border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer ${getBgColor()}`}
+      className={`p-3 md:p-4 border-b border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer ${getBgColor()}`}
       onClick={handleClick}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2 md:gap-3">
         <div className="flex-shrink-0 mt-0.5">
           {getIcon()}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex-1">
-              <h4 className={`text-sm font-semibold ${notification.isRead ? 'text-gray-700' : 'text-gray-900'}`}>
+            <div className="flex-1 min-w-0">
+              <h4 className={`text-xs md:text-sm font-semibold break-words ${notification.isRead ? 'text-gray-700' : 'text-gray-900'}`}>
                 {notification.title}
               </h4>
-              <p className={`text-sm mt-1 ${notification.isRead ? 'text-gray-500' : 'text-gray-700'}`}>
+              <p className={`text-xs md:text-sm mt-1 break-words ${notification.isRead ? 'text-gray-500' : 'text-gray-700'}`}>
                 {notification.message}
               </p>
               <div className="flex items-center gap-2 mt-2">
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-400 whitespace-nowrap">
                   {formatDate(notification.createdAt)}
                 </span>
                 {!notification.isRead && (
-                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  <span className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></span>
                 )}
               </div>
             </div>
@@ -95,7 +95,8 @@ export function NotificationItem({
                   e.stopPropagation();
                   onDelete(notification.id);
                 }}
-                className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                className="text-gray-400 hover:text-red-500 transition-colors p-1 flex-shrink-0"
+                aria-label="Delete notification"
               >
                 <XCircle className="w-4 h-4" />
               </button>
@@ -105,10 +106,10 @@ export function NotificationItem({
             <Link
               href={notification.actionUrl}
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="inline-flex items-center gap-1 mt-2 text-xs md:text-sm text-blue-600 hover:text-blue-700 font-medium break-words"
             >
               {notification.actionLabel || 'View Details'}
-              <ExternalLink className="w-3 h-3" />
+              <ExternalLink className="w-3 h-3 flex-shrink-0" />
             </Link>
           )}
         </div>
