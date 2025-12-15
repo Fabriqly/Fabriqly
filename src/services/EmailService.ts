@@ -1,6 +1,7 @@
 import { FirebaseAdminService } from './firebase-admin';
 import { Collections } from './firebase';
 import { Order } from '@/types/firebase';
+import type { Transporter } from 'nodemailer';
 
 interface EmailOptions {
   to: string | string[];
@@ -31,8 +32,11 @@ interface ApplicationEmailData {
   rejectionReason?: string;
 }
 
+import type { Transporter } from 'nodemailer';
+
 export class EmailService {
-  private static transporter: any = null;
+  private static transporter: Transporter | null = null;
+  private static transporter: Transporter | null = null;
   private static isInitialized = false;
 
   private static async initializeTransporter() {
@@ -271,15 +275,17 @@ export class EmailService {
       } else if (createdAt && typeof createdAt === 'object' && 'toDate' in createdAt && typeof createdAt.toDate === 'function') {
         date = createdAt.toDate();
       } else if (createdAt && typeof createdAt === 'object' && 'seconds' in createdAt) {
-        const seconds = (createdAt as any).seconds || 0;
-        const nanoseconds = (createdAt as any).nanoseconds || 0;
+        const dateObj = createdAt as Record<string, unknown>;
+        const seconds = (dateObj.seconds as number | undefined) || 0;
+        const nanoseconds = (dateObj.nanoseconds as number | undefined) || 0;
         date = new Date(seconds * 1000 + nanoseconds / 1000000);
       } else if (createdAt && typeof createdAt === 'object' && '_seconds' in createdAt) {
-        const seconds = (createdAt as any)._seconds || 0;
-        const nanoseconds = (createdAt as any)._nanoseconds || 0;
+        const dateObj = createdAt as Record<string, unknown>;
+        const seconds = (dateObj._seconds as number | undefined) || 0;
+        const nanoseconds = (dateObj._nanoseconds as number | undefined) || 0;
         date = new Date(seconds * 1000 + nanoseconds / 1000000);
       } else {
-        date = new Date(createdAt as any);
+        date = new Date(String(createdAt));
       }
       
       // Validate date

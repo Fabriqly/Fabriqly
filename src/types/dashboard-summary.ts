@@ -42,7 +42,7 @@ export interface DashboardSummary {
 export interface SummaryOperation {
   type: 'user_created' | 'user_deleted' | 'product_created' | 'product_updated' | 'product_deleted' | 'order_created' | 'order_updated' | 'order_deleted';
   entityId: string;
-  entityData?: any;
+  entityData?: unknown;
   timestamp: string;
 }
 

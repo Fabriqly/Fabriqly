@@ -291,8 +291,8 @@ export class UserService implements IUserService {
         targetType: 'user',
         targetName: metadata.email || 'Unknown User',
         metadata,
-        createdAt: new Date() as any,
-        updatedAt: new Date() as any
+        createdAt: new Date(),
+        updatedAt: new Date()
       });
     } catch (error) {
       console.error('Error logging user activity:', error);

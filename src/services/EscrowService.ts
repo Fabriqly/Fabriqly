@@ -98,7 +98,7 @@ export class EscrowService {
       // 5. Get designer payout information
       // NOTE: Designer profiles need to have payout info fields added:
       // payoutDetails: { bankCode, accountNumber, accountHolderName }
-      const payoutInfo = (designerProfile as any).payoutDetails;
+      const payoutInfo = (designerProfile as Record<string, unknown>).payoutDetails;
 
       if (!payoutInfo || !payoutInfo.bankCode || !payoutInfo.accountNumber || !payoutInfo.accountHolderName) {
         throw AppError.badRequest(
@@ -127,10 +127,10 @@ export class EscrowService {
           ...request.paymentDetails,
           escrowStatus: 'designer_paid',
           designerPayoutId: disbursement.id,
-          designerPaidAt: Timestamp.now() as any,
+          designerPaidAt: Timestamp.now(),
           designerPayoutAmount: designerPayoutAmount,
-        } as any,
-        updatedAt: Timestamp.now() as any,
+        },
+        updatedAt: Timestamp.now(),
       });
 
       // 8. Fire event
@@ -142,7 +142,7 @@ export class EscrowService {
       });
 
       console.log(`[EscrowService] Designer payment released successfully`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[EscrowService] Failed to release designer payment:`, error);
       throw AppError.internal('Failed to release designer payment', error);
     }
@@ -230,7 +230,7 @@ export class EscrowService {
       // 6. Get shop payout information
       // NOTE: Shop profiles need to have payout info fields added:
       // payoutDetails: { bankCode, accountNumber, accountHolderName }
-      const payoutInfo = (shopProfile as any).payoutDetails;
+      const payoutInfo = (shopProfile as Record<string, unknown>).payoutDetails;
 
       if (!payoutInfo || !payoutInfo.bankCode || !payoutInfo.accountNumber || !payoutInfo.accountHolderName) {
         throw AppError.badRequest(
@@ -259,10 +259,10 @@ export class EscrowService {
           ...request.paymentDetails,
           escrowStatus: 'fully_released',
           shopPayoutId: disbursement.id,
-          shopPaidAt: Timestamp.now() as any,
+          shopPaidAt: Timestamp.now(),
           shopPayoutAmount: shopPayoutAmount,
-        } as any,
-        updatedAt: Timestamp.now() as any,
+        },
+        updatedAt: Timestamp.now(),
       });
 
       // 8. Fire event
@@ -274,7 +274,7 @@ export class EscrowService {
       });
 
       console.log(`[EscrowService] Shop payment released successfully`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[EscrowService] Failed to release shop payment:`, error);
       throw AppError.internal('Failed to release shop payment', error);
     }
@@ -322,7 +322,7 @@ export class EscrowService {
           return false;
         }
 
-        const payoutInfo = (designerProfile as any).payoutDetails;
+        const payoutInfo = (designerProfile as Record<string, unknown>).payoutDetails;
         if (!payoutInfo || !payoutInfo.bankCode || !payoutInfo.accountNumber || !payoutInfo.accountHolderName) {
           return false;
         }
@@ -421,8 +421,8 @@ export class EscrowService {
           ...request.paymentDetails,
           escrowStatus: 'disputed',
           disputeId: disputeId,
-        } as any,
-        updatedAt: Timestamp.now() as any,
+        },
+        updatedAt: Timestamp.now(),
       });
 
       // Fire event
@@ -433,7 +433,7 @@ export class EscrowService {
       });
 
       console.log(`[EscrowService] Escrow frozen successfully`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[EscrowService] Failed to freeze escrow:`, error);
       throw AppError.internal('Failed to freeze escrow', error);
     }
@@ -473,8 +473,8 @@ export class EscrowService {
           ...request.paymentDetails,
           escrowStatus: previousStatus,
           disputeId: undefined,
-        } as any,
-        updatedAt: Timestamp.now() as any,
+        },
+        updatedAt: Timestamp.now(),
       });
 
       // Fire event
@@ -484,7 +484,7 @@ export class EscrowService {
       });
 
       console.log(`[EscrowService] Escrow unfrozen successfully, restored to: ${previousStatus}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[EscrowService] Failed to unfreeze escrow:`, error);
       throw AppError.internal('Failed to unfreeze escrow', error);
     }
@@ -526,7 +526,7 @@ export class EscrowService {
       
       try {
         await this.xenditService.refundInvoice(invoiceId, amount, reason);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(`[EscrowService] Xendit refund failed:`, error);
         // Continue with status update even if Xendit refund fails
         // Admin can process refund manually
@@ -538,8 +538,8 @@ export class EscrowService {
           ...request.paymentDetails,
           paymentStatus: 'refunded',
           escrowStatus: 'fully_released', // Mark as fully released since refunded
-        } as any,
-        updatedAt: Timestamp.now() as any,
+        },
+        updatedAt: Timestamp.now(),
       });
 
       // Fire event
@@ -550,7 +550,7 @@ export class EscrowService {
       });
 
       console.log(`[EscrowService] Refund processed successfully`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[EscrowService] Failed to refund escrow:`, error);
       throw AppError.internal('Failed to refund escrow', error);
     }

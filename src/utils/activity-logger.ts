@@ -1,4 +1,4 @@
-import { CreateActivityData, ActivityType } from '@/types/activity';
+import { CreateActivityData } from '@/types/activity';
 
 // Activity logging utility
 export class ActivityLogger {
@@ -365,7 +365,7 @@ export class ActivityLogger {
     });
   }
 
-  static async logSystemEvent(eventName: string, eventData: any): Promise<void> {
+  static async logSystemEvent(eventName: string, eventData: unknown): Promise<void> {
     await this.logActivity({
       type: 'system_event',
       title: 'System Event',

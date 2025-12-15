@@ -41,7 +41,7 @@ export interface Notification extends BaseDocument {
   actionLabel?: string;
   isRead: boolean;
   readAt?: Date | Timestamp;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   relatedEntityId?: string; // e.g., orderId, customizationRequestId, etc.
   relatedEntityType?: string; // e.g., 'order', 'customization', 'message', etc.
 }
@@ -55,7 +55,7 @@ export interface CreateNotificationData {
   message: string;
   actionUrl?: string;
   actionLabel?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   relatedEntityId?: string;
   relatedEntityType?: string;
 }

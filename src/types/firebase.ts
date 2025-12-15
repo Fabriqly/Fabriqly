@@ -42,8 +42,8 @@ export interface Address {
 export interface SavedAddress extends Address {
   id: string;
   isDefault?: boolean;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Date | Timestamp;
+  updatedAt?: Date | Timestamp;
 }
 
 export interface UserPreferences {
@@ -133,7 +133,7 @@ export interface OrderItem {
   selectedSize?: { name: string; priceModifier?: number };
   selectedColorId?: string;
   selectedColorName?: string;
-  selectedVariants?: Record<string, any>;
+  selectedVariants?: Record<string, unknown>;
 }
 
 // Design types

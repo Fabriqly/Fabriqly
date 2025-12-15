@@ -5,7 +5,7 @@ interface CacheEntry<T> {
 }
 
 export class CacheService {
-  private static cache = new Map<string, CacheEntry<any>>();
+  private static cache = new Map<string, CacheEntry<unknown>>();
   private static defaultTTL = 5 * 60 * 1000; // 5 minutes
   private static maxSize = 1000;
 
@@ -93,7 +93,7 @@ export class CacheService {
 
 
 
-  static productsListKey(filters: Record<string, any>): string {
+  static productsListKey(filters: Record<string, unknown>): string {
     const filterString = Object.entries(filters)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, value]) => `${key}=${value}`)

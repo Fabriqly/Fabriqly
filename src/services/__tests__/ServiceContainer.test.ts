@@ -159,7 +159,7 @@ describe('ServiceContainer', () => {
 
       try {
         container.get('nonExistentService');
-      } catch (error: any) {
+      } catch (error: unknown) {
         expect(error.message).toContain('nonExistentService not found');
         expect(error.message).toContain('service1');
         expect(error.message).toContain('service2');

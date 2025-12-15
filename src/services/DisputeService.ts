@@ -120,7 +120,7 @@ export class DisputeService {
       }
 
       return { canFile: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DisputeService] Error checking dispute eligibility:', error);
       return { canFile: false, reason: 'Error checking eligibility' };
     }
@@ -202,7 +202,7 @@ export class DisputeService {
             fileName: file.name,
             fileSize: uploadResult.size,
             contentType: uploadResult.contentType,
-            uploadedAt: Timestamp.now() as any
+            uploadedAt: Timestamp.now()
           });
         }
       }
@@ -246,7 +246,7 @@ export class DisputeService {
           fileName: data.evidenceVideo.name,
           fileSize: uploadResult.size,
           contentType: uploadResult.contentType,
-          uploadedAt: Timestamp.now() as any
+          uploadedAt: Timestamp.now()
         };
       }
 
@@ -276,10 +276,10 @@ export class DisputeService {
         evidenceVideo,
         status: 'open',
         conversationId: conversation.id,
-        negotiationDeadline: Timestamp.fromDate(negotiationDeadline) as any,
-        deadline: Timestamp.fromDate(deadline) as any,
-        createdAt: now as any,
-        updatedAt: now as any
+        negotiationDeadline: Timestamp.fromDate(negotiationDeadline),
+        deadline: Timestamp.fromDate(deadline),
+        createdAt: now,
+        updatedAt: now
       };
 
       const dispute = await this.disputeRepo.create(disputeData);
@@ -288,7 +288,7 @@ export class DisputeService {
       if (data.customizationRequestId) {
         try {
           await this.escrowService.freezeEscrow(data.customizationRequestId, dispute.id);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('[DisputeService] Failed to freeze escrow:', error);
           // Continue even if escrow freeze fails - dispute is still created
           // This is normal for design phase disputes before payment is made
@@ -307,7 +307,7 @@ export class DisputeService {
 
       console.log('[DisputeService] Dispute filed successfully:', dispute.id);
       return dispute;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DisputeService] Failed to file dispute:', error);
       if (error instanceof AppError || error.name === 'AppError') {
         throw error;
@@ -343,7 +343,7 @@ export class DisputeService {
         accused: accused || undefined,
         conversation: conversation || undefined
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DisputeService] Error getting dispute details:', error);
       if (error instanceof AppError || error.name === 'AppError') {
         throw error;
@@ -381,7 +381,7 @@ export class DisputeService {
               `Full refund due to dispute acceptance: ${dispute.category}`
             );
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('[DisputeService] Failed to process refund:', error);
           // Continue with dispute resolution even if refund fails
         }
@@ -392,15 +392,15 @@ export class DisputeService {
         stage: 'resolved',
         status: 'closed',
         resolutionOutcome: 'refunded',
-        resolvedAt: Timestamp.now() as any,
-        updatedAt: Timestamp.now() as any
+        resolvedAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       });
 
       // Unfreeze escrow
       if (dispute.customizationRequestId) {
         try {
           await this.escrowService.unfreezeEscrow(dispute.customizationRequestId);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('[DisputeService] Failed to unfreeze escrow:', error);
         }
       }
@@ -412,7 +412,7 @@ export class DisputeService {
       });
 
       return updatedDispute;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DisputeService] Failed to accept dispute:', error);
       if (error instanceof AppError || error.name === 'AppError') {
         throw error;
@@ -467,14 +467,14 @@ export class DisputeService {
         amount,
         percentage,
         offeredBy: userId,
-        offeredAt: Timestamp.now() as any,
+        offeredAt: Timestamp.now(),
         status: 'pending'
       };
 
       // Update dispute
       const updatedDispute = await this.disputeRepo.update(disputeId, {
-        partialRefundOffer: offer as any,
-        updatedAt: Timestamp.now() as any
+        partialRefundOffer: offer,
+        updatedAt: Timestamp.now()
       });
 
       // Emit event
@@ -486,7 +486,7 @@ export class DisputeService {
       });
 
       return updatedDispute;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DisputeService] Failed to offer partial refund:', error);
       // If it's already an AppError, re-throw it as-is to preserve status code
       if (error instanceof AppError || error.name === 'AppError') {
@@ -523,7 +523,7 @@ export class DisputeService {
             dispute.partialRefundOffer.amount,
             `Partial refund due to dispute resolution: ${dispute.category}`
           );
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('[DisputeService] Failed to process partial refund:', error);
         }
       }
@@ -532,23 +532,23 @@ export class DisputeService {
       const updatedOffer: PartialRefundOffer = {
         ...dispute.partialRefundOffer,
         status: 'accepted',
-        acceptedAt: Timestamp.now() as any
+        acceptedAt: Timestamp.now()
       };
 
       const updatedDispute = await this.disputeRepo.update(disputeId, {
-        partialRefundOffer: updatedOffer as any,
+        partialRefundOffer: updatedOffer,
         stage: 'resolved',
         status: 'closed',
         resolutionOutcome: 'partial_refund',
-        resolvedAt: Timestamp.now() as any,
-        updatedAt: Timestamp.now() as any
+        resolvedAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       });
 
       // Unfreeze escrow and release remaining funds
       if (dispute.customizationRequestId) {
         try {
           await this.escrowService.unfreezeEscrow(dispute.customizationRequestId);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('[DisputeService] Failed to unfreeze escrow:', error);
         }
       }
@@ -561,7 +561,7 @@ export class DisputeService {
       });
 
       return updatedDispute;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DisputeService] Failed to accept partial refund:', error);
       if (error instanceof AppError || error.name === 'AppError') {
         throw error;
@@ -592,12 +592,12 @@ export class DisputeService {
       const updatedOffer: PartialRefundOffer = {
         ...dispute.partialRefundOffer,
         status: 'rejected',
-        rejectedAt: Timestamp.now() as any
+        rejectedAt: Timestamp.now()
       };
 
       const updatedDispute = await this.disputeRepo.update(disputeId, {
-        partialRefundOffer: updatedOffer as any,
-        updatedAt: Timestamp.now() as any
+        partialRefundOffer: updatedOffer,
+        updatedAt: Timestamp.now()
       });
 
       // Emit event
@@ -607,7 +607,7 @@ export class DisputeService {
       });
 
       return updatedDispute;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DisputeService] Failed to reject partial refund:', error);
       if (error instanceof AppError || error.name === 'AppError') {
         throw error;
@@ -639,15 +639,15 @@ export class DisputeService {
         status: 'closed',
         stage: 'resolved',
         resolutionOutcome: 'dismissed',
-        resolvedAt: Timestamp.now() as any,
-        updatedAt: Timestamp.now() as any
+        resolvedAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
       });
 
       // Unfreeze escrow
       if (dispute.customizationRequestId) {
         try {
           await this.escrowService.unfreezeEscrow(dispute.customizationRequestId);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('[DisputeService] Failed to unfreeze escrow:', error);
         }
       }
@@ -659,7 +659,7 @@ export class DisputeService {
       });
 
       return updatedDispute;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DisputeService] Failed to cancel dispute:', error);
       if (error instanceof AppError || error.name === 'AppError') {
         throw error;
@@ -696,7 +696,7 @@ export class DisputeService {
           reason: 'Negotiation deadline expired'
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DisputeService] Error checking negotiation deadline:', error);
     }
   }
@@ -732,7 +732,7 @@ export class DisputeService {
                 resolution.reason
               );
             }
-          } catch (error: any) {
+          } catch (error: unknown) {
             console.error('[DisputeService] Failed to process refund:', error);
           }
         }
@@ -748,7 +748,7 @@ export class DisputeService {
               resolution.partialRefundAmount,
               resolution.reason
             );
-          } catch (error: any) {
+          } catch (error: unknown) {
             console.error('[DisputeService] Failed to process partial refund:', error);
           }
         }
@@ -757,7 +757,7 @@ export class DisputeService {
         if (dispute.customizationRequestId) {
           try {
             await this.escrowService.unfreezeEscrow(dispute.customizationRequestId);
-          } catch (error: any) {
+          } catch (error: unknown) {
             console.error('[DisputeService] Failed to unfreeze escrow:', error);
           }
         }
@@ -766,7 +766,7 @@ export class DisputeService {
         if (dispute.customizationRequestId) {
           try {
             await this.escrowService.unfreezeEscrow(dispute.customizationRequestId);
-          } catch (error: any) {
+          } catch (error: unknown) {
             console.error('[DisputeService] Failed to unfreeze escrow:', error);
           }
         }
@@ -792,7 +792,7 @@ export class DisputeService {
           const { StrikeService } = await import('./StrikeService');
           const strikeService = new StrikeService();
           await strikeService.issueStrike(dispute.accusedParty, disputeId, resolution.reason);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('[DisputeService] Failed to issue strike:', error);
         }
       }
@@ -806,7 +806,7 @@ export class DisputeService {
       });
 
       return updatedDispute;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DisputeService] Failed to resolve dispute:', error);
       if (error instanceof AppError || error.name === 'AppError') {
         throw error;

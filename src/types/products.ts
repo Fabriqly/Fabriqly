@@ -85,7 +85,7 @@ export interface Product {
   tags: string[]; // For search and filtering
   designs?: ProductVariantOption[]; // Design variants with price modifiers
   sizes?: ProductVariantOption[]; // Size variants with price modifiers
-  specifications?: Record<string, any>; // Flexible specs
+  specifications?: Record<string, unknown>; // Flexible specs
   seoTitle?: string;
   seoDescription?: string;
   createdAt: Timestamp;

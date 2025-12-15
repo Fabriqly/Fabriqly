@@ -3,7 +3,7 @@
  * Handles both Firestore Timestamp objects and serialized timestamps
  */
 export function formatTimestamp(
-  timestamp: any,
+  timestamp: unknown,
   options: Intl.DateTimeFormatOptions = {
     month: 'short',
     day: 'numeric',
@@ -40,7 +40,7 @@ export function formatTimestamp(
 /**
  * Format timestamp as relative time (e.g., "5 minutes ago", "2 hours ago")
  */
-export function formatRelativeTime(timestamp: any): string {
+export function formatRelativeTime(timestamp: unknown): string {
   if (!timestamp) return 'N/A';
   
   let date: Date;
@@ -91,7 +91,7 @@ export function formatRelativeTime(timestamp: any): string {
 /**
  * Convert any timestamp format to a valid Date object
  */
-export function toDate(timestamp: any): Date | null {
+export function toDate(timestamp: unknown): Date | null {
   if (!timestamp) return null;
   
   let date: Date;

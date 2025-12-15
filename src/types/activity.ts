@@ -78,7 +78,7 @@ export interface Activity {
   
   // Additional metadata
   metadata?: {
-    [key: string]: any;
+    [key: string]: unknown;
   };
   
   // Timestamps
@@ -88,7 +88,7 @@ export interface Activity {
   // For system events
   systemEvent?: {
     eventName: string;
-    eventData: any;
+    eventData: unknown;
   };
 }
 
@@ -136,11 +136,11 @@ export interface CreateActivityData {
   targetType?: string;
   targetName?: string;
   metadata?: {
-    [key: string]: any;
+    [key: string]: unknown;
   };
   systemEvent?: {
     eventName: string;
-    eventData: any;
+    eventData: unknown;
   };
 }
 
@@ -151,7 +151,7 @@ export interface UpdateActivityData {
   priority?: ActivityPriority;
   status?: ActivityStatus;
   metadata?: {
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 

@@ -7,8 +7,6 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import * as zlib from 'zlib';
-import { pipeline } from 'stream/promises';
 
 const execAsync = promisify(exec);
 
@@ -126,10 +124,10 @@ export class BackupService {
 
       console.log(`[BackupService] Backup completed: ${backupId}`);
       return metadata;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[BackupService] Backup failed:`, error);
       metadata.status = 'failed';
-      metadata.error = error.message;
+      metadata.error = error instanceof Error ? error.message : String(error);
 
       await adminDb.collection(this.BACKUP_COLLECTION).doc(backupId).update({
         ...metadata,
@@ -163,7 +161,7 @@ export class BackupService {
         await fs.writeFile(filePath, JSON.stringify(documents, null, 2), 'utf-8');
 
         console.log(`[BackupService] Backed up ${documents.length} documents from ${collectionName}`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(`[BackupService] Error backing up collection ${collectionName}:`, error);
         // Continue with other collections even if one fails
       }
@@ -286,14 +284,14 @@ export class BackupService {
             if (downloadedCount % 10 === 0) {
               console.log(`[BackupService] Downloaded ${downloadedCount}/${allFiles.length} files...`);
             }
-          } catch (error: any) {
+          } catch (error: unknown) {
             console.error(`[BackupService] Error processing file ${file.path}:`, error);
             errorCount++;
           }
         }
 
         console.log(`[BackupService] Backed up ${downloadedCount} files from bucket ${bucket} (${errorCount} errors)`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(`[BackupService] Error backing up bucket ${bucket}:`, error);
         // Continue with other buckets even if one fails
       }
@@ -317,7 +315,7 @@ export class BackupService {
       const mysqldumpCommand = `mysqldump -h ${host} -u ${user} ${password ? `-p${password}` : ''} ${database} > "${dumpPath}"`;
       await execAsync(mysqldumpCommand);
       console.log(`[BackupService] MySQL dump created: ${dumpPath}`);
-    } catch (error: any) {
+    } catch {
       // Fallback: Use Node.js to export data
       console.log(`[BackupService] mysqldump not available, using Node.js export...`);
       await this.backupMySQLWithNode(backupPath, database);
@@ -332,7 +330,7 @@ export class BackupService {
     
     // Get all tables
     const tables = await MySQLService.getMany('SHOW TABLES');
-    const tableNames = tables.map((row: any) => Object.values(row)[0] as string);
+    const tableNames = tables.map((row: Record<string, unknown>) => Object.values(row)[0] as string);
 
     const dump: string[] = [];
     dump.push(`-- MySQL dump for database: ${database}`);
@@ -399,8 +397,8 @@ export class BackupService {
 
       console.log(`[BackupService] Uploaded to GCS: ${gcsPath}${isZip ? '.zip' : '.tar.gz'}`);
       return `${gcsPath}${isZip ? '.zip' : '.tar.gz'}`;
-    } catch (error: any) {
-      if (error.message?.includes('Compression not available')) {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message?.includes('Compression not available')) {
         // Upload uncompressed directory as a workaround
         console.warn('[BackupService] Uploading uncompressed backup (compression failed)');
         // For now, skip GCS upload if compression fails
@@ -418,19 +416,19 @@ export class BackupService {
       // Use tar command if available
       const command = `tar -czf "${outputPath}" -C "${path.dirname(sourceDir)}" "${path.basename(sourceDir)}"`;
       await execAsync(command);
-    } catch (error) {
+    } catch {
       // Fallback: create zip using Node.js
       console.log('[BackupService] tar not available, trying zip compression...');
       try {
-        // Use require for server-side only packages
-        const AdmZip = require('adm-zip');
+        // Use dynamic import for server-side only packages
+        const AdmZip = (await import('adm-zip')).default;
         const zip = new AdmZip();
         zip.addLocalFolder(sourceDir);
         const zipPath = outputPath.replace('.tar.gz', '.zip');
         zip.writeZip(zipPath);
         // Update output path for zip
         return zipPath;
-      } catch (zipError: any) {
+      } catch {
         // If adm-zip is not available, skip compression
         console.warn('[BackupService] Compression libraries not available. Install adm-zip: npm install adm-zip');
         throw new Error('Compression not available. Please install adm-zip (npm install adm-zip) or ensure tar command is available.');

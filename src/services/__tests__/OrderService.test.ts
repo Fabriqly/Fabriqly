@@ -15,20 +15,20 @@ jest.mock('@/services/CacheService');
 
 describe('OrderService', () => {
   let orderService: OrderService;
-  let mockOrderRepository: any;
-  let mockActivityRepository: any;
-  let mockProductRepository: any;
-  let mockCacheService: any;
+  let mockOrderRepository: jest.Mocked<OrderRepository>;
+  let mockActivityRepository: jest.Mocked<ActivityRepository>;
+  let mockProductRepository: jest.Mocked<ProductRepository>;
+  let mockCacheService: jest.Mocked<CacheService>;
 
   beforeEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
 
     // Create mock instances
-    mockOrderRepository = new OrderRepository() as any;
-    mockActivityRepository = new ActivityRepository() as any;
-    mockProductRepository = new ProductRepository() as any;
-    mockCacheService = new CacheService() as any;
+    mockOrderRepository = new OrderRepository() as jest.Mocked<OrderRepository>;
+    mockActivityRepository = new ActivityRepository() as jest.Mocked<ActivityRepository>;
+    mockProductRepository = new ProductRepository() as jest.Mocked<ProductRepository>;
+    mockCacheService = new CacheService() as jest.Mocked<CacheService>;
 
     // Create service with mocked dependencies
     orderService = new OrderService(
@@ -115,7 +115,7 @@ describe('OrderService', () => {
       };
 
       // Act & Assert
-      await expect(orderService.createOrder(invalidOrderData as any))
+      await expect(orderService.createOrder(invalidOrderData as Record<string, unknown>))
         .rejects
         .toThrow(AppError);
     });
@@ -383,7 +383,7 @@ describe('OrderService', () => {
       };
 
       // Act
-      const result = await orderService.validateOrderData(invalidData as any);
+      const result = await orderService.validateOrderData(invalidData as Record<string, unknown>);
 
       // Assert
       expect(result.isValid).toBe(false);
