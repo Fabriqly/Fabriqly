@@ -24,6 +24,7 @@ import { CustomerHeader } from '@/components/layout/CustomerHeader';
 import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { useSession } from 'next-auth/react';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 
 // Cache configuration
 const CACHE_KEY = 'orders_cache';
@@ -679,15 +680,31 @@ export default function OrdersPage() {
                               {(() => {
                                 const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
                                 
-                                // Handle design items
-                                if (isDesign && item.thumbnailUrl) {
-                                  return (
-                                    <img
-                                      src={item.thumbnailUrl}
-                                      alt={item.designName || 'Design'}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  );
+                                // Handle design items - use WatermarkedImage to show clean images for purchased designs
+                                if (isDesign && item.designId) {
+                                  // For purchased designs in orders, show clean image (no watermark)
+                                  // WatermarkedImage will automatically check purchase status and show clean image
+                                  if (item.storagePath && item.storageBucket) {
+                                    return (
+                                      <WatermarkedImage
+                                        storagePath={item.storagePath}
+                                        storageBucket={item.storageBucket}
+                                        designId={item.designId}
+                                        designType={item.designType}
+                                        alt={item.designName || 'Design'}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    );
+                                  } else if (item.thumbnailUrl) {
+                                    // Fallback to thumbnailUrl if storagePath is not available
+                                    return (
+                                      <img
+                                        src={item.thumbnailUrl}
+                                        alt={item.designName || 'Design'}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    );
+                                  }
                                 }
                                 
                                 // Handle product items

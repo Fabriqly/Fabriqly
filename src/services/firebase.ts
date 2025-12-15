@@ -199,6 +199,9 @@ export const Collections = {
   COUPONS: 'coupons',
   
   // Dispute System
-  DISPUTES: 'disputes'
+  DISPUTES: 'disputes',
+  
+  // Designer Earnings System
+  DESIGNER_EARNINGS: 'designerEarnings'
 
 } as const;

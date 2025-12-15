@@ -16,7 +16,8 @@ import {
   Loader,
   Eye,
   AlertCircle,
-  Download
+  Download,
+  RefreshCw
 } from 'lucide-react';
 import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 import Link from 'next/link';
@@ -216,6 +217,32 @@ export default function OrderDetailPage() {
         return 'bg-gray-100 text-gray-800';
       default:
         return 'bg-yellow-100 text-yellow-800';
+    }
+  };
+
+  const handleVerifyPayment = async () => {
+    try {
+      setActionLoading('verify');
+      const response = await fetch(`/api/orders/${orderId}/verify-payment`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        if (data.wasUpdated) {
+          alert('Payment verified! Order status has been updated.');
+          await loadOrder();
+        } else {
+          alert(`Payment status checked. Invoice status: ${data.invoiceStatus}. Order is already up to date.`);
+        }
+      } else {
+        alert(data.error || 'Failed to verify payment status');
+      }
+    } catch (error) {
+      console.error('Error verifying payment:', error);
+      alert('Failed to verify payment status');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -499,9 +526,9 @@ export default function OrderDetailPage() {
                 <div className="space-y-4 md:space-y-6">
                   {order.items.map((item, index) => {
                     const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
-                    // Designs can be downloaded once payment is confirmed (designs are auto-delivered, so status may be 'delivered' or 'processing')
-                    const canDownload = order.paymentStatus === 'paid' && isDesign && item.designId && 
-                                      (order.status === 'delivered' || order.status === 'processing');
+                    // Designs can be downloaded once payment is confirmed (designs are digital and auto-delivered)
+                    // Show download button for all paid design orders, regardless of order status
+                    const canDownload = order.paymentStatus === 'paid' && isDesign && item.designId;
                     
                     return (
                     <div key={index} className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-4 pb-4 border-b last:border-0 last:pb-0">
@@ -620,18 +647,35 @@ export default function OrderDetailPage() {
                               <button
                                 onClick={async () => {
                                   try {
+                                    // Get download URL
                                     const response = await fetch(`/api/download/design/${item.designId}`);
                                     if (response.ok) {
                                       const data = await response.json();
                                       if (data.downloadUrl) {
-                                        // Open download URL in new tab
-                                        const link = document.createElement('a');
-                                        link.href = data.downloadUrl;
-                                        link.download = item.designName || 'design';
-                                        link.target = '_blank';
-                                        document.body.appendChild(link);
-                                        link.click();
-                                        document.body.removeChild(link);
+                                        // Fetch the file as a blob to force download
+                                        const fileResponse = await fetch(data.downloadUrl);
+                                        if (fileResponse.ok) {
+                                          const blob = await fileResponse.blob();
+                                          
+                                          // Get file extension from the blob type or URL
+                                          const url = new URL(data.downloadUrl);
+                                          const pathname = url.pathname;
+                                          const extension = pathname.split('.').pop() || 'png';
+                                          
+                                          // Create blob URL and trigger download
+                                          const blobUrl = window.URL.createObjectURL(blob);
+                                          const link = document.createElement('a');
+                                          link.href = blobUrl;
+                                          link.download = `${item.designName || 'design'}.${extension}`;
+                                          document.body.appendChild(link);
+                                          link.click();
+                                          document.body.removeChild(link);
+                                          
+                                          // Clean up blob URL
+                                          window.URL.revokeObjectURL(blobUrl);
+                                        } else {
+                                          alert('Failed to download file');
+                                        }
                                       } else {
                                         alert('Download URL not available');
                                       }
@@ -762,6 +806,26 @@ export default function OrderDetailPage() {
               <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
                 <h2 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Actions</h2>
                 <div className="space-y-2">
+                  {order.paymentStatus === 'pending' && order.paymentReference && (
+                    <Button 
+                      variant="outline" 
+                      className="w-full text-blue-600 border-blue-300 hover:bg-blue-50"
+                      onClick={handleVerifyPayment}
+                      disabled={actionLoading === 'verify'}
+                    >
+                      {actionLoading === 'verify' ? (
+                        <>
+                          <Loader className="w-4 h-4 mr-2 animate-spin" />
+                          Verifying...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Verify Payment Status
+                        </>
+                      )}
+                    </Button>
+                  )}
                   {order.status === 'pending' && (
                     <Button 
                       variant="outline" 

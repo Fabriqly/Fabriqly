@@ -80,6 +80,106 @@ export class FinanceService {
 
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    // Get design order earnings
+    try {
+      const { FirebaseAdminService } = await import('@/services/firebase-admin');
+      const { Collections } = await import('@/services/firebase');
+      
+      // Find designer profile by userId to get designerId
+      const designerProfiles = await FirebaseAdminService.queryDocuments(
+        Collections.DESIGNER_PROFILES,
+        [{ field: 'userId', operator: '==', value: userId }]
+      );
+      
+      if (designerProfiles.length > 0) {
+        const designerProfile = designerProfiles[0];
+        
+        // Get all earnings records for this designer
+        const earningsRecords = await FirebaseAdminService.queryDocuments(
+          Collections.DESIGNER_EARNINGS,
+          [{ field: 'designerId', operator: '==', value: designerProfile.id }]
+        );
+        
+        // Also get design orders directly (as fallback if earnings records don't exist)
+        const designOrders = await this.orderRepo.findByBusinessOwner(userId);
+        const paidDesignOrders = designOrders.filter(order => {
+          const isDesignOrder = order.items.every((item: any) => 
+            item.itemType === 'design' || (item.designId && !item.productId)
+          );
+          return isDesignOrder && order.paymentStatus === 'paid';
+        });
+        
+        // Calculate earnings from earnings records
+        for (const earnings of earningsRecords) {
+          const paidDate = this.toDate(earnings.paidAt);
+          
+          // Apply time filter
+          if (dateFilter && paidDate && paidDate < dateFilter) {
+            continue;
+          }
+          
+          const amount = earnings.amount || 0;
+          totalEarnings += amount;
+          paidAmount += amount;
+          
+          // Check if this month
+          if (paidDate && paidDate >= thisMonthStart) {
+            thisMonthEarnings += amount;
+          }
+        }
+        
+        // Also check paid design orders that might not have earnings records yet
+        for (const order of paidDesignOrders) {
+          // Check if earnings record already exists for this order
+          const hasEarningsRecord = earningsRecords.some(er => er.orderId === order.id);
+          
+          if (!hasEarningsRecord) {
+            // This order was paid but earnings record wasn't created (legacy data)
+            // Calculate earnings from order
+            const orderDate = this.toDate(order.createdAt);
+            
+            // Apply time filter
+            if (dateFilter && orderDate && orderDate < dateFilter) {
+              continue;
+            }
+            
+            const amount = order.totalAmount || 0;
+            totalEarnings += amount;
+            paidAmount += amount;
+            
+            // Check if this month
+            if (orderDate && orderDate >= thisMonthStart) {
+              thisMonthEarnings += amount;
+            }
+          }
+        }
+        
+        // Check for pending design orders (payment not yet completed)
+        const pendingDesignOrders = designOrders.filter(order => {
+          const isDesignOrder = order.items.every((item: any) => 
+            item.itemType === 'design' || (item.designId && !item.productId)
+          );
+          return isDesignOrder && order.paymentStatus === 'pending';
+        });
+        
+        for (const order of pendingDesignOrders) {
+          const orderDate = this.toDate(order.createdAt);
+          
+          // Apply time filter
+          if (dateFilter && orderDate && orderDate < dateFilter) {
+            continue;
+          }
+          
+          const amount = order.totalAmount || 0;
+          totalEarnings += amount; // Count as potential earnings
+          pendingAmount += amount;
+        }
+      }
+    } catch (error) {
+      console.error('[FinanceService] Error fetching design order earnings:', error);
+      // Continue with customization earnings even if design order earnings fail
+    }
 
     for (const customization of customizations) {
       // Apply time filter - check both requestedAt and payment dates
@@ -312,6 +412,105 @@ export class FinanceService {
 
     if (role === 'designer') {
       const customizations = await this.customizationRepo.findByDesignerId(userId);
+      
+      // Get design order payments
+      try {
+        const { FirebaseAdminService } = await import('@/services/firebase-admin');
+        const { Collections } = await import('@/services/firebase');
+        
+        // Find designer profile by userId to get designerId
+        const designerProfiles = await FirebaseAdminService.queryDocuments(
+          Collections.DESIGNER_PROFILES,
+          [{ field: 'userId', operator: '==', value: userId }]
+        );
+        
+        if (designerProfiles.length > 0) {
+          const designerProfile = designerProfiles[0];
+          
+          // Get all earnings records for this designer (these represent paid design orders)
+          const earningsRecords = await FirebaseAdminService.queryDocuments(
+            Collections.DESIGNER_EARNINGS,
+            [{ field: 'designerId', operator: '==', value: designerProfile.id }]
+          );
+          
+          // Also get design orders directly (as fallback)
+          const designOrders = await this.orderRepo.findByBusinessOwner(userId);
+          const paidDesignOrders = designOrders.filter(order => {
+            const isDesignOrder = order.items.every((item: any) => 
+              item.itemType === 'design' || (item.designId && !item.productId)
+            );
+            return isDesignOrder && order.paymentStatus === 'paid';
+          });
+          
+          // Add design order transactions from earnings records
+          for (const earnings of earningsRecords) {
+            // Apply filters
+            if (filters?.type && filters.type !== 'order') continue;
+            if (filters?.status && filters.status !== 'success') continue;
+            
+            const paidDate = this.toDate(earnings.paidAt);
+            if (filters?.dateFrom || filters?.dateTo) {
+              if (!paidDate) continue;
+              if (filters.dateFrom && paidDate < filters.dateFrom) continue;
+              if (filters.dateTo && paidDate > filters.dateTo) continue;
+            }
+            
+            // Get order details for description
+            const order = paidDesignOrders.find(o => o.id === earnings.orderId);
+            const designName = order?.items?.[0]?.designName || 'Design';
+            
+            transactions.push({
+              id: earnings.orderId || `earnings-${earnings.id}`,
+              type: 'order',
+              referenceId: earnings.orderId,
+              amount: earnings.amount || 0,
+              status: 'success',
+              paidAt: paidDate,
+              paymentMethod: 'xendit',
+              description: `Design purchase: ${designName}`,
+              productName: designName
+            });
+          }
+          
+          // Also add pending design orders
+          const pendingDesignOrders = designOrders.filter(order => {
+            const isDesignOrder = order.items.every((item: any) => 
+              item.itemType === 'design' || (item.designId && !item.productId)
+            );
+            return isDesignOrder && order.paymentStatus === 'pending';
+          });
+          
+          for (const order of pendingDesignOrders) {
+            // Apply filters
+            if (filters?.type && filters.type !== 'order') continue;
+            if (filters?.status && filters.status !== 'pending') continue;
+            
+            const orderDate = this.toDate(order.createdAt);
+            if (filters?.dateFrom || filters?.dateTo) {
+              if (!orderDate) continue;
+              if (filters.dateFrom && orderDate < filters.dateFrom) continue;
+              if (filters.dateTo && orderDate > filters.dateTo) continue;
+            }
+            
+            const designName = order.items?.[0]?.designName || 'Design';
+            
+            transactions.push({
+              id: order.id,
+              type: 'order',
+              referenceId: order.id,
+              amount: order.totalAmount || 0,
+              status: 'pending',
+              paidAt: orderDate,
+              paymentMethod: order.paymentMethod || 'xendit',
+              description: `Design purchase: ${designName} (Payment pending)`,
+              productName: designName
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[FinanceService] Error fetching design order payments:', error);
+        // Continue with customization payments even if design order payments fail
+      }
       
       for (const customization of customizations) {
         if (!customization.paymentDetails) continue;
@@ -616,6 +815,37 @@ export class FinanceService {
 
     if (role === 'designer') {
       customizations = await this.customizationRepo.findByDesignerId(userId);
+      
+      // Also get design orders for designers
+      try {
+        const { FirebaseAdminService } = await import('@/services/firebase-admin');
+        const { Collections } = await import('@/services/firebase');
+        
+        // Find designer profile by userId to get designerId
+        const designerProfiles = await FirebaseAdminService.queryDocuments(
+          Collections.DESIGNER_PROFILES,
+          [{ field: 'userId', operator: '==', value: userId }]
+        );
+        
+        if (designerProfiles.length > 0) {
+          const designerProfile = designerProfiles[0];
+          
+          // Get design orders for this designer (businessOwnerId is the designer's userId)
+          const allDesignOrders = await this.orderRepo.findByBusinessOwner(userId);
+          const designOrders = allDesignOrders.filter(order => {
+            const isDesignOrder = order.items.every((item: any) => 
+              item.itemType === 'design' || (item.designId && !item.productId)
+            );
+            return isDesignOrder;
+          });
+          
+          // Add design orders to the items array for time series generation
+          orders.push(...designOrders);
+        }
+      } catch (error) {
+        console.error('[FinanceService] Error fetching design orders for analytics:', error);
+        // Continue with customizations even if design orders fail
+      }
     } else {
       orders = await this.orderRepo.findByBusinessOwner(userId);
       // Include all orders except cancelled ones
@@ -636,10 +866,70 @@ export class FinanceService {
     let orderRevenue = 0;
 
     if (role === 'designer') {
+      // Calculate customization revenue
       for (const customization of customizations) {
         if (customization.paymentDetails?.designerPayoutAmount) {
           customizationRevenue += customization.paymentDetails.designerPayoutAmount;
         }
+      }
+      
+      // Calculate design order revenue
+      try {
+        const { FirebaseAdminService } = await import('@/services/firebase-admin');
+        const { Collections } = await import('@/services/firebase');
+        
+        // Find designer profile by userId to get designerId
+        const designerProfiles = await FirebaseAdminService.queryDocuments(
+          Collections.DESIGNER_PROFILES,
+          [{ field: 'userId', operator: '==', value: userId }]
+        );
+        
+        if (designerProfiles.length > 0) {
+          const designerProfile = designerProfiles[0];
+          
+          // Get all earnings records for this designer
+          const earningsRecords = await FirebaseAdminService.queryDocuments(
+            Collections.DESIGNER_EARNINGS,
+            [{ field: 'designerId', operator: '==', value: designerProfile.id }]
+          );
+          
+          // Calculate revenue from earnings records
+          for (const earnings of earningsRecords) {
+            const paidDate = this.toDate(earnings.paidAt);
+            // Apply time filter
+            if (dateFilter && paidDate && paidDate < dateFilter) {
+              continue;
+            }
+            orderRevenue += earnings.amount || 0;
+          }
+          
+          // Also check paid design orders that might not have earnings records yet
+          const allDesignOrders = await this.orderRepo.findByBusinessOwner(userId);
+          const paidDesignOrders = allDesignOrders.filter(order => {
+            const isDesignOrder = order.items.every((item: any) => 
+              item.itemType === 'design' || (item.designId && !item.productId)
+            );
+            return isDesignOrder && order.paymentStatus === 'paid';
+          });
+          
+          for (const order of paidDesignOrders) {
+            // Check if earnings record already exists for this order
+            const hasEarningsRecord = earningsRecords.some(er => er.orderId === order.id);
+            
+            if (!hasEarningsRecord) {
+              // This order was paid but earnings record wasn't created (legacy data)
+              const orderDate = this.toDate(order.createdAt);
+              // Apply time filter
+              if (dateFilter && orderDate && orderDate < dateFilter) {
+                continue;
+              }
+              orderRevenue += order.totalAmount || 0;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[FinanceService] Error calculating design order revenue:', error);
+        // Continue with customization revenue even if design order revenue fails
       }
     } else {
       for (const order of orders) {
@@ -809,7 +1099,22 @@ export class FinanceService {
       } else {
         // Order
         const order = item as Order;
-        date = this.toDate(order.createdAt);
+        
+        // For design orders, try to use payment date from earnings record if available
+        // Otherwise use order creation date
+        const isDesignOrder = order.items?.every((item: any) => 
+          item.itemType === 'design' || (item.designId && !item.productId)
+        );
+        
+        if (isDesignOrder && order.paymentStatus === 'paid') {
+          // For paid design orders, try to get payment date from earnings record
+          // For now, use order creation date (earnings records are separate)
+          // In the future, we could enhance this to look up earnings records
+          date = this.toDate(order.createdAt);
+        } else {
+          date = this.toDate(order.createdAt);
+        }
+        
         // Include all orders (paid, pending, in-process) except cancelled
         if (order.status !== 'cancelled') {
           amount = order.totalAmount || 0;

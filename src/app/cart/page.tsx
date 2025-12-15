@@ -74,8 +74,68 @@ export default function CartPage() {
       setLoadingShops(true);
       
       // Separate product and design items
-      const productItems = state.cart.items.filter(item => item.itemType === 'product');
-      const designItems = state.cart.items.filter(item => item.itemType === 'design');
+      // Also log items for debugging
+      console.log('[Cart] All cart items:', state.cart.items.map(item => ({
+        id: item.id,
+        itemType: item.itemType,
+        productId: item.productId,
+        designId: item.designId,
+        businessOwnerId: item.businessOwnerId,
+        designerId: item.designerId,
+        productName: item.product?.name,
+        designName: item.design?.name
+      })));
+      
+      // Filter items - handle both explicit itemType and inferred types
+      const productItems = state.cart.items.filter(item => {
+        const isProduct = item.itemType === 'product' || (item.productId && !item.designId && item.itemType !== 'design');
+        if (!isProduct && item.productId) {
+          console.warn('[Cart] Item has productId but itemType is not "product":', {
+            id: item.id,
+            itemType: item.itemType,
+            productId: item.productId
+          });
+        }
+        return isProduct;
+      });
+      
+      const designItems = state.cart.items.filter(item => {
+        const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
+        if (!isDesign && item.designId) {
+          console.warn('[Cart] Item has designId but itemType is not "design":', {
+            id: item.id,
+            itemType: item.itemType,
+            designId: item.designId
+          });
+        }
+        return isDesign;
+      });
+      
+      // Check for items that don't match either category
+      const unclassifiedItems = state.cart.items.filter(item => 
+        !productItems.includes(item) && !designItems.includes(item)
+      );
+      
+      if (unclassifiedItems.length > 0) {
+        console.warn('[Cart] Unclassified items (neither product nor design):', unclassifiedItems.map(item => ({
+          id: item.id,
+          itemType: item.itemType,
+          productId: item.productId,
+          designId: item.designId
+        })));
+        // Try to classify them based on available fields
+        unclassifiedItems.forEach(item => {
+          if (item.productId && !item.designId) {
+            productItems.push(item);
+            console.log('[Cart] Classified unclassified item as product:', item.id);
+          } else if (item.designId && !item.productId) {
+            designItems.push(item);
+            console.log('[Cart] Classified unclassified item as design:', item.id);
+          }
+        });
+      }
+      
+      console.log('[Cart] Product items:', productItems.length, 'Design items:', designItems.length);
       
       const uniqueOwnerIds = [...new Set(productItems.map(item => item.businessOwnerId).filter(Boolean))];
       const uniqueDesignerIds = [...new Set(designItems.map(item => item.designerId).filter(Boolean))];
@@ -149,11 +209,22 @@ export default function CartPage() {
 
       // Group product items by businessOwnerId
       const productGroups = productItems.reduce((acc, item) => {
-        const ownerId = item.businessOwnerId!;
+        // Handle missing businessOwnerId - use a fallback key
+        const ownerId = item.businessOwnerId || 'unknown-owner';
+        
+        // Log warning if businessOwnerId is missing
+        if (!item.businessOwnerId) {
+          console.warn('[Cart] Product item missing businessOwnerId:', {
+            itemId: item.id,
+            productId: item.productId,
+            productName: item.product?.name
+          });
+        }
+        
         if (!acc[ownerId]) {
           acc[ownerId] = {
             shop: shopMap[ownerId] || null,
-            businessOwnerId: ownerId,
+            businessOwnerId: ownerId === 'unknown-owner' ? undefined : ownerId,
             groupType: 'product' as const,
             items: []
           };
@@ -164,11 +235,22 @@ export default function CartPage() {
 
       // Group design items by designerId
       const designGroups = designItems.reduce((acc, item) => {
-        const designerId = item.designerId!;
+        // Handle missing designerId - use a fallback key
+        const designerId = item.designerId || 'unknown-designer';
+        
+        // Log warning if designerId is missing
+        if (!item.designerId) {
+          console.warn('[Cart] Design item missing designerId:', {
+            itemId: item.id,
+            designId: item.designId,
+            designName: item.design?.name
+          });
+        }
+        
         if (!acc[designerId]) {
           acc[designerId] = {
             designer: designerMap[designerId] || null,
-            designerId: designerId,
+            designerId: designerId === 'unknown-designer' ? undefined : designerId,
             groupType: 'design' as const,
             items: []
           };
@@ -178,7 +260,87 @@ export default function CartPage() {
       }, {} as Record<string, ShopGroup>);
 
       // Combine both groups
-      setGroupedItems([...Object.values(productGroups), ...Object.values(designGroups)]);
+      const allGroups = [...Object.values(productGroups), ...Object.values(designGroups)];
+      
+      // Verify all items are included
+      const groupedItemIds = new Set(allGroups.flatMap(group => group.items.map(item => item.id)));
+      const allItemIds = new Set(state.cart.items.map(item => item.id));
+      const missingItems = state.cart.items.filter(item => !groupedItemIds.has(item.id));
+      
+      // Debug: Log the comparison
+      if (missingItems.length > 0) {
+        console.log('[Cart] Grouping verification:', {
+          totalItems: state.cart.items.length,
+          groupedItems: groupedItemIds.size,
+          missingItems: missingItems.length,
+          groupedItemIds: Array.from(groupedItemIds),
+          allItemIds: Array.from(allItemIds)
+        });
+      }
+      
+      if (missingItems.length > 0) {
+        console.error('[Cart] Some items were not grouped:', missingItems.map(item => ({
+          id: item.id,
+          itemType: item.itemType,
+          productId: item.productId,
+          designId: item.designId,
+          businessOwnerId: item.businessOwnerId,
+          designerId: item.designerId,
+          productName: item.product?.name,
+          designName: item.design?.name
+        })));
+        
+        // Add missing items to fallback groups
+        const missingProductItems = missingItems.filter(item => item.itemType === 'product');
+        const missingDesignItems = missingItems.filter(item => item.itemType === 'design');
+        
+        if (missingProductItems.length > 0) {
+          // Group missing product items by businessOwnerId if available, otherwise use fallback
+          const missingProductGroups = missingProductItems.reduce((acc, item) => {
+            const ownerId = item.businessOwnerId || 'unknown-owner';
+            if (!acc[ownerId]) {
+              acc[ownerId] = {
+                shop: null,
+                businessOwnerId: ownerId === 'unknown-owner' ? undefined : ownerId,
+                groupType: 'product' as const,
+                items: []
+              };
+            }
+            acc[ownerId].items.push({ ...item, shop: undefined });
+            return acc;
+          }, {} as Record<string, ShopGroup>);
+          
+          allGroups.push(...Object.values(missingProductGroups));
+        }
+        
+        if (missingDesignItems.length > 0) {
+          // Group missing design items by designerId if available, otherwise use fallback
+          const missingDesignGroups = missingDesignItems.reduce((acc, item) => {
+            const designerId = item.designerId || 'unknown-designer';
+            if (!acc[designerId]) {
+              acc[designerId] = {
+                designer: null,
+                designerId: designerId === 'unknown-designer' ? undefined : designerId,
+                groupType: 'design' as const,
+                items: []
+              };
+            }
+            acc[designerId].items.push({ ...item, designer: undefined });
+            return acc;
+          }, {} as Record<string, ShopGroup>);
+          
+          allGroups.push(...Object.values(missingDesignGroups));
+        }
+      }
+      
+      console.log('[Cart] Grouped items:', allGroups.map(group => ({
+        type: group.groupType,
+        itemCount: group.items.length,
+        businessOwnerId: group.businessOwnerId,
+        designerId: group.designerId
+      })));
+      
+      setGroupedItems(allGroups);
       setLoadingShops(false);
     };
 

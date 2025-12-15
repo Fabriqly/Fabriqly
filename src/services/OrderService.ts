@@ -204,6 +204,11 @@ export class OrderService implements IOrderService {
       // Create order
       const now = Timestamp.now();
       const totalDiscountAmount = productDiscountAmount + shippingDiscountAmount;
+      
+      // Design-only orders are automatically delivered (digital products)
+      // Set status to 'delivered' immediately for design-only orders
+      const initialStatus = isDesignOnlyOrder ? 'delivered' as const : 'pending' as const;
+      
       const orderData = {
         customerId: data.customerId,
         businessOwnerId: data.businessOwnerId,
@@ -213,7 +218,7 @@ export class OrderService implements IOrderService {
         tax,
         shippingCost: effectiveShippingCost, // 0 for design-only orders
         totalAmount,
-        status: 'pending' as const,
+        status: initialStatus,
         paymentStatus: 'pending' as const,
         shippingAddress: data.shippingAddress,
         billingAddress: data.billingAddress || data.shippingAddress,
@@ -223,9 +228,9 @@ export class OrderService implements IOrderService {
         appliedCouponCode: data.couponCode,
         statusHistory: [
           {
-            status: 'pending' as const,
+            status: initialStatus,
             timestamp: now,
-            updatedBy: data.customerId
+            updatedBy: isDesignOnlyOrder ? 'system' : data.customerId
           }
         ],
         createdAt: now,

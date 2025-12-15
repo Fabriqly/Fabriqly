@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
       shopId, 
       designerId,
       designId,
+      designIds, // Support multiple designs for designer reviews
       customizationRequestId 
     } = body;
 
@@ -76,6 +77,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // For designer reviews, use designId from designIds array if provided
+    const finalDesignId = designIds && designIds.length > 0 ? designIds[0] : designId;
+    
     const review = await reviewService.createReview({
       customerId: session.user.id,
       customerName: session.user.name || 'Anonymous',
@@ -86,7 +90,7 @@ export async function POST(request: NextRequest) {
       productId,
       shopId,
       designerId,
-      designId,
+      designId: finalDesignId,
       customizationRequestId
     });
 
