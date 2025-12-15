@@ -24,7 +24,8 @@ import {
   DollarSign,
   Tag,
   AlertTriangle,
-  Database
+  Database,
+  ScrollText
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -129,6 +130,12 @@ const adminNavigation = [
     description: 'Send system-wide announcements'
   },
   {
+    name: 'Policies',
+    href: '/dashboard/admin/policies',
+    icon: ScrollText,
+    description: 'Manage Terms & Conditions, Privacy, Shipping, and Refund policies'
+  },
+  {
     name: 'Settings',
     href: '/dashboard/admin/settings',
     icon: Settings,
@@ -201,7 +208,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               <nav className="mt-5 px-2 space-y-1">
                 {adminNavigation.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href;
+                  const isActive = pathname === item.href || 
+                    (item.href !== '/dashboard/admin' && pathname.startsWith(item.href + '/'));
                   return (
                     <Link
                       key={item.name}
@@ -262,7 +270,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             <nav className="mt-5 flex-1 px-2 space-y-1">
               {adminNavigation.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href;
+                const isActive = pathname === item.href || 
+                  (item.href !== '/dashboard/admin' && pathname.startsWith(item.href + '/'));
                 return (
                   <Link
                     key={item.name}
