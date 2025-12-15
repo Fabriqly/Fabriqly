@@ -7,8 +7,7 @@ import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { 
   Design, 
   CreateDesignData, 
-  DesignFilters,
-  DesignWithDetails 
+  DesignFilters
 } from '@/types/enhanced-products';
 import { unstable_cache } from 'next/cache';
 import { revalidateTag } from 'next/cache';
@@ -69,11 +68,39 @@ export async function GET(request: NextRequest) {
 
     const hasMore = designsWithExtra.length > effectiveLimit;
     const designs = hasMore ? designsWithExtra.slice(0, effectiveLimit) : designsWithExtra;
-    const nextCursor = hasMore
-      ? (designs[designs.length - 1]?.createdAt instanceof Date
-          ? designs[designs.length - 1].createdAt.getTime()
-          : new Date(designs[designs.length - 1]?.createdAt || '').getTime())
-      : null;
+    
+    // Calculate next cursor from the last design's createdAt
+    let nextCursor: number | null = null;
+    if (hasMore && designs.length > 0) {
+      const lastDesign = designs[designs.length - 1];
+      if (lastDesign?.createdAt) {
+        try {
+          const createdAt = lastDesign.createdAt as any;
+          
+          // Handle Firestore Timestamp with toDate method
+          if (createdAt && typeof createdAt === 'object' && typeof createdAt.toDate === 'function') {
+            nextCursor = createdAt.toDate().getTime();
+          }
+          // Handle Firestore Timestamp with seconds property
+          else if (createdAt && typeof createdAt === 'object' && createdAt.seconds) {
+            nextCursor = createdAt.seconds * 1000;
+          }
+          // Handle Date object
+          else if (createdAt instanceof Date) {
+            nextCursor = createdAt.getTime();
+          }
+          // Handle string or number
+          else if (typeof createdAt === 'string' || typeof createdAt === 'number') {
+            const date = new Date(createdAt);
+            if (!isNaN(date.getTime())) {
+              nextCursor = date.getTime();
+            }
+          }
+        } catch (error) {
+          console.error('Error calculating cursor:', error);
+        }
+      }
+    }
 
     return NextResponse.json({
       designs,
