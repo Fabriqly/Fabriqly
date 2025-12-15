@@ -151,17 +151,17 @@ export default function DesignerVerificationDashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Designer Verification</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Designer Management</h2>
           <p className="text-gray-600 mt-1">
-            Manage designer verification requests and monitor verification status
+            Manage designer accounts, verification requests, and monitor status
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
           <button
-            onClick={() => window.location.href = '/dashboard/admin/designer-verification'}
+            onClick={() => window.location.href = '/dashboard/admin/designers'}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            Manage Verifications
+            Manage Designers
           </button>
         </div>
       </div>
@@ -232,22 +232,22 @@ export default function DesignerVerificationDashboard() {
           </div>
           <div className="space-y-2">
             <button
-              onClick={() => window.location.href = '/dashboard/admin/designer-verification?status=pending'}
+              onClick={() => window.location.href = '/dashboard/admin/designers?tab=verification'}
               className="w-full px-3 py-2 text-left text-sm bg-yellow-100 hover:bg-yellow-200 rounded-md transition-colors"
             >
               Review Pending Requests ({stats?.totalPending || 0})
             </button>
             <button
-              onClick={() => window.location.href = '/dashboard/admin/designer-verification?status=rejected'}
+              onClick={() => window.location.href = '/dashboard/admin/designers?tab=suspended'}
               className="w-full px-3 py-2 text-left text-sm bg-red-100 hover:bg-red-200 rounded-md transition-colors"
             >
-              Review Rejected ({stats?.totalRejected || 0})
+              Review Suspended ({stats?.totalSuspended || 0})
             </button>
             <button
-              onClick={() => window.location.href = '/dashboard/admin/designer-verification?status=approved'}
+              onClick={() => window.location.href = '/dashboard/admin/designers?tab=all'}
               className="w-full px-3 py-2 text-left text-sm bg-green-100 hover:bg-green-200 rounded-md transition-colors"
             >
-              View Verified ({stats?.totalVerified || 0})
+              View All Designers ({stats?.totalActive || 0})
             </button>
           </div>
         </div>
