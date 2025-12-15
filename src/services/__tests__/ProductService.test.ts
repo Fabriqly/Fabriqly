@@ -15,9 +15,9 @@ jest.mock('@/repositories/ActivityRepository');
 
 describe('ProductService', () => {
   let productService: ProductService;
-  let mockProductRepository: any;
-  let mockCategoryRepository: any;
-  let mockActivityRepository: any;
+  let mockProductRepository: jest.Mocked<ProductRepository>;
+  let mockCategoryRepository: jest.Mocked<CategoryRepository>;
+  let mockActivityRepository: jest.Mocked<ActivityRepository>;
   let serviceContainer: ServiceContainer;
 
   beforeEach(() => {
@@ -25,9 +25,9 @@ describe('ProductService', () => {
     jest.clearAllMocks();
 
     // Create mock instances
-    mockProductRepository = new ProductRepository() as any;
-    mockCategoryRepository = new CategoryRepository() as any;
-    mockActivityRepository = new ActivityRepository() as any;
+    mockProductRepository = new ProductRepository() as jest.Mocked<ProductRepository>;
+    mockCategoryRepository = new CategoryRepository() as jest.Mocked<CategoryRepository>;
+    mockActivityRepository = new ActivityRepository() as jest.Mocked<ActivityRepository>;
 
     // Create service container and register mocks
     serviceContainer = new ServiceContainer();
@@ -66,7 +66,7 @@ describe('ProductService', () => {
       mockCategoryRepository.findById.mockResolvedValue(mockCategory as any);
       mockProductRepository.findBySku.mockResolvedValue(null);
       mockProductRepository.create.mockResolvedValue(mockProduct as any);
-      mockActivityRepository.create.mockResolvedValue({} as any);
+      mockActivityRepository.create.mockResolvedValue({} as Record<string, unknown>);
 
       // Act
       const result = await productService.createProduct(validProductData, 'owner-1');
@@ -101,8 +101,8 @@ describe('ProductService', () => {
 
     it('should throw error when SKU already exists', async () => {
       // Arrange
-      mockCategoryRepository.findById.mockResolvedValue(mockCategory as any);
-      mockProductRepository.findBySku.mockResolvedValue(mockProduct as any);
+      mockCategoryRepository.findById.mockResolvedValue(mockCategory as Record<string, unknown>);
+      mockProductRepository.findBySku.mockResolvedValue(mockProduct as Record<string, unknown>);
 
       // Act & Assert
       await expect(productService.createProduct(validProductData, 'owner-1'))
@@ -122,7 +122,7 @@ describe('ProductService', () => {
     it('should return product from cache if available', async () => {
       // This test would require mocking the CacheService
       // For now, we'll test the repository call
-      mockProductRepository.findById.mockResolvedValue(mockProduct as any);
+      mockProductRepository.findById.mockResolvedValue(mockProduct as Record<string, unknown>);
 
       const result = await productService.getProduct('product-1');
 
@@ -156,12 +156,12 @@ describe('ProductService', () => {
 
     it('should update product successfully', async () => {
       // Arrange
-      mockProductRepository.findById.mockResolvedValue(existingProduct as any);
+      mockProductRepository.findById.mockResolvedValue(existingProduct as Record<string, unknown>);
       mockProductRepository.update.mockResolvedValue({
         ...existingProduct,
         ...updateData
-      } as any);
-      mockActivityRepository.create.mockResolvedValue({} as any);
+      } as Record<string, unknown>);
+      mockActivityRepository.create.mockResolvedValue({} as Record<string, unknown>);
 
       // Act
       const result = await productService.updateProduct('product-1', updateData, 'owner-1');
@@ -192,7 +192,7 @@ describe('ProductService', () => {
       // Arrange
       mockProductRepository.findById.mockResolvedValue(existingProduct as any);
       mockProductRepository.delete.mockResolvedValue();
-      mockActivityRepository.create.mockResolvedValue({} as any);
+      mockActivityRepository.create.mockResolvedValue({} as Record<string, unknown>);
 
       // Act
       await productService.deleteProduct('product-1', 'owner-1');

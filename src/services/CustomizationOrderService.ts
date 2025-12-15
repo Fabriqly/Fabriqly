@@ -1,9 +1,8 @@
 import { CustomizationRepository } from '@/repositories/CustomizationRepository';
 import { OrderService } from './OrderService';
 import { CustomizationRequest } from '@/types/customization';
-import { OrderRepository } from '@/repositories/OrderRepository';
-import { ProductRepository } from '@/repositories/ProductRepository';
 import { Timestamp } from 'firebase-admin/firestore';
+import type { Address } from '@/types/firebase';
 import { AppError } from '@/errors/AppError';
 import { eventBus } from '@/events/EventBus';
 
@@ -26,7 +25,7 @@ export class CustomizationOrderService {
   async createOrderFromCustomization(
     requestId: string,
     customerId: string,
-    shippingAddress: any,
+    shippingAddress: Address,
     paymentMethod: string = 'xendit'
   ): Promise<{ orderId: string; customizationRequest: CustomizationRequest }> {
     const request = await this.customizationRepo.findById(requestId);
@@ -109,7 +108,7 @@ export class CustomizationOrderService {
     // Calculate product cost (base price + color adjustment)
     // If shop owner has set pricing, use that; otherwise calculate from product
     let productCost = request.pricingAgreement.productCost || 0;
-    let printingCost = request.pricingAgreement.printingCost || 0;
+    const printingCost = request.pricingAgreement.printingCost || 0;
 
     // If product cost is 0, calculate it from product base price + color
     if (productCost === 0) {
@@ -155,8 +154,8 @@ export class CustomizationOrderService {
 
     // Update customization request with order ID
     await this.customizationRepo.update(requestId, {
-      orderId: order.id as any,
-      updatedAt: Timestamp.now() as any
+      orderId: order.id,
+      updatedAt: Timestamp.now()
     });
 
     // Emit event

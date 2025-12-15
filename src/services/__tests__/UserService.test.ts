@@ -48,8 +48,8 @@ describe('UserService', () => {
     it('should create user successfully', async () => {
       // Arrange
       mockUserRepository.findByEmail.mockResolvedValue(null);
-      mockFirebaseAdminService.createUser.mockResolvedValue(mockFirebaseUser as any);
-      mockActivityRepository.create.mockResolvedValue({} as any);
+      mockFirebaseAdminService.createUser.mockResolvedValue(mockFirebaseUser as Record<string, unknown>);
+      mockActivityRepository.create.mockResolvedValue({} as Record<string, unknown>);
 
       // Act
       const result = await userService.createUser(validUserData);
@@ -74,7 +74,7 @@ describe('UserService', () => {
       mockUserRepository.findByEmail.mockResolvedValue({
         id: 'existing-user',
         email: 'test@example.com'
-      } as any);
+      } as Record<string, unknown>);
 
       await expect(userService.createUser(validUserData))
         .rejects
@@ -109,7 +109,7 @@ describe('UserService', () => {
       mockUserRepository.update.mockResolvedValue({
         ...existingUser,
         ...updateData
-      } as any);
+      } as Record<string, unknown>);
       mockActivityRepository.create.mockResolvedValue({} as any);
 
       // Act
@@ -276,7 +276,7 @@ describe('UserService', () => {
         role: 'customer'
       };
 
-      const result = userService.validateUserData(invalidData as any);
+      const result = userService.validateUserData(invalidData as Record<string, unknown>);
 
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain('Valid email is required');
@@ -289,7 +289,7 @@ describe('UserService', () => {
         role: 'customer'
       };
 
-      const result = userService.validateUserData(invalidData as any);
+      const result = userService.validateUserData(invalidData as Record<string, unknown>);
 
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain('Password must be at least 6 characters long');
@@ -302,7 +302,7 @@ describe('UserService', () => {
         role: 'invalid_role'
       };
 
-      const result = userService.validateUserData(invalidData as any);
+      const result = userService.validateUserData(invalidData as Record<string, unknown>);
 
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain('Invalid role');

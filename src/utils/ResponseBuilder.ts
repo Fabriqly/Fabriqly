@@ -1,4 +1,4 @@
-import { ApiResponse, ApiSuccessResponse, ApiErrorResponse, PaginationMeta } from '@/types/ApiResponse';
+import { ApiSuccessResponse, ApiErrorResponse, PaginationMeta } from '@/types/ApiResponse';
 import { AppError } from '@/errors/AppError';
 
 export class ResponseBuilder {
@@ -25,7 +25,7 @@ export class ResponseBuilder {
   ): ApiErrorResponse {
     let code: string;
     let message: string;
-    let details: any;
+    let details: unknown;
 
     if (error instanceof AppError) {
       code = error.code;

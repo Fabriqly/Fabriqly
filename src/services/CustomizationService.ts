@@ -170,8 +170,8 @@ export class CustomizationService {
   async uploadFinalDesign(
     requestId: string,
     designerId: string,
-    finalFile: any,
-    previewImage: any,
+    finalFile: { url: string; fileName?: string; size?: number; type?: string },
+    previewImage: { url: string; fileName?: string; size?: number; type?: string },
     notes?: string
   ): Promise<CustomizationRequest> {
     const request = await this.customizationRepo.findById(requestId);
@@ -231,9 +231,9 @@ export class CustomizationService {
     // Update status to ready_for_production (not just 'approved')
     const { Timestamp } = await import('firebase-admin/firestore');
     const updatedRequest = await this.customizationRepo.update(requestId, {
-      status: 'ready_for_production' as any,
-      approvedAt: Timestamp.now() as any,
-      updatedAt: Timestamp.now() as any,
+      status: 'ready_for_production',
+      approvedAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     });
 
     // Release designer payment from escrow
@@ -242,7 +242,7 @@ export class CustomizationService {
     try {
       await escrowService.releaseDesignerPayment(requestId);
       console.log('[CustomizationService] Designer payment released successfully');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[CustomizationService] Failed to release designer payment:', error);
       // Don't throw error - approval should succeed even if payout fails
       // Admin can manually process payout later if needed
@@ -371,9 +371,9 @@ export class CustomizationService {
     }
 
     const updatedRequest = await this.customizationRepo.update(requestId, {
-      printingShopId: shopId as any,
-      printingShopName: shop.businessName as any,
-      updatedAt: Timestamp.now() as any
+      printingShopId: shopId,
+      printingShopName: shop.businessName,
+      updatedAt: Timestamp.now()
     });
 
     // Emit event
@@ -392,8 +392,8 @@ export class CustomizationService {
    */
   async linkToOrder(requestId: string, orderId: string): Promise<CustomizationRequest> {
     return this.customizationRepo.update(requestId, {
-      orderId: orderId as any,
-      status: 'completed' as any
+      orderId,
+      status: 'completed'
     });
   }
 

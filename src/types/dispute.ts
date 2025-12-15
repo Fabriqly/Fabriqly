@@ -171,11 +171,11 @@ export interface DisputeFilters {
  * Dispute With Details (includes related entities)
  */
 export interface DisputeWithDetails extends Dispute {
-  order?: any; // Order details if orderId exists
-  customizationRequest?: any; // CustomizationRequest details if customizationRequestId exists
-  filer?: any; // User who filed
-  accused?: any; // User who is accused
-  conversation?: any; // Conversation details
+  order?: unknown; // Order details if orderId exists
+  customizationRequest?: unknown; // CustomizationRequest details if customizationRequestId exists
+  filer?: unknown; // User who filed
+  accused?: unknown; // User who is accused
+  conversation?: unknown; // Conversation details
 }
 
 /**

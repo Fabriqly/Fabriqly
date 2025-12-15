@@ -156,7 +156,7 @@ export class CouponService {
   ): Promise<{
     success: boolean;
     coupon?: CouponCode;
-    discount?: any;
+    discount?: unknown;
     discountAmount?: number;
     error?: string;
   }> {
@@ -220,7 +220,7 @@ export class CouponService {
   /**
    * Get discount details from coupon
    */
-  async getCouponDiscount(couponId: string): Promise<any | null> {
+  async getCouponDiscount(couponId: string): Promise<unknown | null> {
     const coupon = await this.couponRepo.findById(couponId);
     
     if (!coupon) {
@@ -336,9 +336,10 @@ export class CouponService {
             startDate = coupon.startDate;
           } else if (coupon.startDate instanceof Date) {
             startDate = Timestamp.fromDate(coupon.startDate);
-          } else if (typeof coupon.startDate === 'object') {
-            const seconds = (coupon.startDate as any)._seconds || (coupon.startDate as any).seconds;
-            const nanoseconds = (coupon.startDate as any)._nanoseconds || (coupon.startDate as any).nanoseconds || 0;
+          } else if (typeof coupon.startDate === 'object' && coupon.startDate !== null) {
+            const dateObj = coupon.startDate as Record<string, unknown>;
+            const seconds = (dateObj._seconds as number | undefined) || (dateObj.seconds as number | undefined);
+            const nanoseconds = (dateObj._nanoseconds as number | undefined) || (dateObj.nanoseconds as number | undefined) || 0;
             if (typeof seconds === 'number') {
               startDate = new Timestamp(seconds, nanoseconds);
             }
@@ -353,9 +354,10 @@ export class CouponService {
             endDate = coupon.endDate;
           } else if (coupon.endDate instanceof Date) {
             endDate = Timestamp.fromDate(coupon.endDate);
-          } else if (typeof coupon.endDate === 'object') {
-            const seconds = (coupon.endDate as any)._seconds || (coupon.endDate as any).seconds;
-            const nanoseconds = (coupon.endDate as any)._nanoseconds || (coupon.endDate as any).nanoseconds || 0;
+          } else if (typeof coupon.endDate === 'object' && coupon.endDate !== null) {
+            const dateObj = coupon.endDate as Record<string, unknown>;
+            const seconds = (dateObj._seconds as number | undefined) || (dateObj.seconds as number | undefined);
+            const nanoseconds = (dateObj._nanoseconds as number | undefined) || (dateObj.nanoseconds as number | undefined) || 0;
             if (typeof seconds === 'number') {
               endDate = new Timestamp(seconds, nanoseconds);
             }

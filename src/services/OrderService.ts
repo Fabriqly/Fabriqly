@@ -48,8 +48,8 @@ export class OrderService implements IOrderService {
       }
 
       // Separate product and design items FIRST
-      const productItems = data.items.filter(item => (item as any).itemType !== 'design' && item.productId);
-      const designItems = data.items.filter(item => (item as any).itemType === 'design' && (item as any).designId);
+      const productItems = data.items.filter(item => (item as Record<string, unknown>).itemType !== 'design' && item.productId);
+      const designItems = data.items.filter(item => (item as Record<string, unknown>).itemType === 'design' && (item as Record<string, unknown>).designId);
       
       // Calculate subtotals separately
       const productSubtotal = productItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -349,7 +349,7 @@ export class OrderService implements IOrderService {
       }
 
       // Add status history if status is changing
-      const updateData: any = { ...data, updatedAt: Timestamp.now() };
+      const updateData: Record<string, unknown> = { ...data, updatedAt: Timestamp.now() };
       if (data.status && data.status !== existingOrder.status) {
         const statusHistory = existingOrder.statusHistory || [];
         statusHistory.push({
@@ -379,7 +379,7 @@ export class OrderService implements IOrderService {
             const productService = new ProductService(this.productRepository, categoryRepository, this.activityRepository);
             
             await Promise.all(
-              existingOrder.items.map(async (item: any) => {
+              existingOrder.items.map(async (item: Record<string, unknown>) => {
                 try {
                   const result = await productService.incrementStock(
                     item.productId,
@@ -601,8 +601,8 @@ export class OrderService implements IOrderService {
         
         // Handle timestamp fields
         if (sortField === 'createdAt' || sortField === 'updatedAt') {
-          aValue = aValue instanceof Date ? aValue : new Date(aValue as any);
-          bValue = bValue instanceof Date ? bValue : new Date(bValue as any);
+          aValue = aValue instanceof Date ? aValue : new Date(String(aValue));
+          bValue = bValue instanceof Date ? bValue : new Date(String(bValue));
         }
         
         if (sortOrder === 'asc') {
@@ -722,7 +722,7 @@ export class OrderService implements IOrderService {
     if (data.items) {
       // Validate items - handle products and designs differently
       for (let index = 0; index < data.items.length; index++) {
-        const item = data.items[index] as any;
+        const item = data.items[index] as Record<string, unknown>;
         const isDesign = item.itemType === 'design';
         const isProduct = item.itemType === 'product' || (!item.itemType && item.productId);
         
@@ -773,8 +773,8 @@ export class OrderService implements IOrderService {
     }
 
     // Check if this is a design-only order (no shipping needed)
-    const productItems = data.items.filter((item: any) => (item as any).itemType !== 'design' && item.productId);
-    const designItems = data.items.filter((item: any) => (item as any).itemType === 'design' && (item as any).designId);
+    const productItems = data.items.filter((item: Record<string, unknown>) => (item as Record<string, unknown>).itemType !== 'design' && item.productId);
+    const designItems = data.items.filter((item: Record<string, unknown>) => (item as Record<string, unknown>).itemType === 'design' && (item as Record<string, unknown>).designId);
     const isDesignOnlyOrder = designItems.length > 0 && productItems.length === 0;
     
     // Shipping address is only required for orders with physical products
@@ -1002,7 +1002,7 @@ export class OrderService implements IOrderService {
       console.log(`[OrderService] All conditions met. Releasing shop payment...`);
       await escrowService.releaseShopPayment(customizationRequestId);
       console.log(`[OrderService] Shop payment released successfully for request ${customizationRequestId}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[OrderService] Failed to release shop payment:', error);
       // Don't throw error - we don't want to fail the order update
       // Admin can manually trigger payout if needed
@@ -1038,7 +1038,7 @@ export class OrderService implements IOrderService {
       await shopProfileService.updateShopStats(shopProfile.id, {
         totalOrders: newTotalOrders
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[OrderService] Failed to update shop stats:', error);
       // Don't throw error - we don't want to fail the order update
     }

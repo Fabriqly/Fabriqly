@@ -102,10 +102,10 @@ export class CustomizationPaymentService {
       : request.status;
 
     const updatedRequest = await this.customizationRepo.update(requestId, {
-      pricingAgreement: pricingAgreement as any,
-      paymentDetails: paymentDetails as any,
+      pricingAgreement,
+      paymentDetails,
       status: newStatus,
-      updatedAt: Timestamp.now() as any
+      updatedAt: Timestamp.now()
     });
 
     // Emit event
@@ -150,8 +150,8 @@ export class CustomizationPaymentService {
     };
 
     const updatedRequest = await this.customizationRepo.update(requestId, {
-      pricingAgreement: updatedPricing as any,
-      updatedAt: Timestamp.now() as any
+      pricingAgreement: updatedPricing,
+      updatedAt: Timestamp.now()
     });
 
     // Emit event
@@ -257,12 +257,12 @@ export class CustomizationPaymentService {
       };
 
       const updatedRequest = await this.customizationRepo.update(requestId, {
-        paymentDetails: updatedPaymentDetails as any,
-        updatedAt: Timestamp.now() as any
+        paymentDetails: updatedPaymentDetails,
+        updatedAt: Timestamp.now()
       });
 
       // Attach invoice URL for easy access
-      (updatedRequest as any).invoiceUrl = invoice.invoice_url;
+      Object.assign(updatedRequest, { invoiceUrl: invoice.invoice_url });
 
       return updatedRequest;
     } catch (error) {
@@ -318,7 +318,7 @@ export class CustomizationPaymentService {
       paidAt: Timestamp.now()
     };
 
-    let updatedPaymentDetails = {
+    const updatedPaymentDetails = {
       ...request.paymentDetails,
       payments: updatedPayments,
       // Keep escrowStatus as 'held' - will be updated when design is approved/order completed
@@ -327,7 +327,7 @@ export class CustomizationPaymentService {
 
     // If payment successful, update amounts (only if not already processed)
     if (status === 'PAID' && paidAmount) {
-      const amountNumber = typeof paidAmount === 'number' ? paidAmount : parseFloat(paidAmount as any);
+      const amountNumber = typeof paidAmount === 'number' ? paidAmount : parseFloat(String(paidAmount));
       updatedPaymentDetails.paidAmount = (updatedPaymentDetails.paidAmount || 0) + amountNumber;
       updatedPaymentDetails.remainingAmount = (updatedPaymentDetails.remainingAmount || 0) - amountNumber;
 
@@ -360,8 +360,8 @@ export class CustomizationPaymentService {
     }
 
     await this.customizationRepo.update(request.id, {
-      paymentDetails: updatedPaymentDetails as any,
-      updatedAt: Timestamp.now() as any
+      paymentDetails: updatedPaymentDetails,
+      updatedAt: Timestamp.now()
     });
 
     console.log('[CustomizationPayment] Updated successfully', {
@@ -389,7 +389,7 @@ export class CustomizationPaymentService {
     paidAmount: number;
     remainingAmount: number;
     paymentStatus: string;
-    payments: any[];
+    payments: unknown[];
   } | null> {
     const request = await this.customizationRepo.findById(requestId);
     if (!request || !request.paymentDetails) {

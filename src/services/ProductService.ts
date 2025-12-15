@@ -69,8 +69,8 @@ export class ProductService implements IProductService {
       isCustomizable: Boolean(data.isCustomizable),
       isDigital: Boolean(data.isDigital),
       tags: Array.isArray(data.tags) ? data.tags.filter(tag => tag.trim().length > 0) : [],
-      createdAt: new Date() as any,
-      updatedAt: new Date() as any,
+      createdAt: new Date(),
+      updatedAt: new Date(),
       // Optional fields
       ...(data.weight !== undefined && data.weight > 0 && { weight: Number(data.weight) }),
       ...(data.dimensions && { dimensions: data.dimensions }),
@@ -245,7 +245,7 @@ export class ProductService implements IProductService {
     const productsWithDetails = await Promise.all(
       filteredProducts.map(async (product) => {
         let category = null;
-        let images: any[] = [];
+        let images: unknown[] = [];
         let businessOwner = null;
         
         if (product.categoryId) {
@@ -293,7 +293,7 @@ export class ProductService implements IProductService {
             undefined
           );
           
-          images = allImages.filter((image: any) => image.productId === product.id);
+          images = allImages.filter((image: Record<string, unknown>) => image.productId === product.id);
           
           // Debug logging
           console.log(`Product ${product.id} (${product.name}): Found ${images.length} images`);

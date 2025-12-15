@@ -73,7 +73,7 @@ jest.mock('next-auth/react', () => ({
 
 // Custom matchers
 expect.extend({
-  toBeValidDate(received: any) {
+  toBeValidDate(received: unknown) {
     const pass = received instanceof Date && !isNaN(received.getTime());
     if (pass) {
       return {
@@ -87,7 +87,7 @@ expect.extend({
       };
     }
   },
-  toBeValidEmail(received: any) {
+  toBeValidEmail(received: unknown) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const pass = typeof received === 'string' && emailRegex.test(received);
     if (pass) {

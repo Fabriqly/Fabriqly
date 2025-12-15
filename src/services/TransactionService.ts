@@ -5,10 +5,10 @@ export interface TransactionOperation {
   type: 'create' | 'update' | 'delete';
   collection: string;
   docId?: string;
-  data?: any;
+  data?: unknown;
 }
 
-export interface TransactionResult<T = any> {
+export interface TransactionResult<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -20,7 +20,7 @@ export class TransactionService {
    * Execute multiple operations within a single transaction
    */
   static async executeTransaction<T>(
-    operations: (transaction: any) => Promise<T>
+    operations: (transaction: unknown) => Promise<T>
   ): Promise<T> {
     try {
       return await FirebaseAdminService.runTransaction(operations);
@@ -68,10 +68,10 @@ export class TransactionService {
    * Create a product with images in a transaction
    */
   static async createProductWithImages(
-    productData: any,
-    images: any[],
+    productData: Record<string, unknown>,
+    images: Array<Record<string, unknown>>,
     businessOwnerId: string
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     return this.executeTransaction(async (transaction) => {
       // Create product
       const product = await FirebaseAdminService.createDocument(
@@ -110,12 +110,12 @@ export class TransactionService {
    */
   static async updateProductWithRelations(
     productId: string,
-    productData: any,
-    categoryData?: any,
-    imageData?: any[]
-  ): Promise<any> {
+    productData: Record<string, unknown>,
+    categoryData?: Record<string, unknown>,
+    imageData?: Array<Record<string, unknown>>
+  ): Promise<Record<string, unknown>> {
     return this.executeTransaction(async (transaction) => {
-      const results: any = {};
+      const results: Record<string, unknown> = {};
 
       // Update product
       if (productData) {
@@ -216,9 +216,9 @@ export class TransactionService {
    * Create user with profile in a transaction
    */
   static async createUserWithProfile(
-    userData: any,
-    profileData: any
-  ): Promise<any> {
+    userData: Record<string, unknown>,
+    profileData: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
     return this.executeTransaction(async (transaction) => {
       // Create user
       const user = await FirebaseAdminService.createDocument(
@@ -252,7 +252,7 @@ export class TransactionService {
   static async updateCategoryHierarchy(
     categoryId: string,
     newParentId: string | null
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     return this.executeTransaction(async (transaction) => {
       // Get category
       const category = await FirebaseAdminService.getDocument(
@@ -330,7 +330,7 @@ export class TransactionService {
   private static async updateChildCategoryPath(
     categoryId: string,
     parentPath: string[],
-    transaction: any
+    transaction: unknown
   ): Promise<void> {
     const category = await FirebaseAdminService.getDocument(
       'productCategories',
@@ -369,8 +369,8 @@ export class TransactionService {
    */
   static async executeBatchOperations(
     operations: TransactionOperation[]
-  ): Promise<any[]> {
-    const results: any[] = [];
+  ): Promise<unknown[]> {
+    const results: unknown[] = [];
 
     // Group operations by type for better performance
     const createOps = operations.filter(op => op.type === 'create');

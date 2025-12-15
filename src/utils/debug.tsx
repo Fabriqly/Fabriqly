@@ -14,31 +14,31 @@ export const isProduction = process.env.NODE_ENV === 'production';
  * Debug logger that only logs in development
  */
 export const debugLog = {
-  log: (...args: any[]) => {
+  log: (...args: unknown[]) => {
     if (isDevelopment) {
       console.log('[DEBUG]', ...args);
     }
   },
   
-  error: (...args: any[]) => {
+  error: (...args: unknown[]) => {
     if (isDevelopment) {
       console.error('[DEBUG ERROR]', ...args);
     }
   },
   
-  warn: (...args: any[]) => {
+  warn: (...args: unknown[]) => {
     if (isDevelopment) {
       console.warn('[DEBUG WARN]', ...args);
     }
   },
   
-  info: (...args: any[]) => {
+  info: (...args: unknown[]) => {
     if (isDevelopment) {
       console.info('[DEBUG INFO]', ...args);
     }
   },
   
-  table: (data: any) => {
+  table: (data: unknown) => {
     if (isDevelopment) {
       console.table(data);
     }
@@ -200,7 +200,7 @@ export const debugTimer = new DebugTimer();
 /**
  * Debug data inspector
  */
-export function debugInspect(data: any, label?: string): void {
+export function debugInspect(data: unknown, label?: string): void {
   if (isDevelopment) {
     const prefix = label ? `[DEBUG INSPECT] ${label}:` : '[DEBUG INSPECT]:';
     console.group(prefix);
@@ -220,8 +220,8 @@ export function debugInspect(data: any, label?: string): void {
 export function debugApiResponse(
   endpoint: string, 
   method: string, 
-  response: any, 
-  error?: any
+  response: unknown, 
+  error?: unknown
 ): void {
   if (isDevelopment) {
     debugLog.group(`API ${method.toUpperCase()} ${endpoint}`);
@@ -237,7 +237,7 @@ export function debugApiResponse(
 /**
  * Debug form state logger
  */
-export function debugFormState(formName: string, state: any): void {
+export function debugFormState(formName: string, state: Record<string, unknown>): void {
   if (isDevelopment) {
     debugLog.group(`Form State: ${formName}`);
     debugLog.log('State:', state);
@@ -251,7 +251,7 @@ export function debugFormState(formName: string, state: any): void {
 /**
  * Debug navigation logger
  */
-export function debugNavigation(from: string, to: string, params?: any): void {
+export function debugNavigation(from: string, to: string, params?: Record<string, unknown>): void {
   if (isDevelopment) {
     debugLog.log(`Navigation: ${from} → ${to}`, params);
   }
@@ -260,7 +260,7 @@ export function debugNavigation(from: string, to: string, params?: any): void {
 /**
  * Debug user action logger
  */
-export function debugUserAction(action: string, details?: any): void {
+export function debugUserAction(action: string, details?: unknown): void {
   if (isDevelopment) {
     debugLog.log(`User Action: ${action}`, details);
   }
@@ -269,7 +269,7 @@ export function debugUserAction(action: string, details?: any): void {
 /**
  * Debug component lifecycle logger
  */
-export function debugComponentLifecycle(componentName: string, phase: string, props?: any): void {
+export function debugComponentLifecycle(componentName: string, phase: string, props?: Record<string, unknown>): void {
   if (isDevelopment) {
     debugLog.log(`Component ${componentName}: ${phase}`, props);
   }
@@ -278,7 +278,7 @@ export function debugComponentLifecycle(componentName: string, phase: string, pr
 /**
  * Debug hook logger
  */
-export function debugHook(hookName: string, state: any, dependencies?: any[]): void {
+export function debugHook(hookName: string, state: unknown, dependencies?: unknown[]): void {
   if (isDevelopment) {
     debugLog.group(`Hook: ${hookName}`);
     debugLog.log('State:', state);
@@ -292,7 +292,7 @@ export function debugHook(hookName: string, state: any, dependencies?: any[]): v
 /**
  * Debug error boundary logger
  */
-export function debugErrorBoundary(error: Error, errorInfo: any, componentStack?: string): void {
+export function debugErrorBoundary(error: Error, errorInfo: unknown, componentStack?: string): void {
   if (isDevelopment) {
     debugLog.error('Error Boundary Caught:', error);
     debugLog.error('Error Info:', errorInfo);
@@ -308,9 +308,9 @@ export function debugErrorBoundary(error: Error, errorInfo: any, componentStack?
 export function debugNetworkRequest(
   url: string, 
   method: string, 
-  requestData?: any, 
-  responseData?: any, 
-  error?: any
+  requestData?: unknown, 
+  responseData?: unknown, 
+  error?: unknown
 ): void {
   if (isDevelopment) {
     debugLog.group(`Network ${method.toUpperCase()} ${url}`);
@@ -330,7 +330,7 @@ export function debugNetworkRequest(
 /**
  * Debug localStorage/sessionStorage logger
  */
-export function debugStorage(operation: 'get' | 'set' | 'remove', key: string, value?: any): void {
+export function debugStorage(operation: 'get' | 'set' | 'remove', key: string, value?: unknown): void {
   if (isDevelopment) {
     debugLog.log(`Storage ${operation}: ${key}`, value);
   }
@@ -339,7 +339,7 @@ export function debugStorage(operation: 'get' | 'set' | 'remove', key: string, v
 /**
  * Debug authentication state logger
  */
-export function debugAuthState(user: any, session: any, status: string): void {
+export function debugAuthState(user: unknown, session: unknown, status: string): void {
   if (isDevelopment) {
     debugLog.group('Auth State');
     debugLog.log('Status:', status);
@@ -355,8 +355,8 @@ export function debugAuthState(user: any, session: any, status: string): void {
 export function debugDatabaseOperation(
   operation: string, 
   collection: string, 
-  data?: any, 
-  error?: any
+  data?: unknown, 
+  error?: unknown
 ): void {
   if (isDevelopment) {
     debugLog.group(`Database ${operation}: ${collection}`);

@@ -174,7 +174,7 @@ export interface EnhancedProduct {
     unit: 'cm' | 'in';
   };
   tags: string[];
-  specifications?: Record<string, any>;
+  specifications?: Record<string, unknown>;
   seoTitle?: string;
   seoDescription?: string;
   createdAt: Timestamp;

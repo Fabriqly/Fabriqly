@@ -336,7 +336,7 @@ export class DashboardSummaryService {
   /**
    * Get summary statistics for debugging
    */
-  static async getDebugInfo(): Promise<any> {
+  static async getDebugInfo(): Promise<Record<string, unknown>> {
     const summary = await this.getSummary();
     const cached = await CacheService.get(this.CACHE_KEY);
     

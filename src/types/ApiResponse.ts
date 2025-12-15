@@ -7,13 +7,13 @@ export interface PaginationMeta {
   hasPrev: boolean;
 }
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: {
     code: string;
     message: string;
-    details?: any;
+    details?: unknown;
   };
   meta?: {
     pagination?: PaginationMeta;
@@ -27,7 +27,7 @@ export interface ApiErrorResponse {
   error: {
     code: string;
     message: string;
-    details?: any;
+    details?: unknown;
   };
   meta: {
     timestamp: string;
@@ -35,7 +35,7 @@ export interface ApiErrorResponse {
   };
 }
 
-export interface ApiSuccessResponse<T = any> {
+export interface ApiSuccessResponse<T = unknown> {
   success: true;
   data: T;
   meta?: {

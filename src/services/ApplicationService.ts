@@ -1,5 +1,6 @@
 import { MySQLService } from './mysql-service';
-import { DesignerApplication, ShopApplication, CreateDesignerApplicationData, CreateShopApplicationData } from '@/types/applications';
+import { CreateDesignerApplicationData, CreateShopApplicationData } from '@/types/applications';
+import type { DatabaseRow } from '@/types/common';
 
 export class ApplicationService {
   // ========================================
@@ -122,9 +123,9 @@ export class ApplicationService {
     const applications = await MySQLService.getMany(query, params);
 
     // Parse JSON fields
-    return applications.map((app: any) => ({
+    return applications.map((app: DatabaseRow) => ({
       ...app,
-      specialties: app.specialties ? JSON.parse(app.specialties) : []
+      specialties: app.specialties ? JSON.parse(String(app.specialties)) : []
     }));
   }
 
@@ -151,8 +152,8 @@ export class ApplicationService {
 
     return {
       ...app,
-      specialties: app.specialties ? JSON.parse(app.specialties) : [],
-      sampleDesigns: samples.map((s: any) => s.design_url)
+      specialties: app.specialties ? JSON.parse(String(app.specialties)) : [],
+      sampleDesigns: samples.map((s: DatabaseRow) => s.design_url as string)
     };
   }
 
@@ -162,8 +163,8 @@ export class ApplicationService {
       const [apps] = await connection.execute(
         'SELECT user_id FROM designer_applications WHERE id = ?',
         [id]
-      );
-      const app = (apps as any[])[0];
+      ) as [DatabaseRow[]];
+      const app = apps[0];
       if (!app) throw new Error('Application not found');
 
       // Update application
@@ -195,8 +196,8 @@ export class ApplicationService {
       const [apps] = await connection.execute(
         'SELECT user_id FROM designer_applications WHERE id = ?',
         [id]
-      );
-      const app = (apps as any[])[0];
+      ) as [DatabaseRow[]];
+      const app = apps[0];
       if (!app) throw new Error('Application not found');
 
       // Update application
@@ -378,7 +379,7 @@ export class ApplicationService {
       LEFT JOIN shop_application_social_media ssm ON sa.id = ssm.application_id
       WHERE 1=1
     `;
-    const params: any[] = [];
+    const params: unknown[] = [];
 
     if (!isAdmin && userId) {
       query += ' AND sa.user_id = ?';
@@ -427,15 +428,15 @@ export class ApplicationService {
 
     return {
       ...app,
-      specialties: specialties.map((s: any) => s.specialty),
-      serviceTags: serviceTags.map((t: any) => t.tag),
-      materialSpecialties: materialSpecialties.map((m: any) => m.material),
-      paymentMethods: paymentMethods.map((p: any) => p.payment_method),
-      shippingOptions: shippingOptions.map((s: any) => s.shipping_option),
-      businessDocuments: businessDocuments.map((d: any) => ({
-        label: d.label,
-        url: d.url,
-        fileName: d.file_name
+      specialties: specialties.map((s: DatabaseRow) => s.specialty as string),
+      serviceTags: serviceTags.map((t: DatabaseRow) => t.tag as string),
+      materialSpecialties: materialSpecialties.map((m: DatabaseRow) => m.material as string),
+      paymentMethods: paymentMethods.map((p: DatabaseRow) => p.payment_method as string),
+      shippingOptions: shippingOptions.map((s: DatabaseRow) => s.shipping_option as string),
+      businessDocuments: businessDocuments.map((d: DatabaseRow) => ({
+        label: d.label as string,
+        url: d.url as string,
+        fileName: d.file_name as string
       }))
     };
   }
@@ -446,8 +447,8 @@ export class ApplicationService {
       const [apps] = await connection.execute(
         'SELECT user_id FROM shop_applications WHERE id = ?',
         [id]
-      );
-      const app = (apps as any[])[0];
+      ) as [DatabaseRow[]];
+      const app = apps[0];
       if (!app) throw new Error('Application not found');
 
       // Update application
@@ -479,8 +480,8 @@ export class ApplicationService {
       const [apps] = await connection.execute(
         'SELECT user_id FROM shop_applications WHERE id = ?',
         [id]
-      );
-      const app = (apps as any[])[0];
+      ) as [DatabaseRow[]];
+      const app = apps[0];
       if (!app) throw new Error('Application not found');
 
       // Update application

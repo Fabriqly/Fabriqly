@@ -30,7 +30,7 @@ export function convertToDate(timestamp: TimestampInput): Date {
   }
 
   // Handle string or number timestamps
-  const date = new Date(timestamp as any);
+  const date = new Date(String(timestamp));
   
   // Validate the date
   if (isNaN(date.getTime())) {

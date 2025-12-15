@@ -225,7 +225,7 @@ export class XenditService {
 
       // For now, let's skip payment requests and focus on invoices
       throw new Error('Payment requests not implemented yet. Please use invoice creation.');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Xendit payment request creation failed:', error);
       throw AppError.badRequest(
         'Payment request creation failed',
@@ -313,7 +313,7 @@ export class XenditService {
         fees: [],
         metadata: {},
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Xendit invoice creation failed:', error);
       console.error('Error details:', {
         message: error.message,
@@ -334,7 +334,7 @@ export class XenditService {
     try {
       // Simplified for now
       throw new Error('Payment request retrieval not implemented yet');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Xendit payment request retrieval failed:', error);
       throw AppError.badRequest(
         'Payment request retrieval failed',
@@ -373,7 +373,7 @@ export class XenditService {
         available_direct_debits: invoice.availableDirectDebits || [],
         available_paylaters: invoice.availablePaylaters || [],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Xendit invoice retrieval failed:', error);
       throw AppError.badRequest(
         'Invoice retrieval failed',
@@ -427,7 +427,7 @@ export class XenditService {
         status: paymentMethod.status || 'ACTIVE',
         authentication_id: paymentMethod.id, // Use payment method ID as auth ID
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Xendit payment method creation failed:', error);
       console.error('Error details:', {
         message: error.message,
@@ -535,7 +535,7 @@ export class XenditService {
       const idempotencyKey = data.externalId || `payout-${Date.now()}-${Math.random().toString(36).substring(7)}`;
       
       // Build payout data following Invoice pattern (camelCase for SDK)
-      const payoutData: any = {
+      const payoutData: Record<string, unknown> = {
         externalId: data.externalId,
         amount: data.amount,
         bankCode: data.bankCode,
@@ -563,7 +563,7 @@ export class XenditService {
       // Follow Invoice pattern exactly: Service.createMethod({ data: {...} })
       // For Payout, idempotencyKey might be passed as a second parameter or in options
       // Try the same structure as Invoice first
-      const disbursement = await (Payout as any).createPayout({
+      const disbursement = await (Payout as { createPayout: (data: { idempotencyKey: string; data: Record<string, unknown> }) => Promise<unknown> }).createPayout({
         idempotencyKey: idempotencyKey,
         data: payoutData
       });
@@ -585,7 +585,7 @@ export class XenditService {
         created: disbursement.created?.toISOString() || '',
         updated: disbursement.updated?.toISOString() || '',
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Xendit disbursement creation failed:', error);
       console.error('Error details:', {
         message: error.message,
@@ -612,7 +612,7 @@ export class XenditService {
       console.log('Getting payout:', disbursementId);
 
       // Use standard Xendit SDK pattern (same as Invoice.getInvoiceById)
-      const disbursement = await (Payout as any).getPayoutById({
+      const disbursement = await (Payout as { getPayoutById: (data: { id: string }) => Promise<unknown> }).getPayoutById({
         id: disbursementId
       });
 
@@ -631,7 +631,7 @@ export class XenditService {
         created: disbursement.created?.toISOString() || '',
         updated: disbursement.updated?.toISOString() || '',
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Xendit disbursement retrieval failed:', error);
       throw AppError.badRequest(
         'Disbursement retrieval failed',

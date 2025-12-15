@@ -7,12 +7,12 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 /**
  * Clean object by removing undefined values and handling special Firestore operations
  */
-export function cleanFirestoreData(data: any): any {
+export function cleanFirestoreData(data: unknown): unknown {
   if (!data || typeof data !== 'object') {
     return data;
   }
 
-  const cleaned: any = {};
+  const cleaned: Record<string, unknown> = {};
   
   for (const [key, value] of Object.entries(data)) {
     // Skip undefined values
@@ -60,7 +60,7 @@ export function cleanFirestoreData(data: any): any {
  * Prepare data for Firestore update operations
  * Automatically adds updatedAt timestamp and cleans undefined values
  */
-export function prepareUpdateData(data: any): any {
+export function prepareUpdateData(data: Record<string, unknown>): Record<string, unknown> {
   const cleaned = cleanFirestoreData(data);
   
   return {
@@ -73,7 +73,7 @@ export function prepareUpdateData(data: any): any {
  * Prepare data for Firestore create operations
  * Automatically adds createdAt and updatedAt timestamps
  */
-export function prepareCreateData(data: any): any {
+export function prepareCreateData(data: Record<string, unknown>): Record<string, unknown> {
   const cleaned = cleanFirestoreData(data);
   
   return {
@@ -95,15 +95,15 @@ export function deleteField() {
 /**
  * Check if a value should be omitted from Firestore operations
  */
-export function shouldOmitValue(value: any): boolean {
+export function shouldOmitValue(value: unknown): boolean {
   return value === undefined || value === null;
 }
 
 /**
  * Merge objects for Firestore updates, removing undefined values
  */
-export function mergeFirestoreData(...objects: any[]): any {
-  let merged: any = {};
+export function mergeFirestoreData(...objects: Record<string, unknown>[]): Record<string, unknown> {
+  const merged: Record<string, unknown> = {};
   
   for (const obj of objects) {
     if (obj && typeof obj === 'object') {

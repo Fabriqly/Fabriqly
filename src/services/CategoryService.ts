@@ -65,8 +65,8 @@ export class CategoryService implements ICategoryService {
       level,
       path,
       sortOrder: 0, // Default sort order
-      createdAt: new Date() as any,
-      updatedAt: new Date() as any
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
 
     const category = await this.categoryRepository.create(categoryData);
@@ -365,7 +365,7 @@ export class CategoryService implements ICategoryService {
     type: ActivityType,
     categoryId: string,
     userId: string,
-    metadata: Record<string, any>
+    metadata: Record<string, unknown>
   ): Promise<void> {
     try {
       await this.activityRepository.create({
@@ -377,10 +377,10 @@ export class CategoryService implements ICategoryService {
         actorId: userId,
         targetId: categoryId,
         targetType: 'category',
-        targetName: metadata.categoryName || 'Unknown Category',
+        targetName: (metadata.categoryName as string) || 'Unknown Category',
         metadata,
-        createdAt: new Date() as any,
-        updatedAt: new Date() as any
+        createdAt: new Date(),
+        updatedAt: new Date()
       });
     } catch (error) {
       console.error('Error logging category activity:', error);
@@ -397,7 +397,7 @@ export class CategoryService implements ICategoryService {
     return titles[type] || 'Category Activity';
   }
 
-  private getActivityDescription(type: ActivityType, metadata: Record<string, any>): string {
+  private getActivityDescription(type: ActivityType, metadata: Record<string, unknown>): string {
     const categoryName = metadata.categoryName || 'Category';
     
     switch (type) {

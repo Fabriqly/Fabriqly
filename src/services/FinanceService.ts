@@ -436,7 +436,7 @@ export class FinanceService {
           // Also get design orders directly (as fallback)
           const designOrders = await this.orderRepo.findByBusinessOwner(userId);
           const paidDesignOrders = designOrders.filter(order => {
-            const isDesignOrder = order.items.every((item: any) => 
+            const isDesignOrder = order.items.every((item: Record<string, unknown>) => 
               item.itemType === 'design' || (item.designId && !item.productId)
             );
             return isDesignOrder && order.paymentStatus === 'paid';
@@ -474,7 +474,7 @@ export class FinanceService {
           
           // Also add pending design orders
           const pendingDesignOrders = designOrders.filter(order => {
-            const isDesignOrder = order.items.every((item: any) => 
+            const isDesignOrder = order.items.every((item: Record<string, unknown>) => 
               item.itemType === 'design' || (item.designId && !item.productId)
             );
             return isDesignOrder && order.paymentStatus === 'pending';
@@ -532,16 +532,16 @@ export class FinanceService {
               paymentDetails: {
                 ...payment,
                 escrowStatus: 'designer_paid',
-                designerPaidAt: payment.designerPaidAt || Timestamp.now() as any
-              } as any,
-              updatedAt: Timestamp.now() as any
+                designerPaidAt: payment.designerPaidAt || Timestamp.now()
+              },
+              updatedAt: Timestamp.now()
             });
             // Refresh payment data
             const updated = await this.customizationRepo.findById(customization.id);
             if (updated?.paymentDetails) {
               Object.assign(payment, updated.paymentDetails);
             }
-          } catch (error: any) {
+          } catch (error: unknown) {
             console.error(`[FinanceService] Failed to fix escrow status for ${customization.id}:`, error);
           }
         }
@@ -562,7 +562,7 @@ export class FinanceService {
                 Object.assign(payment, updated.paymentDetails);
               }
             }
-          } catch (error: any) {
+          } catch (error: unknown) {
             console.error(`[FinanceService] Failed to auto-release escrow for ${customization.id}:`, error?.message || error);
             // Continue processing even if auto-release fails
           }
@@ -833,7 +833,7 @@ export class FinanceService {
           // Get design orders for this designer (businessOwnerId is the designer's userId)
           const allDesignOrders = await this.orderRepo.findByBusinessOwner(userId);
           const designOrders = allDesignOrders.filter(order => {
-            const isDesignOrder = order.items.every((item: any) => 
+            const isDesignOrder = order.items.every((item: Record<string, unknown>) => 
               item.itemType === 'design' || (item.designId && !item.productId)
             );
             return isDesignOrder;
@@ -906,7 +906,7 @@ export class FinanceService {
           // Also check paid design orders that might not have earnings records yet
           const allDesignOrders = await this.orderRepo.findByBusinessOwner(userId);
           const paidDesignOrders = allDesignOrders.filter(order => {
-            const isDesignOrder = order.items.every((item: any) => 
+            const isDesignOrder = order.items.every((item: Record<string, unknown>) => 
               item.itemType === 'design' || (item.designId && !item.productId)
             );
             return isDesignOrder && order.paymentStatus === 'paid';
@@ -983,7 +983,7 @@ export class FinanceService {
     }
   }
 
-  private toDate(timestamp: any): Date | undefined {
+  private toDate(timestamp: unknown): Date | undefined {
     if (!timestamp) return undefined;
     
     let date: Date;
@@ -1151,7 +1151,7 @@ export class FinanceService {
         if (order.status !== 'cancelled') {
           for (const item of order.items || []) {
             // If productName is not in item, we need to fetch it
-            if (!(item as any).productName && item.productId) {
+            if (!(item as Record<string, unknown>).productName && item.productId) {
               productIdsToFetch.add(item.productId);
             }
           }
@@ -1197,7 +1197,7 @@ export class FinanceService {
         if (order.status !== 'cancelled') {
           for (const item of order.items || []) {
             // Try to get product name from item first, otherwise use cached name
-            let productName = (item as any).productName;
+            let productName = (item as Record<string, unknown>).productName as string | undefined;
             if (!productName && item.productId) {
               productName = productCache.get(item.productId) || 'Unknown';
             }
