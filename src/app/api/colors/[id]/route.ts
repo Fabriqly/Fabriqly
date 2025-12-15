@@ -44,9 +44,9 @@ const convertTimestamps = (data: any): any => {
 };
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // GET /api/colors/[id] - Get single color

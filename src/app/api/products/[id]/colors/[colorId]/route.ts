@@ -5,10 +5,10 @@ import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string; // product ID
     colorId: string; // color ID
-  };
+  }>;
 }
 
 // DELETE /api/products/[id]/colors/[colorId] - Remove specific color from product
@@ -23,7 +23,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { id: productId, colorId } = params;
+    const { id: productId, colorId } = await params;
 
     if (!productId || !colorId) {
       return NextResponse.json(

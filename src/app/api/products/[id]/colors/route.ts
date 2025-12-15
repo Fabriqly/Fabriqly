@@ -12,9 +12,9 @@ import {
 import { Timestamp } from 'firebase/firestore';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // GET /api/products/[id]/colors - Get all colors for a product

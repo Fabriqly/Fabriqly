@@ -45,3 +45,4 @@ coverage/
 backups/
 *.tar.gz
 *.zip
+.vercel
