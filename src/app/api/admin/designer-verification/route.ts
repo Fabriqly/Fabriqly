@@ -7,6 +7,7 @@ import { DesignerProfileService } from '@/services/DesignerProfileService';
 import { DesignerProfileRepository } from '@/repositories/DesignerProfileRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { DesignerVerificationRequest } from '@/types/enhanced-products';
+import { Timestamp } from 'firebase-admin/firestore';
 
 // GET /api/admin/designer-verification - Get verification requests and status
 export async function GET(request: NextRequest) {
@@ -146,8 +147,8 @@ export async function PUT(request: NextRequest) {
             approvedBy: session.user.name,
             notes: notes || ''
           },
-          createdAt: new Date(),
-          updatedAt: new Date()
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
         });
         break;
 
@@ -171,8 +172,8 @@ export async function PUT(request: NextRequest) {
             reason: reason || '',
             notes: notes || ''
           },
-          createdAt: new Date(),
-          updatedAt: new Date()
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
         });
         break;
 
@@ -196,8 +197,8 @@ export async function PUT(request: NextRequest) {
             reason: reason || '',
             notes: notes || ''
           },
-          createdAt: new Date(),
-          updatedAt: new Date()
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
         });
         break;
 
@@ -220,8 +221,8 @@ export async function PUT(request: NextRequest) {
             restoredBy: session.user.name,
             notes: notes || ''
           },
-          createdAt: new Date(),
-          updatedAt: new Date()
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
         });
         break;
 
@@ -246,10 +247,10 @@ export async function PUT(request: NextRequest) {
           {
             status: verificationStatus,
             reviewedBy: session.user.id,
-            reviewedAt: new Date(),
+            reviewedAt: Timestamp.now(),
             reviewReason: reason,
             reviewNotes: notes,
-            updatedAt: new Date()
+            updatedAt: Timestamp.now()
           }
         );
       }
@@ -323,9 +324,9 @@ export async function POST(request: NextRequest) {
       specializations: specializations || [],
       yearsExperience: yearsExperience || 0,
       certifications: certifications || [],
-      submittedAt: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date()
+      submittedAt: Timestamp.now(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
     };
 
     const createdRequest = await FirebaseAdminService.createDocument(
