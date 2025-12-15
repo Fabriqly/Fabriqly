@@ -51,7 +51,7 @@ interface Address {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { state: cartState, clearCart, applyCoupon, removeCoupon } = useCart();
+  const { state: cartState, clearCart, applyCoupon, removeCoupon, refreshCart, removeItem } = useCart();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -236,6 +236,16 @@ export default function CheckoutPage() {
       }));
     }
   }, [user]);
+
+  // Refresh cart on checkout page load to ensure design storage info is up-to-date
+  useEffect(() => {
+    if (user?.id && !isBulkCheckout) {
+      // Force refresh cart to get latest design storage info (thumbnailUrl, storagePath, storageBucket)
+      refreshCart(true).catch(err => {
+        console.error('[Checkout] Error refreshing cart:', err);
+      });
+    }
+  }, [user?.id, isBulkCheckout, refreshCart]);
 
   // Group items by shop and load shop profiles
   useEffect(() => {
@@ -466,7 +476,14 @@ export default function CheckoutPage() {
     if (isBulkCheckout) {
       return bulkCheckoutItems.reduce((sum, item) => sum + item.totalPrice, 0);
     }
-    return cartState.cart?.items.reduce((sum, item) => sum + item.totalPrice, 0) || 0;
+    const subtotal = cartState.cart?.items.reduce((sum, item) => sum + item.totalPrice, 0) || 0;
+    console.log('[Checkout] Calculated subtotal:', subtotal, 'items:', cartState.cart?.items.map(i => ({ 
+      type: i.itemType, 
+      price: i.unitPrice, 
+      qty: i.quantity, 
+      total: i.totalPrice 
+    })));
+    return subtotal;
   };
 
   const calculateTax = () => {
@@ -476,10 +493,31 @@ export default function CheckoutPage() {
     
     // Tax is calculated on subtotal after product/order discounts
     // Shipping discounts don't affect tax
-    const taxableAmount = (discountScope === 'shipping') 
-      ? subtotal 
-      : Math.max(0, subtotal - discount);
-    return taxableAmount * 0.08; // 8% tax
+    // IMPORTANT: Designs are never discounted, so only product discounts apply
+    const itemsToCheck = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+    const productItems = itemsToCheck.filter((item: any) => item.itemType === 'product');
+    const designItems = itemsToCheck.filter((item: any) => item.itemType === 'design');
+    
+    // Calculate product subtotal (designs are never discounted)
+    const productSubtotal = productItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+    const designSubtotal = designItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+    
+    // Only apply discount to product subtotal (designs are never discounted)
+    const productDiscount = (discountScope === 'shipping') ? 0 : discount;
+    const taxableAmount = Math.max(0, productSubtotal - productDiscount) + designSubtotal;
+    
+    const tax = taxableAmount * 0.08; // 8% tax
+    console.log('[Checkout] Tax calculation:', {
+      subtotal,
+      productSubtotal,
+      designSubtotal,
+      discount,
+      discountScope,
+      productDiscount,
+      taxableAmount,
+      tax
+    });
+    return tax;
   };
 
   const calculateShipping = () => {
@@ -494,16 +532,46 @@ export default function CheckoutPage() {
     const discount = calculateDiscount();
     const tax = calculateTax();
     const shipping = calculateShipping();
-    
-    // If discount is for shipping, apply it to shipping instead of subtotal
     const discountScope = cartState.discountScope;
+    
+    // Separate product and design items to match order service logic
+    const itemsToCheck = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+    const productItems = itemsToCheck.filter((item: any) => item.itemType === 'product');
+    const designItems = itemsToCheck.filter((item: any) => item.itemType === 'design');
+    
+    const productSubtotal = productItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+    const designSubtotal = designItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+    
+    // Match order service calculation:
+    // totalAmount = (productSubtotal - productDiscount) + designSubtotal + tax + (shipping - shippingDiscount)
+    // Designs are never discounted
     if (discountScope === 'shipping') {
-      // Shipping discount: subtract from shipping
+      // Shipping discount: subtract from shipping only
       const shippingAfterDiscount = Math.max(0, shipping - discount);
-      return Math.max(0, subtotal + tax + shippingAfterDiscount);
+      const total = productSubtotal + designSubtotal + tax + shippingAfterDiscount;
+      console.log('[Checkout] Total calculation (shipping discount):', {
+        productSubtotal,
+        designSubtotal,
+        tax,
+        shipping,
+        shippingDiscount: discount,
+        shippingAfterDiscount,
+        total
+      });
+      return Math.max(0, total);
     } else {
-      // Product/category/order discount: subtract from subtotal
-      return Math.max(0, subtotal - discount + tax + shipping);
+      // Product/category/order discount: only applies to products, not designs
+      const productDiscount = discount; // Discount only applies to products
+      const total = (productSubtotal - productDiscount) + designSubtotal + tax + shipping;
+      console.log('[Checkout] Total calculation (product discount):', {
+        productSubtotal,
+        designSubtotal,
+        productDiscount,
+        tax,
+        shipping,
+        total
+      });
+      return Math.max(0, total);
     }
   };
 
@@ -722,18 +790,53 @@ export default function CheckoutPage() {
           phone: user?.phone || ''
         };
         
+        // Convert designer profile ID to userId for businessOwnerId
+        // designerId in cart items is the profile ID, but orders need userId
+        let businessOwnerUserId = designerId; // Default fallback
+        try {
+          // Fetch designer profile to get userId
+          const designerProfileResponse = await fetch(`/api/designer-profiles/${designerId}`);
+          if (designerProfileResponse.ok) {
+            const designerData = await designerProfileResponse.json();
+            if (designerData.profile?.userId) {
+              businessOwnerUserId = designerData.profile.userId;
+              console.log(`[Checkout] Converted designer profile ID ${designerId} to userId ${businessOwnerUserId}`);
+            }
+          }
+        } catch (error) {
+          console.error(`[Checkout] Error fetching designer profile ${designerId}:`, error);
+          // Fallback to using designerId as-is (might work if it's already a userId)
+        }
+        
         const orderData = {
-          businessOwnerId: designerId, // Use designerId as businessOwnerId for design orders
-          items: items.map((item: any) => ({
-            itemType: 'design' as const,
-            designId: item.designId,
-            quantity: item.quantity,
-            price: item.unitPrice,
-            designName: item.design?.name,
-            designType: item.design?.designType,
-            storagePath: item.design?.storagePath,
-            storageBucket: item.design?.storageBucket,
-          })),
+          businessOwnerId: businessOwnerUserId, // Use userId for businessOwnerId in design orders
+          items: items.map((item: any) => {
+            // Ensure price consistency - use unitPrice from cart item
+            const itemPrice = item.unitPrice || (item.design?.price || 0);
+            console.log(`[Checkout] Design order item:`, {
+              designId: item.designId,
+              designName: item.design?.name,
+              unitPrice: item.unitPrice,
+              designPrice: item.design?.price,
+              quantity: item.quantity,
+              totalPrice: item.totalPrice,
+              calculatedPrice: itemPrice * item.quantity,
+              hasStoragePath: !!item.design?.storagePath,
+              hasStorageBucket: !!item.design?.storageBucket,
+              hasThumbnailUrl: !!item.design?.thumbnailUrl
+            });
+            
+            return {
+              itemType: 'design' as const,
+              designId: item.designId,
+              quantity: item.quantity,
+              price: itemPrice, // Use unitPrice from cart
+              designName: item.design?.name || `Design ${item.designId?.slice(-8)}`,
+              designType: item.design?.designType,
+              storagePath: item.design?.storagePath,
+              storageBucket: item.design?.storageBucket,
+            };
+          }),
           shippingAddress: minimalAddress, // Minimal address for design orders (not used but required by schema)
           couponCode: cartState.couponCode || undefined,
           billingAddress: useSameAddress ? minimalAddress : (billingAddress.address1 ? billingAddress : minimalAddress),
@@ -768,13 +871,21 @@ export default function CheckoutPage() {
         appliedCouponCode: o.order.appliedCouponCode
       })));
       setCreatedOrders(orders);
-      setCurrentStep('payment');
       
-      // Clear bulk checkout items from sessionStorage after order is created
-      if (isBulkCheckout) {
+      // Remove items from cart after orders are successfully created
+      // For regular checkout, the entire cart is being checked out, so clear it
+      // This ensures items (including designs) are removed from cart once they're in an order
+      if (!isBulkCheckout) {
+        console.log('[Checkout] Clearing cart after order creation');
+        await clearCart();
+        console.log('[Checkout] Cart cleared after order creation');
+      } else {
+        // For bulk checkout, items are in sessionStorage, just clear it
         sessionStorage.removeItem('bulkCheckoutItems');
         console.log('[Checkout] Cleared bulk checkout items from sessionStorage after order creation');
       }
+      
+      setCurrentStep('payment');
       
     } catch (error) {
       console.error('Error creating orders:', error);
@@ -936,29 +1047,44 @@ export default function CheckoutPage() {
                                 {/* Product/Design Image */}
                                 <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                                   {isDesign ? (
-                                    // Design item - show watermarked image
-                                    item.design?.storagePath && item.design?.storageBucket ? (
-                                      <WatermarkedImage
-                                        storagePath={item.design.storagePath}
-                                        storageBucket={item.design.storageBucket}
-                                        designId={item.designId}
-                                        isFree={false}
-                                        designType={item.design?.designType}
-                                        alt={item.design?.name || 'Design'}
-                                        className="w-full h-full object-cover"
-                                        fallbackSrc={item.design?.thumbnailUrl}
-                                      />
-                                    ) : item.design?.thumbnailUrl ? (
-                                      <img
-                                        src={item.design.thumbnailUrl}
-                                        alt={item.design.name}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center">
-                                        <Package className="w-6 h-6 text-gray-400" />
-                                      </div>
-                                    )
+                                    // Design item - show watermarked image or thumbnail
+                                    (() => {
+                                      // Try to use WatermarkedImage if we have storage info
+                                      if (item.design?.storagePath && item.design?.storageBucket && item.designId) {
+                                        return (
+                                          <WatermarkedImage
+                                            storagePath={item.design.storagePath}
+                                            storageBucket={item.design.storageBucket}
+                                            designId={item.designId}
+                                            isFree={false}
+                                            designType={item.design?.designType}
+                                            alt={item.design?.name || 'Design'}
+                                            className="w-full h-full object-cover"
+                                            fallbackSrc={item.design?.thumbnailUrl}
+                                          />
+                                        );
+                                      }
+                                      // Fallback to thumbnailUrl if available
+                                      if (item.design?.thumbnailUrl) {
+                                        return (
+                                          <img
+                                            src={item.design.thumbnailUrl}
+                                            alt={item.design.name || 'Design'}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              console.error('[Checkout] Design thumbnail failed to load:', item.design?.thumbnailUrl);
+                                              e.currentTarget.style.display = 'none';
+                                            }}
+                                          />
+                                        );
+                                      }
+                                      // Final fallback
+                                      return (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <Package className="w-6 h-6 text-gray-400" />
+                                        </div>
+                                      );
+                                    })()
                                   ) : item.product?.images && item.product.images.length > 0 ? (
                                     <img
                                       src={item.product.images[0].imageUrl}

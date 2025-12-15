@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { DesignWithDetails } from '@/types/enhanced-products';
 import { Button } from '@/components/ui/Button';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
@@ -260,15 +261,29 @@ export function DesignDetail({
         if (response.ok) {
           const data = await response.json();
           if (data.downloadUrl) {
-            // Trigger download
-            const link = document.createElement('a');
-            link.href = data.downloadUrl;
-            link.download = `${design.designName}.${design.fileFormat}`;
-            link.target = '_blank';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            return;
+            // Fetch the file as a blob to force download
+            const fileResponse = await fetch(data.downloadUrl);
+            if (fileResponse.ok) {
+              const blob = await fileResponse.blob();
+              
+              // Get file extension from design or URL
+              const extension = design.fileFormat || 'png';
+              
+              // Create blob URL and trigger download
+              const blobUrl = window.URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = blobUrl;
+              link.download = `${design.designName}.${extension}`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              
+              // Clean up blob URL
+              window.URL.revokeObjectURL(blobUrl);
+              return;
+            } else {
+              alert('Failed to download file');
+            }
           }
         }
       }
@@ -675,41 +690,45 @@ export function DesignDetail({
               )}
             </div>
 
-            {/* Designer Info */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <User className="w-8 h-8 text-indigo-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">
+            {/* Designer Info - Compact Design */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="flex items-start gap-3 mb-3">
+                {/* Avatar */}
+                <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                  <User className="w-6 h-6 text-indigo-600" />
+                </div>
+                
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-base font-bold text-slate-900 truncate">
                       {design.designer.businessName}
                     </h3>
                     {design.designer.isVerified && (
-                      <span className="text-xs text-green-600 font-medium">Verified Designer</span>
+                      <span className="text-xs text-green-600 font-medium whitespace-nowrap">Verified</span>
                     )}
+                  </div>
+                  
+                  {design.designer.bio && (
+                    <p className="text-xs text-slate-600 line-clamp-2 mb-2">{design.designer.bio}</p>
+                  )}
+                  
+                  {/* Stats - Inline */}
+                  <div className="flex items-center gap-3 text-xs text-slate-600">
+                    <span className="whitespace-nowrap">{design.designer.portfolioStats.totalDesigns} designs</span>
+                    <span className="whitespace-nowrap">{design.designer.portfolioStats.totalDownloads} downloads</span>
                   </div>
                 </div>
               </div>
-              {design.designer.bio && (
-                <p className="text-sm text-slate-600 mt-3">{design.designer.bio}</p>
-              )}
-              <div className="flex items-center space-x-4 mt-3 text-sm text-slate-600">
-                <span>{design.designer.portfolioStats.totalDesigns} designs</span>
-                <span>{design.designer.portfolioStats.totalDownloads} downloads</span>
-              </div>
-              {design.designer.website && (
-                <a
-                  href={design.designer.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center text-indigo-600 hover:text-indigo-700 text-sm mt-3"
-                >
-                  <ExternalLink className="w-3 h-3 mr-1" />
-                  Visit Website
-                </a>
-              )}
+              
+              {/* Button - Full Width, Spans Entire Card */}
+              <Link
+                href={`/explore/designers/${design.designer.id}`}
+                className="flex items-center justify-center w-full px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+              >
+                <User className="w-4 h-4 mr-2" />
+                View Profile
+              </Link>
             </div>
           </div>
         </div>

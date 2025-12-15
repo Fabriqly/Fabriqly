@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
 import { ShoppingCart, Package, ArrowRight, Loader } from 'lucide-react';
 import { CartSkeleton } from './CartSkeleton';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 
 interface CartDropdownProps {
   onClose?: () => void;
@@ -67,39 +68,92 @@ export function CartDropdown({ onClose }: CartDropdownProps) {
           </div>
         ) : (
           <div className="p-4 space-y-3">
-            {recentItems.map((item) => (
-              <Link
-                key={item.id}
-                href={`/products/${item.productId}`}
-                onClick={onClose}
-                className="flex space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                  {item.product.images && item.product.images.length > 0 ? (
-                    <img
-                      src={item.product.images[0].imageUrl}
-                      alt={item.product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Package className="w-6 h-6 text-gray-400" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm text-gray-900 truncate">
-                    {item.product.name}
-                  </h4>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Qty: {item.quantity}
-                  </p>
-                  <p className="text-sm font-medium text-gray-900 mt-1">
-                    {formatPrice(item.totalPrice)}
-                  </p>
-                </div>
-              </Link>
-            ))}
+            {recentItems.map((item) => {
+              const isDesign = item.itemType === 'design';
+              const itemUrl = isDesign 
+                ? `/explore/designs/${item.designId}` 
+                : `/products/${item.productId}`;
+              
+              return (
+                <Link
+                  key={item.id}
+                  href={itemUrl}
+                  onClick={onClose}
+                  className="flex space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                    {isDesign ? (
+                      // Design item - use WatermarkedImage or thumbnail
+                      (() => {
+                        if (item.design?.storagePath && item.design?.storageBucket && item.designId) {
+                          return (
+                            <WatermarkedImage
+                              storagePath={item.design.storagePath}
+                              storageBucket={item.design.storageBucket}
+                              designId={item.designId}
+                              isFree={item.design?.price === 0}
+                              designType={item.design?.designType}
+                              alt={item.design?.name || 'Design'}
+                              className="w-full h-full object-cover"
+                              fallbackSrc={item.design?.thumbnailUrl}
+                            />
+                          );
+                        }
+                        if (item.design?.thumbnailUrl) {
+                          return (
+                            <img
+                              src={item.design.thumbnailUrl}
+                              alt={item.design.name || 'Design'}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          );
+                        }
+                        return (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Package className="w-6 h-6 text-gray-400" />
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      // Product item
+                      item.product?.images && item.product.images.length > 0 ? (
+                        <img
+                          src={item.product.images[0].imageUrl}
+                          alt={item.product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Package className="w-6 h-6 text-gray-400" />
+                        </div>
+                      )
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-sm text-gray-900 truncate">
+                      {isDesign 
+                        ? (item.design?.name || `Design ${item.designId?.slice(-8) || ''}`)
+                        : (item.product?.name || 'Product')
+                      }
+                    </h4>
+                    {isDesign && item.design?.designType && (
+                      <p className="text-xs text-gray-500 mt-0.5 capitalize">
+                        {item.design.designType}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Qty: {item.quantity}
+                    </p>
+                    <p className="text-sm font-medium text-gray-900 mt-1">
+                      {formatPrice(item.totalPrice)}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
             {state.cart.items.length > 4 && (
               <div className="text-center text-xs text-gray-500 pt-2">
                 +{state.cart.items.length - 4} more {state.cart.items.length - 4 === 1 ? 'item' : 'items'}

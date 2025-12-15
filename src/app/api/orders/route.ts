@@ -48,14 +48,18 @@ export async function GET(request: NextRequest) {
 
     // Non-admin users can only see their own orders
     if (session.user.role !== 'admin') {
-      // Business owners see orders for their shop
-      if (session.user.role === 'business_owner') {
+      // Business owners and designers see orders for their shop/designs
+      if (session.user.role === 'business_owner' || session.user.role === 'designer') {
         searchOptions.businessOwnerId = session.user.id;
+        console.log(`[Orders API] Fetching orders for ${session.user.role} with businessOwnerId: ${session.user.id}`);
       } else {
         // Customers see their own orders
         searchOptions.customerId = session.user.id;
       }
     }
+    
+    // Note: status filter is optional - if not provided, all statuses are included
+    // This ensures cancelled orders are visible when status filter is 'all' or 'cancelled'
 
     // Try to get cached orders first
     const cacheKey = `orders-${JSON.stringify(searchOptions)}-${session.user.id}`;

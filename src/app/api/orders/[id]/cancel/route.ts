@@ -49,10 +49,25 @@ export async function POST(
       );
     }
 
-    // Only allow cancellation of pending orders
-    if (order.status !== 'pending') {
+    // Allow cancellation of pending or delivered design orders
+    // Design orders are auto-delivered, so we need to allow cancellation of delivered design orders
+    const isDesignOrder = order.items.every((item: any) => 
+      item.itemType === 'design' || (item.designId && !item.productId)
+    );
+    
+    // For design orders, allow cancellation even if status is 'delivered' (since they're auto-delivered)
+    // For product orders, only allow cancellation of pending orders
+    if (!isDesignOrder && order.status !== 'pending') {
       return NextResponse.json(
         { error: `Cannot cancel order with status: ${order.status}. Only pending orders can be cancelled.` },
+        { status: 400 }
+      );
+    }
+    
+    // Don't allow cancellation if already cancelled
+    if (order.status === 'cancelled') {
+      return NextResponse.json(
+        { error: 'Order is already cancelled.' },
         { status: 400 }
       );
     }
@@ -70,6 +85,12 @@ export async function POST(
       
       console.log(`[Order Cancel] Order ${id} was paid. Refund should be processed.`);
     }
+
+    // Invalidate cache for both customer and business owner/designer
+    await CacheService.invalidate(`orders:customer:${order.customerId}`);
+    await CacheService.invalidate(`orders:business:${order.businessOwnerId}`);
+    // Also invalidate the general cache key pattern
+    await CacheService.invalidate(`order:${id}`);
 
     return NextResponse.json({
       success: true,

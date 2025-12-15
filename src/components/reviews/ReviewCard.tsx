@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Review } from '@/types/firebase';
 import { RatingDisplay } from './RatingDisplay';
 import { ReviewReplyForm } from './ReviewReplyForm';
 import { useAuth } from '@/hooks/useAuth';
-import { MessageSquare, Trash2, Edit2 } from 'lucide-react';
+import { MessageSquare, Trash2, Edit2, Package, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import Link from 'next/link';
 
 interface ReviewCardProps {
   review: Review;
@@ -26,6 +27,44 @@ export function ReviewCard({
   const { user } = useAuth();
   const [isReplying, setIsReplying] = useState(showReplyForm);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [designDetails, setDesignDetails] = useState<Array<{ id: string; name: string; thumbnailUrl?: string }>>([]);
+  const [loadingDesigns, setLoadingDesigns] = useState(false);
+
+  // Load design details if review has designId
+  useEffect(() => {
+    if (review.designId && review.reviewType === 'designer') {
+      loadDesignDetails();
+    }
+  }, [review.designId, review.reviewType]);
+
+  const loadDesignDetails = async () => {
+    if (!review.designId) return;
+    
+    try {
+      setLoadingDesigns(true);
+      const response = await fetch(`/api/designs/${review.designId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.design) {
+          setDesignDetails([{
+            id: data.design.id,
+            name: data.design.designName,
+            thumbnailUrl: data.design.thumbnailUrl
+          }]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading design details:', error);
+      // Fallback: use designId as name if fetch fails
+      setDesignDetails([{
+        id: review.designId!,
+        name: `Design ${review.designId.slice(-8)}`,
+        thumbnailUrl: undefined
+      }]);
+    } finally {
+      setLoadingDesigns(false);
+    }
+  };
 
   const canDelete = user && (
     user.id === review.customerId || 
@@ -121,6 +160,43 @@ export function ReviewCard({
 
       {/* Review Comment */}
       <p className="text-gray-700 whitespace-pre-wrap">{review.comment}</p>
+
+      {/* Design(s) Associated with Review */}
+      {review.reviewType === 'designer' && review.designId && designDetails.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Package className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-medium text-blue-900">Design(s) Reviewed:</span>
+          </div>
+          <div className="space-y-2">
+            {designDetails.map((design) => (
+              <Link
+                key={design.id}
+                href={`/explore/designs/${design.id}`}
+                className="flex items-center gap-3 p-2 bg-white rounded border border-blue-200 hover:bg-blue-50 transition-colors"
+              >
+                {design.thumbnailUrl ? (
+                  <img
+                    src={design.thumbnailUrl}
+                    alt={design.name}
+                    className="w-12 h-12 object-cover rounded"
+                  />
+                ) : (
+                  <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
+                    <Package className="w-6 h-6 text-gray-400" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {design.name}
+                  </p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-400" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Review Images */}
       {review.images && review.images.length > 0 && (

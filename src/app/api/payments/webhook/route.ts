@@ -82,10 +82,11 @@ export async function POST(request: NextRequest) {
 async function handleInvoicePaid(invoiceData: any) {
   try {
     const externalId = invoiceData.external_id;
-    console.log('[Invoice Paid]', {
+    console.log('[Invoice Paid] Processing payment webhook', {
       invoice_id: invoiceData.id,
       external_id: externalId,
-      amount: invoiceData.amount
+      amount: invoiceData.amount,
+      status: invoiceData.status || 'PAID'
     });
 
     // Check if this is a customization payment
@@ -158,11 +159,13 @@ async function handleInvoicePaid(invoiceData: any) {
       validOrders.map(async (order) => {
         console.log(`[Invoice Paid] Updating order ${order.id} payment status to paid`);
         
-        // Check if inventory was already decremented (to avoid double-decrementing)
-        // We'll check if order status is already 'processing' or payment status is already 'paid'
+        // Check if payment was already processed (to avoid double-processing)
+        // We'll check if payment status is already 'paid'
         const currentOrder = await orderRepository.findById(order.id);
-        const alreadyProcessed = currentOrder?.paymentStatus === 'paid' || currentOrder?.status === 'processing';
+        const alreadyProcessed = currentOrder?.paymentStatus === 'paid';
         
+        // Always update payment status to 'paid' if not already paid
+        // (Design orders may already be 'delivered' but payment status should still be updated)
         if (!alreadyProcessed) {
           // Decrement inventory only for product items (designs don't have inventory)
           const productItems = order.items.filter((item: any) => 
@@ -219,6 +222,58 @@ async function handleInvoicePaid(invoiceData: any) {
             statusHistory,
             updatedAt: now
           });
+          
+          // Record designer earnings for design orders
+          // businessOwnerId for design orders is the designer's userId
+          if (order.businessOwnerId) {
+            try {
+              const { FirebaseAdminService } = await import('@/services/firebase-admin');
+              const { Collections } = await import('@/services/firebase');
+              
+              // Find designer profile by userId
+              const designerProfiles = await FirebaseAdminService.queryDocuments(
+                Collections.DESIGNER_PROFILES,
+                [{ field: 'userId', operator: '==', value: order.businessOwnerId }]
+              );
+              
+              if (designerProfiles.length > 0) {
+                const designerProfile = designerProfiles[0];
+                console.log(`[Invoice Paid] Recording earnings for designer ${designerProfile.id} from order ${order.id}`);
+                
+                // Calculate designer earnings (total amount of design items)
+                // For design orders, the full order amount goes to the designer (minus platform commission if applicable)
+                const designEarnings = order.totalAmount; // Full amount for now (can add commission later)
+                
+                // Create earnings record/document
+                // Store in a collection for tracking earnings from design orders
+                const earningsData = {
+                  designerId: designerProfile.id,
+                  designerUserId: order.businessOwnerId,
+                  orderId: order.id,
+                  amount: designEarnings,
+                  orderTotal: order.totalAmount,
+                  itemCount: order.items.length,
+                  status: 'paid',
+                  paidAt: Timestamp.now(),
+                  createdAt: Timestamp.now(),
+                  updatedAt: Timestamp.now()
+                };
+                
+                // Store earnings record
+                await FirebaseAdminService.createDocument(
+                  Collections.DESIGNER_EARNINGS,
+                  earningsData
+                );
+                
+                console.log(`[Invoice Paid] Earnings recorded for designer ${designerProfile.id}: ${designEarnings}`);
+              } else {
+                console.warn(`[Invoice Paid] Designer profile not found for userId ${order.businessOwnerId}`);
+              }
+            } catch (earningsError) {
+              console.error(`[Invoice Paid] Error recording designer earnings for order ${order.id}:`, earningsError);
+              // Don't fail payment processing if earnings recording fails
+            }
+          }
         } else {
           // Product orders go to processing
           await orderRepository.updateOrderStatus(order.id, 'processing');
@@ -359,9 +414,11 @@ async function handlePaymentRequestSucceeded(paymentData: any) {
       return;
     }
 
-    // Check if inventory was already decremented (to avoid double-decrementing)
-    const alreadyProcessed = order.paymentStatus === 'paid' || order.status === 'processing';
+    // Check if payment was already processed (to avoid double-processing)
+    const alreadyProcessed = order.paymentStatus === 'paid';
     
+    // Always update payment status to 'paid' if not already paid
+    // (Design orders may already be 'delivered' but payment status should still be updated)
     if (!alreadyProcessed) {
       // Decrement inventory only for product items (designs don't have inventory)
       const productItems = order.items.filter((item: any) => 
@@ -427,6 +484,56 @@ async function handlePaymentRequestSucceeded(paymentData: any) {
         statusHistory,
         updatedAt: now
       });
+      
+      // Record designer earnings for design orders
+      // businessOwnerId for design orders is the designer's userId
+      if (order.businessOwnerId) {
+        try {
+          const { FirebaseAdminService } = await import('@/services/firebase-admin');
+          const { Collections } = await import('@/services/firebase');
+          
+          // Find designer profile by userId
+          const designerProfiles = await FirebaseAdminService.queryDocuments(
+            Collections.DESIGNER_PROFILES,
+            [{ field: 'userId', operator: '==', value: order.businessOwnerId }]
+          );
+          
+          if (designerProfiles.length > 0) {
+            const designerProfile = designerProfiles[0];
+            console.log(`[Payment Request] Recording earnings for designer ${designerProfile.id} from order ${orderId}`);
+            
+            // Calculate designer earnings (total amount of design items)
+            const designEarnings = order.totalAmount;
+            
+            // Create earnings record/document
+            const earningsData = {
+              designerId: designerProfile.id,
+              designerUserId: order.businessOwnerId,
+              orderId: order.id,
+              amount: designEarnings,
+              orderTotal: order.totalAmount,
+              itemCount: order.items.length,
+              status: 'paid',
+              paidAt: Timestamp.now(),
+              createdAt: Timestamp.now(),
+              updatedAt: Timestamp.now()
+            };
+            
+            // Store earnings record
+            await FirebaseAdminService.createDocument(
+              Collections.DESIGNER_EARNINGS,
+              earningsData
+            );
+            
+            console.log(`[Payment Request] Earnings recorded for designer ${designerProfile.id}: ${designEarnings}`);
+          } else {
+            console.warn(`[Payment Request] Designer profile not found for userId ${order.businessOwnerId}`);
+          }
+        } catch (earningsError) {
+          console.error(`[Payment Request] Error recording designer earnings for order ${orderId}:`, earningsError);
+          // Don't fail payment processing if earnings recording fails
+        }
+      }
     } else {
       // Product orders go to processing
       await orderRepository.updateOrderStatus(orderId, 'processing');

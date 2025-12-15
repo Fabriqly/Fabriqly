@@ -348,8 +348,31 @@ export class XenditService {
    */
   async getInvoice(invoiceId: string): Promise<InvoiceResult> {
     try {
-      // Simplified for now
-      throw new Error('Invoice retrieval not implemented yet');
+      if (!Invoice) {
+        throw new Error('Invoice service is not available in the Xendit SDK');
+      }
+
+      console.log('Getting invoice:', invoiceId);
+      
+      const invoice = await Invoice.getInvoiceById({
+        invoiceId: invoiceId
+      });
+
+      return {
+        id: invoice.id || '',
+        external_id: invoice.externalId || '',
+        status: invoice.status || '',
+        amount: invoice.amount || 0,
+        currency: invoice.currency || 'PHP',
+        invoice_url: invoice.invoiceUrl || '',
+        expiry_date: invoice.expiryDate?.toISOString() || '',
+        available_banks: invoice.availableBanks || [],
+        available_retail_outlets: invoice.availableRetailOutlets || [],
+        available_ewallets: invoice.availableEwallets || [],
+        available_qr_codes: invoice.availableQrCodes || [],
+        available_direct_debits: invoice.availableDirectDebits || [],
+        available_paylaters: invoice.availablePaylaters || [],
+      };
     } catch (error: any) {
       console.error('Xendit invoice retrieval failed:', error);
       throw AppError.badRequest(
