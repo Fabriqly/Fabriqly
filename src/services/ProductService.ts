@@ -76,7 +76,10 @@ export class ProductService implements IProductService {
       ...(data.dimensions && { dimensions: data.dimensions }),
       ...(data.specifications && Object.keys(data.specifications).length > 0 && { specifications: data.specifications }),
       ...(data.seoTitle && data.seoTitle.trim().length > 0 && { seoTitle: data.seoTitle.trim() }),
-      ...(data.seoDescription && data.seoDescription.trim().length > 0 && { seoDescription: data.seoDescription.trim() })
+      ...(data.seoDescription && data.seoDescription.trim().length > 0 && { seoDescription: data.seoDescription.trim() }),
+      // Variant fields
+      ...(data.designs && Array.isArray(data.designs) && { designs: data.designs }),
+      ...(data.sizes && Array.isArray(data.sizes) && { sizes: data.sizes })
     };
 
       const product = await this.productRepository.create(productData);
@@ -430,6 +433,10 @@ export class ProductService implements IProductService {
 
       const updatedProduct = await this.productRepository.update(productId, { stockQuantity: newStock });
 
+      // Invalidate product cache to ensure fresh data
+      const cacheKey = CacheService.productKey(productId);
+      await CacheService.invalidate(cacheKey);
+
       // Log activity (using system user for automated inventory updates)
       await this.logProductActivity('product_updated', productId, 'system', {
         productName: product.name,
@@ -473,6 +480,10 @@ export class ProductService implements IProductService {
       const newStock = currentStock + quantity;
 
       const updatedProduct = await this.productRepository.update(productId, { stockQuantity: newStock });
+
+      // Invalidate product cache to ensure fresh data
+      const cacheKey = CacheService.productKey(productId);
+      await CacheService.invalidate(cacheKey);
 
       // Log activity (using system user for automated inventory updates)
       await this.logProductActivity('product_updated', productId, 'system', {

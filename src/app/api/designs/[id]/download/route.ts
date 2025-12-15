@@ -9,7 +9,7 @@ import { Timestamp } from 'firebase/firestore';
 // POST /api/designs/[id]/download - Download a design
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -21,7 +21,7 @@ export async function POST(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Initialize services
     const designRepository = new DesignRepository();

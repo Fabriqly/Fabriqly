@@ -24,7 +24,14 @@ export interface Category {
   storageBucket?: string; // Bucket name in Supabase Storage
 }
 
-// Product Variants (for sizes, colors, etc.)
+// Product Variant Option (for designs and sizes with price modifiers)
+export interface ProductVariantOption {
+  id: string;        // UUID or unique key
+  name: string;      // e.g., "Sunset Vibe" or "XL"
+  priceModifier: number; // e.g., 0.00 (free) or 50.00 (adds ₱50)
+}
+
+// Product Variants (for sizes, colors, etc.) - Legacy support
 export interface ProductVariant {
   id: string;
   productId: string;
@@ -76,6 +83,8 @@ export interface Product {
     unit: 'cm' | 'in';
   };
   tags: string[]; // For search and filtering
+  designs?: ProductVariantOption[]; // Design variants with price modifiers
+  sizes?: ProductVariantOption[]; // Size variants with price modifiers
   specifications?: Record<string, any>; // Flexible specs
   seoTitle?: string;
   seoDescription?: string;
@@ -121,6 +130,8 @@ export interface CreateProductData {
     unit: 'cm' | 'in';
   };
   tags: string[];
+  designs?: ProductVariantOption[]; // Design variants with price modifiers
+  sizes?: ProductVariantOption[]; // Size variants with price modifiers
   specifications?: Record<string, any>;
   seoTitle?: string;
   seoDescription?: string;

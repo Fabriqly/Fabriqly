@@ -166,7 +166,11 @@ export function DesignTimeline({ designerId, limit = 12 }: DesignTimelineProps) 
                     <div className="flex items-center gap-1 text-yellow-600">
                       <Star className="w-4 h-4 fill-current" />
                       <span className="font-medium">
-                        ${design.pricing.price?.toFixed(2) || '0.00'}
+                        {new Intl.NumberFormat('en-PH', {
+                          style: 'currency',
+                          currency: design.pricing.currency || 'PHP',
+                          minimumFractionDigits: 2
+                        }).format(design.pricing.price || 0)}
                       </span>
                     </div>
                   )}

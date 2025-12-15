@@ -10,86 +10,18 @@ import {
   ACTIVITY_TYPE_CONFIGS 
 } from '@/types/activity';
 import { 
-  UserPlus, 
-  UserCheck, 
-  UserX, 
-  Package, 
-  FolderPlus, 
-  FolderOpen, 
-  FolderX,
-  Palette,
-  ShoppingCart,
-  Image,
-  Store,
-  User,
-  Settings,
-  Shield,
-  CheckCircle,
-  XCircle,
-  Eye,
-  EyeOff,
-  Send,
   Clock,
   Filter,
   RefreshCw,
   Search,
-  Calendar,
-  BarChart3,
   Download,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { formatRelativeTime, formatTimestampISO } from '@/utils/timestamp';
-
-// Icon mapping for activity types
-const ActivityIcons: Record<ActivityType, React.ComponentType<any>> = {
-  user_registered: UserPlus,
-  user_updated: UserCheck,
-  user_deleted: UserX,
-  product_created: Package,
-  product_updated: Package,
-  product_deleted: Package,
-  product_published: Send,
-  product_unpublished: EyeOff,
-  product_republished: Eye,
-  product_activated: CheckCircle,
-  product_deactivated: XCircle,
-  category_created: FolderPlus,
-  category_updated: FolderOpen,
-  category_deleted: FolderX,
-  color_created: Palette,
-  color_updated: Palette,
-  color_deleted: Palette,
-  order_created: ShoppingCart,
-  order_updated: ShoppingCart,
-  order_cancelled: XCircle,
-  order_completed: CheckCircle,
-  design_created: Image,
-  design_updated: Image,
-  design_deleted: Image,
-  design_published: Eye,
-  shop_profile_created: Store,
-  shop_profile_updated: Store,
-  designer_profile_created: User,
-  designer_profile_updated: User,
-  designer_verification_requested: Clock,
-  designer_verification_approved: CheckCircle,
-  designer_verification_rejected: XCircle,
-  designer_suspended: XCircle,
-  designer_restored: CheckCircle,
-  system_event: Settings,
-  admin_action: Shield
-};
-
-// Priority color mapping
-const PriorityColors: Record<ActivityPriority, string> = {
-  low: 'bg-gray-500',
-  medium: 'bg-blue-500',
-  high: 'bg-orange-500',
-  critical: 'bg-red-500'
-};
+import { formatTimestampISO } from '@/utils/timestamp';
+import { ActivityLogItem } from '@/components/admin/ActivityLogItem';
 
 export default function AdminActivitiesPage() {
   const [activities, setActivities] = useState<ActivityWithDetails[]>([]);
@@ -322,19 +254,19 @@ export default function AdminActivitiesPage() {
     <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Activity Log</h1>
             <p className="mt-1 text-sm text-gray-500">
               Monitor all system activities and events
             </p>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button onClick={exportActivities} variant="outline">
+          <div className="flex flex-col w-full md:w-auto md:flex-row items-stretch md:items-center gap-2 md:gap-2 md:space-x-2">
+            <Button onClick={exportActivities} variant="outline" className="w-full md:w-auto">
               <Download className="w-4 h-4 mr-2" />
               Export CSV
             </Button>
-            <Button onClick={handleRefresh} variant="outline" disabled={loading}>
+            <Button onClick={handleRefresh} variant="outline" disabled={loading} className="w-full md:w-auto">
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -362,14 +294,14 @@ export default function AdminActivitiesPage() {
             </div>
 
             {/* Search */}
-            <div className="mb-4">
-              <div className="relative">
+            <div className="mb-4 flex flex-col gap-2 md:flex-row md:gap-0">
+              <div className="relative flex-1">
                 <Search className="absolute left-3 top-2 text-gray-400 w-4 h-4" />
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search activities..."
-                  className="pl-10"
+                  className="pl-10 w-full"
                 />
               </div>
             </div>
@@ -470,136 +402,98 @@ export default function AdminActivitiesPage() {
               </div>
             ) : (
               <div className="flow-root">
-                <ul className="-mb-8">
-                  {filteredActivities.map((activity, index) => {
-                    const IconComponent = ActivityIcons[activity.type] || Settings;
-                    const config = ACTIVITY_TYPE_CONFIGS[activity.type];
-                    const priorityColor = PriorityColors[activity.priority] || 'bg-gray-500';
-                    
-                    return (
-                      <li key={activity.id}>
-                        <div className={`relative ${index < filteredActivities.length - 1 ? 'pb-8' : ''}`}>
-                          <div className="relative flex space-x-3">
-                            <div>
-                              <span className={`h-8 w-8 rounded-full ${priorityColor} flex items-center justify-center ring-8 ring-white`}>
-                                <IconComponent className="h-5 w-5 text-white" />
-                              </span>
-                            </div>
-                            <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
-                              <div 
-                                className={`${activity.target?.url ? 'cursor-pointer hover:text-blue-600' : ''}`}
-                                onClick={() => handleActivityClick(activity)}
-                              >
-                                <p className="text-sm text-gray-500">
-                                  {activity.title}
-                                  {activity.target?.name && (
-                                    <span className="font-medium text-gray-900 ml-1">
-                                      {activity.target.name}
-                                    </span>
-                                  )}
-                                </p>
-                                <p className="text-xs text-gray-400 mt-1">
-                                  {activity.description}
-                                </p>
-                                {activity.actor && (
-                                  <p className="text-xs text-gray-400 mt-1">
-                                    by {activity.actor.name} ({activity.actor.role})
-                                  </p>
-                                )}
-                              </div>
-                              <div className="text-right text-sm whitespace-nowrap text-gray-500">
-                                <time>{formatRelativeTime(activity.createdAt)}</time>
-                                <div className="text-xs text-gray-400 mt-1">
-                                  {activity.priority}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
+                <ul className="-mb-8 pb-20">
+                  {filteredActivities.map((activity, index) => (
+                    <ActivityLogItem
+                      key={activity.id}
+                      activity={activity}
+                      isLast={index === filteredActivities.length - 1}
+                      onActivityClick={handleActivityClick}
+                    />
+                  ))}
                 </ul>
               </div>
             )}
 
             {/* Pagination Controls */}
-            <div className="mt-6 flex items-center justify-between">
-              {/* Page Size Selector */}
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-700">Show:</span>
-                <select
-                  value={filters.limit || 20}
-                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                  className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span className="text-sm text-gray-700">per page</span>
-              </div>
-
-              {/* Pagination Info */}
-              <div className="text-sm text-gray-500">
-                {(() => {
-                  const startRecord = pagination.total === 0 ? 0 : ((pagination.currentPage - 1) * (filters.limit || 20)) + 1;
-                  const endRecord = Math.min(pagination.currentPage * (filters.limit || 20), pagination.total);
-                  return `Showing ${startRecord} to ${endRecord} of ${pagination.total} activities`;
-                })()}
-              </div>
-
-              {/* Page Navigation */}
-              <div className="flex items-center space-x-2">
-                <Button
-                  onClick={() => handlePageChange(pagination.currentPage - 1)}
-                  disabled={pagination.currentPage <= 1 || loading}
-                  variant="outline"
-                  size="sm"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Previous
-                </Button>
-                
-                {/* Page Numbers */}
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (pagination.totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (pagination.currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (pagination.currentPage >= pagination.totalPages - 2) {
-                      pageNum = pagination.totalPages - 4 + i;
-                    } else {
-                      pageNum = pagination.currentPage - 2 + i;
-                    }
-                    
-                    return (
-                      <Button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        disabled={loading}
-                        variant={pagination.currentPage === pageNum ? "primary" : "outline"}
-                        size="sm"
-                        className="w-8 h-8 p-0"
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
+            <div className="mt-6 pt-4 border-t border-gray-200 bg-white sticky bottom-0 z-10">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+                {/* Page Size Selector */}
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-700">Show:</span>
+                  <select
+                    value={filters.limit || 20}
+                    onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                    className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span className="text-sm text-gray-700 hidden sm:inline">per page</span>
                 </div>
 
-                <Button
-                  onClick={() => handlePageChange(pagination.currentPage + 1)}
-                  disabled={pagination.currentPage >= pagination.totalPages || loading}
-                  variant="outline"
-                  size="sm"
-                >
-                  Next
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
+                {/* Pagination Info */}
+                <div className="text-sm text-gray-500 text-center md:text-left">
+                  {(() => {
+                    const startRecord = pagination.total === 0 ? 0 : ((pagination.currentPage - 1) * (filters.limit || 20)) + 1;
+                    const endRecord = Math.min(pagination.currentPage * (filters.limit || 20), pagination.total);
+                    return `Showing ${startRecord} to ${endRecord} of ${pagination.total} activities`;
+                  })()}
+                </div>
+
+                {/* Page Navigation */}
+                <div className="flex items-center justify-center space-x-2">
+                  <Button
+                    onClick={() => handlePageChange(pagination.currentPage - 1)}
+                    disabled={pagination.currentPage <= 1 || loading}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span className="hidden sm:inline">Previous</span>
+                  </Button>
+                  
+                  {/* Page Numbers - Hidden on mobile */}
+                  <div className="hidden md:flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (pagination.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (pagination.currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                        pageNum = pagination.totalPages - 4 + i;
+                      } else {
+                        pageNum = pagination.currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <Button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          disabled={loading}
+                          variant={pagination.currentPage === pageNum ? "primary" : "outline"}
+                          size="sm"
+                          className="w-8 h-8 p-0"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    onClick={() => handlePageChange(pagination.currentPage + 1)}
+                    disabled={pagination.currentPage >= pagination.totalPages || loading}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <span className="hidden sm:inline">Next</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

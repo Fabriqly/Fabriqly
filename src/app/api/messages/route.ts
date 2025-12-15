@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       data: conversations
     });
   } catch (error: any) {
-    console.error('Error fetching conversations:', error);
+    console.error('[Messages API] Error fetching conversations:', error);
     return NextResponse.json(
       { 
         success: false,
@@ -79,9 +79,15 @@ export async function POST(request: NextRequest) {
       orderId
     });
 
+    // Get the conversation ID from the message
+    const conversationIdFromMessage = message.conversationId;
+
     return NextResponse.json({
       success: true,
-      data: message
+      data: {
+        ...message,
+        conversationId: conversationIdFromMessage
+      }
     });
   } catch (error: any) {
     console.error('Error sending message:', error);
@@ -94,11 +100,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-
-
-
-
 
 
 
