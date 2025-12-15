@@ -2,9 +2,11 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Menu, User } from 'lucide-react';
+import Link from 'next/link';
+import { Menu, User, Compass } from 'lucide-react';
 import LogoName from '@/../public/LogoName.png';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { MessageBell } from '@/components/messaging/MessageBell';
 
 interface DashboardHeaderProps {
   user?: {
@@ -14,9 +16,10 @@ interface DashboardHeaderProps {
   } | null;
   onMenuClick?: () => void;
   showMobileMenu?: boolean;
+  variant?: 'default' | 'admin';
 }
 
-export function DashboardHeader({ user, onMenuClick, showMobileMenu = false }: DashboardHeaderProps) {
+export function DashboardHeader({ user, onMenuClick, showMobileMenu = false, variant = 'default' }: DashboardHeaderProps) {
   const handleMenuClick = () => {
     // Dispatch custom event to toggle sidebar
     window.dispatchEvent(new CustomEvent('toggleDashboardSidebar'));
@@ -26,16 +29,28 @@ export function DashboardHeader({ user, onMenuClick, showMobileMenu = false }: D
     }
   };
 
+  const isAdmin = variant === 'admin';
+  const headerClasses = isAdmin
+    ? 'fixed top-0 left-0 w-full h-20 z-50 bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-600 shadow-lg'
+    : 'fixed top-0 left-0 right-0 w-full bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-600 shadow-lg z-50';
+  const containerHeight = 'h-20';
+  const textColor = 'text-white';
+  const hoverBg = 'hover:bg-white/10';
+  const focusRing = 'focus:ring-white/20';
+  const userAvatarBg = 'bg-white/20';
+  const userTextColor = 'text-white';
+  const userTextSecondary = 'text-white/80';
+
   return (
-    <header className="fixed top-0 left-0 right-0 w-full bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-600 shadow-lg z-50">
+    <header className={headerClasses}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="h-20 flex items-center justify-between">
+        <div className={`${containerHeight} flex items-center justify-between`}>
           {/* Left side - Menu and Logo */}
           <div className="flex items-center">
             {/* Mobile menu button - Always show on mobile */}
             <button
               type="button"
-              className="mr-4 p-2 rounded-md text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 lg:hidden"
+              className={`mr-4 p-2 rounded-md ${textColor} ${hoverBg} focus:outline-none focus:ring-2 ${focusRing} lg:hidden`}
               onClick={handleMenuClick}
             >
               <Menu className="h-6 w-6" />
@@ -48,7 +63,7 @@ export function DashboardHeader({ user, onMenuClick, showMobileMenu = false }: D
             
             {/* Dashboard Text */}
             <div className="ml-6 hidden sm:block">
-              <h1 className="text-xl font-bold text-white">
+              <h1 className={`text-xl font-bold ${textColor}`}>
                 {user?.role === 'designer' ? 'Designer Dashboard' : 
                  user?.role === 'admin' ? 'Admin Dashboard' : 'Business Dashboard'}
               </h1>
@@ -57,18 +72,32 @@ export function DashboardHeader({ user, onMenuClick, showMobileMenu = false }: D
 
           {/* Right side - User info */}
           <div className="flex items-center space-x-4">
+            {/* Messages */}
+            <MessageBell />
+
             {/* Notifications */}
             <NotificationBell />
+
+            {/* Explore Button */}
+            <Link
+              href="/explore"
+              className={`flex items-center space-x-2 px-3 py-2 ${textColor} ${hoverBg} rounded-lg transition-colors`}
+              aria-label="Go to Explore"
+              title="Go to Explore"
+            >
+              <Compass className="w-5 h-5" />
+              <span className="hidden sm:block text-sm font-medium">to explore</span>
+            </Link>
 
             {/* User info */}
             <div className="hidden md:flex items-center space-x-3">
               <div className="flex items-center">
-                <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center">
-                  <User className="h-4 w-4 text-white" />
+                <div className={`h-8 w-8 rounded-full ${userAvatarBg} flex items-center justify-center`}>
+                  <User className={`h-4 w-4 ${textColor}`} />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-white">{user?.name || 'Admin'}</p>
-                  <p className="text-xs text-white/80">{user?.email || 'Administrator'}</p>
+                  <p className={`text-sm font-medium ${userTextColor}`}>{user?.name || 'Admin'}</p>
+                  <p className={`text-xs ${userTextSecondary}`}>{user?.email || 'Administrator'}</p>
                 </div>
               </div>
             </div>

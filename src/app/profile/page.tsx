@@ -389,12 +389,105 @@ export default function ProfilePage() {
     setSuccess('');
   };
 
-  if (status === 'loading' || loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+  // Skeleton Loading Component
+  const ProfileSkeleton = () => (
+    <div className="min-h-screen bg-gray-50">
+      <CustomerHeader user={session?.user || null} />
+      
+      {/* Mobile: Horizontal Tab Bar */}
+      <CustomerNavigationSidebar variant="mobile" />
+      
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+        {/* Desktop: Vertical Sidebar */}
+        <CustomerNavigationSidebar variant="desktop" />
+        
+        {/* Right Content Area */}
+        <main className="flex-1 w-full">
+          <div className="max-w-4xl mx-auto">
+            {/* Header Skeleton */}
+            <div className="mb-6 md:mb-8 animate-pulse">
+              <div className="h-8 md:h-9 bg-gray-200 rounded w-48 mb-2"></div>
+              <div className="h-4 md:h-5 bg-gray-200 rounded w-64"></div>
+            </div>
+
+            {/* Profile Card Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-4 md:mb-6 animate-pulse">
+              <div className="flex flex-col md:flex-row items-center md:items-start md:justify-between gap-4 md:gap-0">
+                <div className="flex flex-col md:flex-row items-center md:items-center space-y-3 md:space-y-0 md:space-x-6">
+                  {/* Avatar Skeleton */}
+                  <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gray-200"></div>
+                  <div className="text-center md:text-left space-y-2">
+                    <div className="h-5 md:h-6 bg-gray-200 rounded w-40"></div>
+                    <div className="h-4 bg-gray-200 rounded w-56"></div>
+                  </div>
+                </div>
+                {/* Edit Button Skeleton */}
+                <div className="h-10 bg-gray-200 rounded w-32 md:w-36"></div>
+              </div>
+            </div>
+
+            {/* Basic Information Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-4 md:mb-6 animate-pulse">
+              <div className="flex items-center mb-4 md:mb-6">
+                <div className="w-5 h-5 bg-gray-200 rounded mr-2"></div>
+                <div className="h-6 md:h-7 bg-gray-200 rounded w-48"></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-24"></div>
+                    <div className="h-5 bg-gray-200 rounded w-full"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Address Information Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-4 md:mb-6 animate-pulse">
+              <div className="flex items-center mb-4 md:mb-6">
+                <div className="w-5 h-5 bg-gray-200 rounded mr-2"></div>
+                <div className="h-6 md:h-7 bg-gray-200 rounded w-40"></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className={`space-y-2 ${i === 1 ? 'md:col-span-2' : ''}`}>
+                    <div className="h-4 bg-gray-200 rounded w-28"></div>
+                    <div className="h-5 bg-gray-200 rounded w-full"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Shipping Addresses Skeleton */}
+            <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 animate-pulse">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0 mb-4 md:mb-6">
+                <div className="flex items-center">
+                  <div className="w-5 h-5 bg-gray-200 rounded mr-2"></div>
+                  <div className="h-6 md:h-7 bg-gray-200 rounded w-40"></div>
+                </div>
+                <div className="h-10 bg-gray-200 rounded w-32 md:w-36"></div>
+              </div>
+              <div className="space-y-3 md:space-y-4">
+                {[1, 2].map((i) => (
+                  <div key={i} className="border border-gray-200 rounded-lg p-3 md:p-4 bg-gray-50">
+                    <div className="space-y-2">
+                      <div className="h-5 bg-gray-200 rounded w-32"></div>
+                      <div className="h-4 bg-gray-200 rounded w-full"></div>
+                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
-    );
+    </div>
+  );
+
+  if (status === 'loading' || loading) {
+    return <ProfileSkeleton />;
   }
 
   if (!profile) {
@@ -414,17 +507,20 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gray-50">
       <CustomerHeader user={session?.user || null} />
       
-      <div className="flex gap-8 p-8">
-        {/* Left Sidebar - Floating Navigation Card */}
-        <CustomerNavigationSidebar />
-
+      {/* Mobile: Horizontal Tab Bar (appears right after header) */}
+      <CustomerNavigationSidebar variant="mobile" />
+      
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+        {/* Desktop: Vertical Sidebar (inside flex container) */}
+        <CustomerNavigationSidebar variant="desktop" />
+        
         {/* Right Content Area */}
-        <main className="flex-1">
-          <div className="max-w-4xl">
+        <main className="flex-1 w-full">
+          <div className="max-w-4xl mx-auto">
             {/* Header */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
-              <p className="text-gray-600 mt-2">View and manage your personal information</p>
+            <div className="mb-6 md:mb-8">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Profile</h1>
+              <p className="text-sm md:text-base text-gray-600 mt-1 md:mt-2">View and manage your personal information</p>
             </div>
 
             {/* Messages */}
@@ -442,15 +538,15 @@ export default function ProfilePage() {
 
             {isEditMode ? (
               /* Edit Mode - Form */
-              <form onSubmit={handleSubmit} className="space-y-8">
+              <form onSubmit={handleSubmit} className="space-y-4 md:space-y-8">
                 {/* Profile Picture */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-4 md:mb-6 flex items-center">
                     <Camera className="w-5 h-5 mr-2" />
                     Profile Picture
                   </h2>
                   
-                  <div className="flex items-center space-x-6">
+                  <div className="flex flex-col md:flex-row items-center md:items-start space-y-4 md:space-y-0 md:space-x-6">
                     <div className="relative">
                       {(profilePicture || profile?.photoURL) ? (
                         <div className="relative">
@@ -475,8 +571,8 @@ export default function ProfilePage() {
                       )}
                     </div>
                     
-                    <div className="flex-1">
-                      <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors w-fit">
+                    <div className="flex-1 w-full md:w-auto">
+                      <label className="flex items-center justify-center md:justify-start gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors w-full md:w-fit">
                         <Upload className="w-4 h-4" />
                         <span className="text-sm">
                           {uploadingPicture ? 'Uploading...' : profilePicture ? 'Change Picture' : 'Upload Picture'}
@@ -489,7 +585,7 @@ export default function ProfilePage() {
                           className="hidden"
                         />
                       </label>
-                      <p className="text-xs text-gray-500 mt-2">
+                      <p className="text-xs text-gray-500 mt-2 text-center md:text-left">
                         JPG, PNG or GIF. Max size 5MB.
                       </p>
                     </div>
@@ -497,13 +593,13 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Basic Information */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-4 md:mb-6 flex items-center">
                     <User className="w-5 h-5 mr-2" />
                     Basic Information
                   </h2>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <Input
                       label="First Name"
                       name="firstName"
@@ -558,13 +654,13 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Address Information */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-4 md:mb-6 flex items-center">
                     <MapPin className="w-5 h-5 mr-2" />
                     Address Information
                   </h2>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div className="md:col-span-2">
                       <Input
                         label="Street Address"
@@ -610,19 +706,20 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex justify-end space-x-4">
+                <div className="flex flex-col-reverse md:flex-row justify-end gap-3 md:gap-4 md:space-x-0">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={handleCancel}
                     disabled={saving}
+                    className="w-full md:w-auto"
                   >
                     Cancel
                   </Button>
                   <Button
                     type="submit"
                     loading={saving}
-                    className="px-8 bg-blue-600 text-white hover:bg-blue-700"
+                    className="w-full md:w-auto px-6 md:px-8 bg-blue-600 text-white hover:bg-blue-700"
                   >
                     <Save className="w-4 h-4 mr-2" />
                     Save Changes
@@ -631,31 +728,31 @@ export default function ProfilePage() {
               </form>
             ) : (
               /* View Mode - Display Information */
-              <div className="space-y-6">
+              <div className="space-y-4 md:space-y-6">
                 {/* Profile Card with Avatar and Edit Button */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-6">
+                <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+                  <div className="flex flex-col md:flex-row items-center md:items-start md:justify-between gap-4 md:gap-0">
+                    <div className="flex flex-col md:flex-row items-center md:items-center space-y-3 md:space-y-0 md:space-x-6">
                       {(profilePicture || profile?.photoURL) ? (
                         <img
                           src={profilePicture || profile?.photoURL || ''}
                           alt="Profile"
-                          className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
+                          className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border-4 border-gray-200"
                         />
                       ) : (
-                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold border-4 border-gray-200">
+                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl md:text-2xl font-bold border-4 border-gray-200">
                           {profile?.displayName?.charAt(0).toUpperCase() || 'U'}
                         </div>
                       )}
-                      <div>
-                        <p className="text-lg font-semibold text-gray-900">{profile.displayName}</p>
-                        <p className="text-sm text-gray-500">{profile.email}</p>
+                      <div className="text-center md:text-left">
+                        <p className="text-base md:text-lg font-semibold text-gray-900">{profile.displayName}</p>
+                        <p className="text-sm text-gray-500 break-words">{profile.email}</p>
                       </div>
                     </div>
                     {!isEditMode && (
                       <Button
                         onClick={() => setIsEditMode(true)}
-                        className="flex items-center bg-blue-600 text-white hover:bg-blue-700"
+                        className="w-full md:w-auto flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700"
                       >
                         <Edit className="w-4 h-4 mr-2" />
                         Edit Profile
@@ -665,13 +762,13 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Basic Information */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-4 md:mb-6 flex items-center">
                     <User className="w-5 h-5 mr-2" />
                     Basic Information
                   </h2>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-500 mb-1">First Name</label>
                       <p className="text-gray-900">{profile.profile?.firstName || 'Not provided'}</p>
@@ -706,13 +803,13 @@ export default function ProfilePage() {
                 {/* Address Information */}
                 {profile.profile?.address && (
                   Object.values(profile.profile.address).some(val => val) && (
-                    <div className="bg-white rounded-lg shadow-sm p-6">
-                      <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                    <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+                      <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-4 md:mb-6 flex items-center">
                         <MapPin className="w-5 h-5 mr-2" />
                         Address Information
                       </h2>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                         {profile.profile.address.street && (
                           <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-gray-500 mb-1">Street Address</label>
@@ -753,15 +850,15 @@ export default function ProfilePage() {
                 )}
 
                 {/* Shipping Addresses */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0 mb-4 md:mb-6">
+                    <h2 className="text-lg md:text-xl font-semibold text-gray-900 flex items-center">
                       <MapPin className="w-5 h-5 mr-2" />
                       Shipping Addresses
                     </h2>
                     <Button
                       onClick={() => setShowAddAddressModal(true)}
-                      className="flex items-center bg-blue-600 text-white hover:bg-blue-700"
+                      className="w-full md:w-auto flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       Add Address
@@ -778,37 +875,37 @@ export default function ProfilePage() {
                       <p className="text-sm text-gray-400 mt-2">Click "Add Address" to add your first shipping address.</p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-3 md:space-y-4">
                       {shippingAddresses.map((address) => (
                         <div
                           key={address.id}
-                          className={`border rounded-lg p-4 ${
+                          className={`border rounded-lg p-3 md:p-4 w-full ${
                             address.isDefault
                               ? 'border-blue-500 bg-blue-50'
                               : 'border-gray-200 bg-gray-50'
                           }`}
                         >
                           <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <p className="font-semibold text-gray-900">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+                                <p className="font-semibold text-sm md:text-base text-gray-900">
                                   {address.firstName} {address.lastName}
                                 </p>
                                 {address.isDefault && (
-                                  <span className="px-2 py-1 text-xs font-medium bg-blue-500 text-white rounded">
+                                  <span className="px-2 py-1 text-xs font-medium bg-blue-500 text-white rounded w-fit">
                                     Default
                                   </span>
                                 )}
                               </div>
-                              <p className="text-sm text-gray-600">
+                              <p className="text-xs md:text-sm text-gray-600 break-words">
                                 {address.address1}
                                 {address.address2 && `, ${address.address2}`}
                               </p>
-                              <p className="text-sm text-gray-600">
+                              <p className="text-xs md:text-sm text-gray-600">
                                 {address.city}, {address.state} {address.zipCode}
                               </p>
-                              <p className="text-sm text-gray-600">{address.country}</p>
-                              <p className="text-sm text-gray-600 mt-1">Phone: {address.phone}</p>
+                              <p className="text-xs md:text-sm text-gray-600">{address.country}</p>
+                              <p className="text-xs md:text-sm text-gray-600 mt-1">Phone: {address.phone}</p>
                             </div>
                           </div>
                         </div>

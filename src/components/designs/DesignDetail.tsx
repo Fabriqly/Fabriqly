@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { DesignWithDetails } from '@/types/enhanced-products';
 import { Button } from '@/components/ui/Button';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
@@ -28,6 +29,9 @@ import {
 import { DesignReviewSection } from '@/components/reviews/DesignReviewSection';
 import { useAuth } from '@/hooks/useAuth';
 import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
+import { useCart } from '@/contexts/CartContext';
+import { useSession } from 'next-auth/react';
+import { ShoppingCart, Check, LogIn, CreditCard } from 'lucide-react';
 
 interface DesignDetailProps {
   design: DesignWithDetails;
@@ -50,12 +54,17 @@ export function DesignDetail({
 }: DesignDetailProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const { data: session } = useSession();
+  const { addItem, isItemInCart } = useCart();
   const [loading, setLoading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [averageRating, setAverageRating] = useState(0);
   const [totalReviews, setTotalReviews] = useState(0);
   const [activeTab, setActiveTab] = useState<'details' | 'reviews'>('details');
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [hasPurchased, setHasPurchased] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isAddedToCart, setIsAddedToCart] = useState(false);
 
   // Helper function to extract storage path from Supabase URL
   const extractStoragePath = (url: string): { path: string; bucket: string } | null => {
@@ -224,18 +233,112 @@ export function DesignDetail({
     });
   };
 
-  const handleDownload = async () => {
-    if (!onDownload) return;
+  // Check if user has purchased this design
+  useEffect(() => {
+    const checkPurchase = async () => {
+      if (!user?.id || !design.id) return;
+      
+      try {
+        const response = await fetch(`/api/purchases/verify?designId=${design.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setHasPurchased(data.hasPurchased || false);
+        }
+      } catch (error) {
+        console.error('Error checking purchase status:', error);
+      }
+    };
     
+    checkPurchase();
+  }, [user?.id, design.id]);
+
+  const handleDownload = async () => {
     setLoading(true);
     try {
-      await onDownload(design.id);
+      // If purchased, use the download API for clean image
+      if (hasPurchased) {
+        const response = await fetch(`/api/download/design/${design.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.downloadUrl) {
+            // Fetch the file as a blob to force download
+            const fileResponse = await fetch(data.downloadUrl);
+            if (fileResponse.ok) {
+              const blob = await fileResponse.blob();
+              
+              // Get file extension from design or URL
+              const extension = design.fileFormat || 'png';
+              
+              // Create blob URL and trigger download
+              const blobUrl = window.URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = blobUrl;
+              link.download = `${design.designName}.${extension}`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              
+              // Clean up blob URL
+              window.URL.revokeObjectURL(blobUrl);
+              return;
+            } else {
+              alert('Failed to download file');
+            }
+          }
+        }
+      }
+      
+      // For free designs or if download API fails, use the original download handler
+      if (onDownload) {
+        await onDownload(design.id);
+      }
     } catch (error) {
       console.error('Download failed:', error);
+      alert('Failed to download design. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleAddToCart = async () => {
+    if (!session?.user) {
+      router.push(`/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+
+    if (isAddingToCart || design.pricing?.isFree) return;
+
+    setIsAddingToCart(true);
+    try {
+      await addItem({
+        itemType: 'design',
+        designId: design.id,
+        quantity: 1,
+        designerId: design.designerId,
+      });
+      setIsAddedToCart(true);
+      setTimeout(() => setIsAddedToCart(false), 2000);
+    } catch (error) {
+      console.error('Error adding design to cart:', error);
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!session?.user) {
+      router.push(`/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+
+    if (design.pricing?.isFree) return;
+
+    // Add to cart and redirect to checkout
+    await handleAddToCart();
+    router.push('/checkout');
+  };
+
+  const isDesignInCart = design.id ? isItemInCart(design.id, {}, undefined, undefined, undefined) : false;
 
   const handleLike = async () => {
     if (!onLike) return;
@@ -343,6 +446,8 @@ export function DesignDetail({
                       storagePath={storageInfo.path}
                       storageBucket={storageInfo.bucket}
                       designId={design.id}
+                      isFree={design.pricing?.isFree}
+                      designType={design.designType}
                       alt={design.designName}
                       className="w-full h-full object-contain"
                       fallbackSrc={currentImage}
@@ -421,6 +526,8 @@ export function DesignDetail({
                             storagePath={storageInfo.path}
                             storageBucket={storageInfo.bucket}
                             designId={design.id}
+                            isFree={design.pricing?.isFree}
+                            designType={design.designType}
                             alt={`${design.designName} ${index + 1}`}
                             className="w-full h-full object-cover"
                             fallbackSrc={image}
@@ -514,52 +621,114 @@ export function DesignDetail({
 
             {/* Actions */}
             <div className="space-y-3">
-              <Button
-                onClick={handleDownload}
-                loading={loading}
-                disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                {design.pricing?.isFree ? 'Download Free' : 'Download'}
-              </Button>
+              {design.pricing?.isFree ? (
+                // Free design - show download button
+                <Button
+                  onClick={handleDownload}
+                  loading={loading}
+                  disabled={loading}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Free
+                </Button>
+              ) : hasPurchased ? (
+                // Purchased design - show download button for clean image
+                <Button
+                  onClick={handleDownload}
+                  loading={loading}
+                  disabled={loading}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Original
+                </Button>
+              ) : (
+                // Paid design - show Buy Now and Add to Cart buttons
+                <>
+                  <Button
+                    onClick={handleBuyNow}
+                    disabled={isAddingToCart || isDesignInCart}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    {isAddingToCart ? (
+                      <>
+                        <span className="animate-spin mr-2">⏳</span>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Buy Now
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleAddToCart}
+                    disabled={isAddingToCart || isDesignInCart}
+                    variant="outline"
+                    className="w-full border-indigo-600 text-indigo-600 hover:bg-indigo-50"
+                  >
+                    {isAddedToCart ? (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        Added to Cart
+                      </>
+                    ) : isDesignInCart ? (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        In Cart
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        {isAddingToCart ? 'Adding...' : 'Add to Cart'}
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
             </div>
 
-            {/* Designer Info */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <User className="w-8 h-8 text-indigo-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">
+            {/* Designer Info - Compact Design */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="flex items-start gap-3 mb-3">
+                {/* Avatar */}
+                <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                  <User className="w-6 h-6 text-indigo-600" />
+                </div>
+                
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-base font-bold text-slate-900 truncate">
                       {design.designer.businessName}
                     </h3>
                     {design.designer.isVerified && (
-                      <span className="text-xs text-green-600 font-medium">Verified Designer</span>
+                      <span className="text-xs text-green-600 font-medium whitespace-nowrap">Verified</span>
                     )}
+                  </div>
+                  
+                  {design.designer.bio && (
+                    <p className="text-xs text-slate-600 line-clamp-2 mb-2">{design.designer.bio}</p>
+                  )}
+                  
+                  {/* Stats - Inline */}
+                  <div className="flex items-center gap-3 text-xs text-slate-600">
+                    <span className="whitespace-nowrap">{design.designer.portfolioStats.totalDesigns} designs</span>
+                    <span className="whitespace-nowrap">{design.designer.portfolioStats.totalDownloads} downloads</span>
                   </div>
                 </div>
               </div>
-              {design.designer.bio && (
-                <p className="text-sm text-slate-600 mt-3">{design.designer.bio}</p>
-              )}
-              <div className="flex items-center space-x-4 mt-3 text-sm text-slate-600">
-                <span>{design.designer.portfolioStats.totalDesigns} designs</span>
-                <span>{design.designer.portfolioStats.totalDownloads} downloads</span>
-              </div>
-              {design.designer.website && (
-                <a
-                  href={design.designer.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center text-indigo-600 hover:text-indigo-700 text-sm mt-3"
-                >
-                  <ExternalLink className="w-3 h-3 mr-1" />
-                  Visit Website
-                </a>
-              )}
+              
+              {/* Button - Full Width, Spans Entire Card */}
+              <Link
+                href={`/explore/designers/${design.designer.id}`}
+                className="flex items-center justify-center w-full px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+              >
+                <User className="w-4 h-4 mr-2" />
+                View Profile
+              </Link>
             </div>
           </div>
         </div>

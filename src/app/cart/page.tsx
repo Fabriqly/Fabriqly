@@ -20,18 +20,26 @@ import {
   Trash,
   AlertTriangle,
   Store,
-  X
+  X,
+  User,
+  ImageIcon
 } from 'lucide-react';
 import { ShopProfile } from '@/types/shop-profile';
 import { CartItem } from '@/types/cart';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
+import { DesignWithDetails } from '@/types/enhanced-products';
 
 interface GroupedCartItem extends CartItem {
   shop?: ShopProfile;
+  designer?: DesignWithDetails['designer'];
 }
 
 interface ShopGroup {
   shop: ShopProfile | null;
-  businessOwnerId: string;
+  businessOwnerId?: string;
+  designerId?: string;
+  designer?: DesignWithDetails['designer'];
+  groupType: 'product' | 'design';
   items: GroupedCartItem[];
 }
 
@@ -64,8 +72,76 @@ export default function CartPage() {
 
     const loadShopProfiles = async () => {
       setLoadingShops(true);
-      const uniqueOwnerIds = [...new Set(state.cart.items.map(item => item.businessOwnerId))];
+      
+      // Separate product and design items
+      // Also log items for debugging
+      console.log('[Cart] All cart items:', state.cart.items.map(item => ({
+        id: item.id,
+        itemType: item.itemType,
+        productId: item.productId,
+        designId: item.designId,
+        businessOwnerId: item.businessOwnerId,
+        designerId: item.designerId,
+        productName: item.product?.name,
+        designName: item.design?.name
+      })));
+      
+      // Filter items - handle both explicit itemType and inferred types
+      const productItems = state.cart.items.filter(item => {
+        const isProduct = item.itemType === 'product' || (item.productId && !item.designId && item.itemType !== 'design');
+        if (!isProduct && item.productId) {
+          console.warn('[Cart] Item has productId but itemType is not "product":', {
+            id: item.id,
+            itemType: item.itemType,
+            productId: item.productId
+          });
+        }
+        return isProduct;
+      });
+      
+      const designItems = state.cart.items.filter(item => {
+        const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
+        if (!isDesign && item.designId) {
+          console.warn('[Cart] Item has designId but itemType is not "design":', {
+            id: item.id,
+            itemType: item.itemType,
+            designId: item.designId
+          });
+        }
+        return isDesign;
+      });
+      
+      // Check for items that don't match either category
+      const unclassifiedItems = state.cart.items.filter(item => 
+        !productItems.includes(item) && !designItems.includes(item)
+      );
+      
+      if (unclassifiedItems.length > 0) {
+        console.warn('[Cart] Unclassified items (neither product nor design):', unclassifiedItems.map(item => ({
+          id: item.id,
+          itemType: item.itemType,
+          productId: item.productId,
+          designId: item.designId
+        })));
+        // Try to classify them based on available fields
+        unclassifiedItems.forEach(item => {
+          if (item.productId && !item.designId) {
+            productItems.push(item);
+            console.log('[Cart] Classified unclassified item as product:', item.id);
+          } else if (item.designId && !item.productId) {
+            designItems.push(item);
+            console.log('[Cart] Classified unclassified item as design:', item.id);
+          }
+        });
+      }
+      
+      console.log('[Cart] Product items:', productItems.length, 'Design items:', designItems.length);
+      
+      const uniqueOwnerIds = [...new Set(productItems.map(item => item.businessOwnerId).filter(Boolean))];
+      const uniqueDesignerIds = [...new Set(designItems.map(item => item.designerId).filter(Boolean))];
+      
       const shopMap: Record<string, ShopProfile | null> = {};
+      const designerMap: Record<string, DesignWithDetails['designer'] | null> = {};
 
       // Fetch shop profiles for all unique business owners
       await Promise.all(
@@ -85,15 +161,71 @@ export default function CartPage() {
         })
       );
 
+      // Fetch designer profiles for all unique designers
+      // Note: designerId in cart items is the profile ID, not userId
+      await Promise.all(
+        uniqueDesignerIds.map(async (designerId) => {
+          try {
+            const response = await fetch(`/api/designer-profiles/${designerId}`);
+            
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+              // If not JSON (likely HTML 404 page), try by userId
+              const userResponse = await fetch(`/api/designer-profiles?userId=${designerId}`);
+              if (userResponse.ok) {
+                const userContentType = userResponse.headers.get('content-type');
+                if (userContentType && userContentType.includes('application/json')) {
+                  const userData = await userResponse.json();
+                  if (userData.profiles && userData.profiles.length > 0) {
+                    designerMap[designerId] = userData.profiles[0];
+                    return;
+                  }
+                }
+              }
+              designerMap[designerId] = null;
+              return;
+            }
+            
+            if (!response.ok) {
+              designerMap[designerId] = null;
+              return;
+            }
+            
+            const data = await response.json();
+            if (data.profile) {
+              designerMap[designerId] = data.profile;
+            } else {
+              designerMap[designerId] = null;
+            }
+          } catch (error) {
+            console.error(`Error loading designer for ${designerId}:`, error);
+            designerMap[designerId] = null;
+          }
+        })
+      );
+
       setShopProfiles(shopMap);
 
-      // Group items by businessOwnerId
-      const grouped = state.cart.items.reduce((acc, item) => {
-        const ownerId = item.businessOwnerId;
+      // Group product items by businessOwnerId
+      const productGroups = productItems.reduce((acc, item) => {
+        // Handle missing businessOwnerId - use a fallback key
+        const ownerId = item.businessOwnerId || 'unknown-owner';
+        
+        // Log warning if businessOwnerId is missing
+        if (!item.businessOwnerId) {
+          console.warn('[Cart] Product item missing businessOwnerId:', {
+            itemId: item.id,
+            productId: item.productId,
+            productName: item.product?.name
+          });
+        }
+        
         if (!acc[ownerId]) {
           acc[ownerId] = {
             shop: shopMap[ownerId] || null,
-            businessOwnerId: ownerId,
+            businessOwnerId: ownerId === 'unknown-owner' ? undefined : ownerId,
+            groupType: 'product' as const,
             items: []
           };
         }
@@ -101,7 +233,114 @@ export default function CartPage() {
         return acc;
       }, {} as Record<string, ShopGroup>);
 
-      setGroupedItems(Object.values(grouped));
+      // Group design items by designerId
+      const designGroups = designItems.reduce((acc, item) => {
+        // Handle missing designerId - use a fallback key
+        const designerId = item.designerId || 'unknown-designer';
+        
+        // Log warning if designerId is missing
+        if (!item.designerId) {
+          console.warn('[Cart] Design item missing designerId:', {
+            itemId: item.id,
+            designId: item.designId,
+            designName: item.design?.name
+          });
+        }
+        
+        if (!acc[designerId]) {
+          acc[designerId] = {
+            designer: designerMap[designerId] || null,
+            designerId: designerId === 'unknown-designer' ? undefined : designerId,
+            groupType: 'design' as const,
+            items: []
+          };
+        }
+        acc[designerId].items.push({ ...item, designer: designerMap[designerId] || undefined });
+        return acc;
+      }, {} as Record<string, ShopGroup>);
+
+      // Combine both groups
+      const allGroups = [...Object.values(productGroups), ...Object.values(designGroups)];
+      
+      // Verify all items are included
+      const groupedItemIds = new Set(allGroups.flatMap(group => group.items.map(item => item.id)));
+      const allItemIds = new Set(state.cart.items.map(item => item.id));
+      const missingItems = state.cart.items.filter(item => !groupedItemIds.has(item.id));
+      
+      // Debug: Log the comparison
+      if (missingItems.length > 0) {
+        console.log('[Cart] Grouping verification:', {
+          totalItems: state.cart.items.length,
+          groupedItems: groupedItemIds.size,
+          missingItems: missingItems.length,
+          groupedItemIds: Array.from(groupedItemIds),
+          allItemIds: Array.from(allItemIds)
+        });
+      }
+      
+      if (missingItems.length > 0) {
+        console.error('[Cart] Some items were not grouped:', missingItems.map(item => ({
+          id: item.id,
+          itemType: item.itemType,
+          productId: item.productId,
+          designId: item.designId,
+          businessOwnerId: item.businessOwnerId,
+          designerId: item.designerId,
+          productName: item.product?.name,
+          designName: item.design?.name
+        })));
+        
+        // Add missing items to fallback groups
+        const missingProductItems = missingItems.filter(item => item.itemType === 'product');
+        const missingDesignItems = missingItems.filter(item => item.itemType === 'design');
+        
+        if (missingProductItems.length > 0) {
+          // Group missing product items by businessOwnerId if available, otherwise use fallback
+          const missingProductGroups = missingProductItems.reduce((acc, item) => {
+            const ownerId = item.businessOwnerId || 'unknown-owner';
+            if (!acc[ownerId]) {
+              acc[ownerId] = {
+                shop: null,
+                businessOwnerId: ownerId === 'unknown-owner' ? undefined : ownerId,
+                groupType: 'product' as const,
+                items: []
+              };
+            }
+            acc[ownerId].items.push({ ...item, shop: undefined });
+            return acc;
+          }, {} as Record<string, ShopGroup>);
+          
+          allGroups.push(...Object.values(missingProductGroups));
+        }
+        
+        if (missingDesignItems.length > 0) {
+          // Group missing design items by designerId if available, otherwise use fallback
+          const missingDesignGroups = missingDesignItems.reduce((acc, item) => {
+            const designerId = item.designerId || 'unknown-designer';
+            if (!acc[designerId]) {
+              acc[designerId] = {
+                designer: null,
+                designerId: designerId === 'unknown-designer' ? undefined : designerId,
+                groupType: 'design' as const,
+                items: []
+              };
+            }
+            acc[designerId].items.push({ ...item, designer: undefined });
+            return acc;
+          }, {} as Record<string, ShopGroup>);
+          
+          allGroups.push(...Object.values(missingDesignGroups));
+        }
+      }
+      
+      console.log('[Cart] Grouped items:', allGroups.map(group => ({
+        type: group.groupType,
+        itemCount: group.items.length,
+        businessOwnerId: group.businessOwnerId,
+        designerId: group.designerId
+      })));
+      
+      setGroupedItems(allGroups);
       setLoadingShops(false);
     };
 
@@ -118,9 +357,11 @@ export default function CartPage() {
       }
 
       try {
+        // Only validate stock for product items (designs don't have stock)
+        const productItems = state.cart.items.filter(item => item.itemType === 'product');
         const stockValidationRequest = {
-          items: state.cart.items.map(item => ({
-            productId: item.productId,
+          items: productItems.map(item => ({
+            productId: item.productId!,
             quantity: item.quantity
           }))
         };
@@ -168,6 +409,15 @@ export default function CartPage() {
   }, [state.cart?.items]);
 
   const handleQuantityChange = (itemId: string, newQuantity: number) => {
+    // Find the item to check if it's a design
+    const item = state.cart?.items.find(i => i.id === itemId);
+    const isDesign = item?.itemType === 'design';
+    
+    // Designs are digital products - quantity should always be 1
+    if (isDesign) {
+      return; // Don't allow quantity changes for designs
+    }
+    
     if (newQuantity < 1) {
       removeItem(itemId);
     } else {
@@ -179,7 +429,8 @@ export default function CartPage() {
     const item = state.cart?.items.find(cartItem => cartItem.id === itemId);
     if (!item) return;
 
-    if (inactiveWarnings[item.productId] || stockWarnings[item.productId]) {
+    // Designs don't have stock/inactive warnings
+    if (item.itemType === 'product' && (inactiveWarnings[item.productId!] || stockWarnings[item.productId!])) {
       return;
     }
 
@@ -197,7 +448,7 @@ export default function CartPage() {
       setSelectedItems(new Set());
     } else {
       const validItems = state.cart?.items.filter(item => 
-        !inactiveWarnings[item.productId] && !stockWarnings[item.productId]
+        item.itemType === 'design' || (!inactiveWarnings[item.productId!] && !stockWarnings[item.productId!])
       ) || [];
       setSelectedItems(new Set(validItems.map(item => item.id)));
     }
@@ -206,7 +457,7 @@ export default function CartPage() {
   const handleSelectShopItems = (group: ShopGroup) => {
     const shopItemIds = group.items.map(item => item.id);
     const validShopItems = group.items.filter(item => 
-      !inactiveWarnings[item.productId] && !stockWarnings[item.productId]
+      item.itemType === 'design' || (!inactiveWarnings[item.productId!] && !stockWarnings[item.productId!])
     );
     const validShopItemIds = validShopItems.map(item => item.id);
     
@@ -226,7 +477,7 @@ export default function CartPage() {
 
   const isShopAllSelected = (group: ShopGroup) => {
     const validShopItems = group.items.filter(item => 
-      !inactiveWarnings[item.productId] && !stockWarnings[item.productId]
+      item.itemType === 'design' || (!inactiveWarnings[item.productId!] && !stockWarnings[item.productId!])
     );
     if (validShopItems.length === 0) return false;
     return validShopItems.every(item => selectedItems.has(item.id));
@@ -245,9 +496,9 @@ export default function CartPage() {
     
     const selectedCartItems = state.cart?.items.filter(item => selectedItems.has(item.id)) || [];
     
-    const hasInvalidItems = selectedCartItems.some(item => 
-      inactiveWarnings[item.productId] || stockWarnings[item.productId]
-    );
+      const hasInvalidItems = selectedCartItems.some(item => 
+        item.itemType === 'product' && (inactiveWarnings[item.productId!] || stockWarnings[item.productId!])
+      );
     
     if (hasInvalidItems) {
       alert('Cannot proceed to checkout with inactive or out-of-stock items. Please remove them from your selection.');
@@ -276,6 +527,12 @@ export default function CartPage() {
   };
 
   const getShopName = (group: ShopGroup) => {
+    if (group.groupType === 'design') {
+      if (group.designer) {
+        return group.designer.businessName || group.designer.displayName || 'Designer';
+      }
+      return 'Designer';
+    }
     if (group.shop) {
       return group.shop.shopName || group.shop.businessName || 'Shop';
     }
@@ -286,9 +543,12 @@ export default function CartPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <CustomerHeader user={user} />
-        <div className="flex gap-8 p-8">
-          <CustomerNavigationSidebar />
-          <main className="flex-1">
+        {/* Mobile: Horizontal Tab Bar */}
+        <CustomerNavigationSidebar variant="mobile" />
+        <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+          {/* Desktop: Vertical Sidebar */}
+          <CustomerNavigationSidebar variant="desktop" />
+          <main className="flex-1 w-full">
             <CartPageSkeleton />
           </main>
         </div>
@@ -300,21 +560,24 @@ export default function CartPage() {
     <div className="min-h-screen bg-gray-50">
       <CustomerHeader user={user} />
       
-      <div className="flex gap-8 p-8">
-        {/* Left Sidebar - Navigation */}
-        <CustomerNavigationSidebar />
+      {/* Mobile: Horizontal Tab Bar */}
+      <CustomerNavigationSidebar variant="mobile" />
+      
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+        {/* Desktop: Vertical Sidebar */}
+        <CustomerNavigationSidebar variant="desktop" />
 
         {/* Right Content Area */}
-        <main className="flex-1">
-          <div className="max-w-7xl">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <main className="flex-1 w-full">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
           {/* Left Column - Cart Items */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 md:space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Shopping Cart</h1>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+              <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">Shopping Cart</h1>
               {state.cart && state.cart.items.length > 0 && (
-                <div className="flex items-center space-x-4">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
                   <div className="flex items-center space-x-2">
                     <input
                       type="checkbox"
@@ -322,14 +585,14 @@ export default function CartPage() {
                       onChange={handleSelectAll}
                       className="rounded border-gray-300"
                     />
-                    <span className="text-sm text-gray-600">
+                    <span className="text-xs md:text-sm text-gray-600">
                       Select All ({selectedItems.size} selected)
                     </span>
                   </div>
                   {selectedItems.size > 0 && (
                     <button
                       onClick={handleBulkDelete}
-                      className="flex items-center space-x-1 text-red-600 hover:text-red-700 text-sm"
+                      className="flex items-center justify-center space-x-1 text-red-600 hover:text-red-700 text-xs md:text-sm px-2 py-1 rounded hover:bg-red-50 transition-colors"
                     >
                       <Trash className="w-4 h-4" />
                       <span>Delete Selected</span>
@@ -341,52 +604,66 @@ export default function CartPage() {
 
             {/* Empty Cart */}
             {!state.cart || state.cart.items.length === 0 ? (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
-                <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-600 mb-2">Your cart is empty</h3>
-                <p className="text-gray-500 mb-6">Add some products to get started!</p>
-                <Link href="/explore">
-                  <Button>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 md:p-12 text-center">
+                <Package className="w-12 h-12 md:w-16 md:h-16 text-gray-300 mx-auto mb-3 md:mb-4" />
+                <h3 className="text-base md:text-lg font-medium text-gray-600 mb-2">Your cart is empty</h3>
+                <p className="text-sm md:text-base text-gray-500 mb-4 md:mb-6">Add some products to get started!</p>
+                <Link href="/explore" className="inline-block">
+                  <Button className="w-full sm:w-auto">
                     Continue Shopping
                   </Button>
                 </Link>
               </div>
             ) : (
               /* Shop Groups */
-              <div className="space-y-6">
-                {groupedItems.map((group, groupIndex) => (
-                  <div key={group.businessOwnerId} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    {/* Shop Header */}
-                    <div className="flex items-center space-x-2 px-4 py-2 bg-gray-50 border-b border-gray-200">
+              <div className="space-y-4 md:space-y-6">
+                {groupedItems.map((group, groupIndex) => {
+                  // Create unique key for both product and design groups
+                  const groupKey = group.businessOwnerId || group.designerId || `group-${groupIndex}`;
+                  const isDesignGroup = group.groupType === 'design';
+                  
+                  return (
+                  <div key={groupKey} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    {/* Shop/Designer Header */}
+                    <div className="flex items-center space-x-2 px-3 md:px-4 py-2 bg-gray-50 border-b border-gray-200">
                       <input
                         type="checkbox"
                         checked={isShopAllSelected(group)}
                         onChange={() => handleSelectShopItems(group)}
                         className="rounded border-gray-300 cursor-pointer"
                       />
-                      <Store className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                      <div className="flex-1">
-                        {group.shop?.username ? (
+                      {isDesignGroup ? (
+                        <User className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                      ) : (
+                        <Store className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        {isDesignGroup ? (
+                          <h3 className="font-semibold text-xs md:text-sm text-gray-900 truncate">
+                            {group.designer?.businessName || group.designer?.displayName || 'Designer'}
+                          </h3>
+                        ) : group.shop?.username ? (
                           <Link 
                             href={`/shops/${group.shop.username}`}
-                            className="font-semibold text-sm text-gray-900 hover:text-blue-600 transition-colors"
+                            className="font-semibold text-xs md:text-sm text-gray-900 hover:text-blue-600 transition-colors truncate block"
                           >
                             {getShopName(group)}
                           </Link>
                         ) : (
-                          <h3 className="font-semibold text-sm text-gray-900">{getShopName(group)}</h3>
+                          <h3 className="font-semibold text-xs md:text-sm text-gray-900 truncate">{getShopName(group)}</h3>
                         )}
                       </div>
                     </div>
 
-                    {/* Items from this shop */}
+                    {/* Items from this shop/designer */}
                     <div className="divide-y divide-gray-100">
                       {group.items.map((item) => {
-                        const isInvalid = inactiveWarnings[item.productId] || stockWarnings[item.productId];
+                        const isInvalid = item.itemType === 'product' && (inactiveWarnings[item.productId!] || stockWarnings[item.productId!]);
+                        const isDesign = item.itemType === 'design';
                         return (
                           <div
                             key={item.id}
-                            className={`flex space-x-4 p-4 ${isInvalid ? 'opacity-60 bg-gray-50' : ''}`}
+                            className={`flex space-x-2 md:space-x-4 p-3 md:p-4 ${isInvalid ? 'opacity-60 bg-gray-50' : ''}`}
                           >
                             {/* Checkbox */}
                             <div className="flex-shrink-0 flex items-start pt-1">
@@ -394,43 +671,117 @@ export default function CartPage() {
                                 type="checkbox"
                                 checked={selectedItems.has(item.id)}
                                 onChange={() => handleItemSelect(item.id)}
-                                disabled={!!(inactiveWarnings[item.productId] || stockWarnings[item.productId])}
+                                disabled={!!isInvalid}
                                 className={`rounded border-gray-300 ${
-                                  !!(inactiveWarnings[item.productId] || stockWarnings[item.productId])
+                                  isInvalid
                                     ? 'opacity-50 cursor-not-allowed'
                                     : 'cursor-pointer'
                                 }`}
                               />
                             </div>
 
-                            {/* Product Image */}
+                            {/* Product/Design Image */}
                             <div className="flex-shrink-0">
-                              <Link href={`/products/${item.productId}`}>
-                                <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
-                                  {item.product.images && item.product.images.length > 0 ? (
-                                    <img
-                                      src={item.product.images[0].imageUrl}
-                                      alt={item.product.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <Package className="w-6 h-6 text-gray-400" />
-                                    </div>
-                                  )}
-                                </div>
-                              </Link>
+                              {isDesign ? (
+                                <Link href={`/explore/designs/${item.designId}`}>
+                                  <div className="w-16 h-16 md:w-20 md:h-20 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
+                                    {(() => {
+                                      // Debug logging
+                                      console.log('Rendering design image:', {
+                                        designId: item.designId,
+                                        hasStoragePath: !!item.design?.storagePath,
+                                        hasStorageBucket: !!item.design?.storageBucket,
+                                        storagePath: item.design?.storagePath,
+                                        storageBucket: item.design?.storageBucket,
+                                        thumbnailUrl: item.design?.thumbnailUrl
+                                      });
+                                      
+                                      // Try to use storagePath/storageBucket if available
+                                      if (item.design?.storagePath && item.design?.storageBucket && item.designId) {
+                                        return (
+                                          <WatermarkedImage
+                                            storagePath={item.design.storagePath}
+                                            storageBucket={item.design.storageBucket}
+                                            designId={item.designId}
+                                            isFree={false}
+                                            designType={item.design.designType}
+                                            alt={item.design.name || 'Design'}
+                                            className="w-full h-full object-cover"
+                                            fallbackSrc={item.design.thumbnailUrl}
+                                          />
+                                        );
+                                      }
+                                      // Fallback to thumbnailUrl if storage info not available
+                                      if (item.design?.thumbnailUrl) {
+                                        return (
+                                          <img
+                                            src={item.design.thumbnailUrl}
+                                            alt={item.design.name || 'Design'}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              console.error('Design thumbnail failed to load:', item.design?.thumbnailUrl);
+                                              e.currentTarget.style.display = 'none';
+                                            }}
+                                          />
+                                        );
+                                      }
+                                      // Final fallback
+                                      return (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <ImageIcon className="w-4 h-4 md:w-6 md:h-6 text-gray-400" />
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                </Link>
+                              ) : (
+                                <Link href={`/products/${item.productId}`}>
+                                  <div className="w-16 h-16 md:w-20 md:h-20 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
+                                    {item.product?.images && item.product.images.length > 0 ? (
+                                      <img
+                                        src={item.product.images[0].imageUrl}
+                                        alt={item.product.name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <Package className="w-4 h-4 md:w-6 md:h-6 text-gray-400" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </Link>
+                              )}
                             </div>
 
-                            {/* Product Details */}
+                            {/* Product/Design Details */}
                             <div className="flex-1 min-w-0">
-                              <Link href={`/products/${item.productId}`}>
-                                <h4 className="font-medium text-sm text-gray-900 truncate hover:text-blue-600 cursor-pointer">
-                                  {item.product.name}
-                                </h4>
-                              </Link>
+                              {isDesign ? (
+                                <Link href={`/explore/designs/${item.designId}`}>
+                                  <h4 className="font-medium text-xs md:text-sm text-gray-900 truncate hover:text-blue-600 cursor-pointer">
+                                    {item.design?.name || 'Design'}
+                                  </h4>
+                                </Link>
+                              ) : (
+                                <Link href={`/products/${item.productId}`}>
+                                  <h4 className="font-medium text-xs md:text-sm text-gray-900 truncate hover:text-blue-600 cursor-pointer">
+                                    {item.product?.name || 'Product'}
+                                  </h4>
+                                </Link>
+                              )}
                               
-                              {/* Variants */}
+                              {/* Design and Size */}
+                              {(item.selectedDesign || item.selectedSize) && (
+                                <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+                                  {item.selectedDesign && (
+                                    <span className="block">Design: {item.selectedDesign.name}</span>
+                                  )}
+                                  {item.selectedSize && (
+                                    <span className="block">Size: {item.selectedSize.name}</span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Legacy Variants */}
                               {item.selectedVariants && Object.keys(item.selectedVariants).length > 0 && (
                                 <div className="text-xs text-gray-500 mt-1">
                                   {Object.entries(item.selectedVariants).map(([key, value]) => (
@@ -449,61 +800,80 @@ export default function CartPage() {
                               )}
 
                               {/* Warnings */}
-                              {inactiveWarnings[item.productId] && (
+                              {!isDesign && inactiveWarnings[item.productId!] && (
                                 <div className="flex items-center space-x-1 mt-1">
                                   <AlertTriangle className="w-3 h-3 text-red-500" />
                                   <p className="text-xs text-red-600">
-                                    Product is {inactiveWarnings[item.productId].status}
+                                    Product is {inactiveWarnings[item.productId!].status}
                                   </p>
                                 </div>
                               )}
 
-                              {stockWarnings[item.productId] && (
+                              {!isDesign && stockWarnings[item.productId!] && (
                                 <div className="flex items-center space-x-1 mt-1">
                                   <AlertTriangle className="w-3 h-3 text-red-500" />
                                   <p className="text-xs text-red-600">
-                                    Only {stockWarnings[item.productId].available} available
+                                    Only {stockWarnings[item.productId!].available} available
                                   </p>
+                                </div>
+                              )}
+
+                              {isDesign && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  <span className="capitalize">{item.design?.designType || 'Design'}</span>
+                                  {item.design?.designType === 'premium' && (
+                                    <span className="ml-1 text-indigo-600">Premium</span>
+                                  )}
                                 </div>
                               )}
 
                               {/* Quantity and Price Controls */}
-                              <div className="flex items-center justify-between mt-3">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mt-3">
                                 <div className="flex items-center space-x-2">
-                                  <button
-                                    onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                                    disabled={!!(inactiveWarnings[item.productId] || stockWarnings[item.productId])}
-                                    className={`p-1 rounded ${
-                                      !!(inactiveWarnings[item.productId] || stockWarnings[item.productId])
-                                        ? 'cursor-not-allowed opacity-50'
-                                        : 'hover:bg-gray-100'
-                                    }`}
-                                  >
-                                    <Minus className="w-4 h-4" />
-                                  </button>
-                                  <span className="text-sm font-medium w-8 text-center">
-                                    {item.quantity}
-                                  </span>
-                                  <button
-                                    onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                                    disabled={!!(inactiveWarnings[item.productId] || stockWarnings[item.productId])}
-                                    className={`p-1 rounded ${
-                                      !!(inactiveWarnings[item.productId] || stockWarnings[item.productId])
-                                        ? 'cursor-not-allowed opacity-50'
-                                        : 'hover:bg-gray-100'
-                                    }`}
-                                  >
-                                    <Plus className="w-4 h-4" />
-                                  </button>
+                                  {isDesign ? (
+                                    // Designs are digital - quantity is always 1
+                                    <span className="text-xs md:text-sm font-medium w-6 md:w-8 text-center text-gray-600">
+                                      1
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
+                                        disabled={!!isInvalid}
+                                        className={`p-1 rounded ${
+                                          isInvalid
+                                            ? 'cursor-not-allowed opacity-50'
+                                            : 'hover:bg-gray-100'
+                                        }`}
+                                      >
+                                        <Minus className="w-4 h-4" />
+                                      </button>
+                                      <span className="text-xs md:text-sm font-medium w-6 md:w-8 text-center">
+                                        {item.quantity}
+                                      </span>
+                                      <button
+                                        onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                                        disabled={!!isInvalid}
+                                        className={`p-1 rounded ${
+                                          isInvalid
+                                            ? 'cursor-not-allowed opacity-50'
+                                            : 'hover:bg-gray-100'
+                                        }`}
+                                      >
+                                        <Plus className="w-4 h-4" />
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                                 
-                                <div className="flex items-center space-x-3">
-                                  <span className="text-sm font-medium">
+                                <div className="flex items-center space-x-2 sm:space-x-3">
+                                  <span className="text-xs md:text-sm font-medium">
                                     {formatPrice(item.totalPrice)}
                                   </span>
                                   <button
                                     onClick={() => removeItem(item.id)}
                                     className="p-1 hover:bg-red-50 text-red-500 rounded"
+                                    aria-label="Remove item"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
@@ -515,7 +885,8 @@ export default function CartPage() {
                       })}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

@@ -106,7 +106,7 @@ export default function ShopProfilePage() {
   };
 
   const handleCreateShop = () => {
-    router.push('/shops/create');
+    router.push('/dashboard/shop-profile/create');
   };
 
   if (isLoading || loading) {

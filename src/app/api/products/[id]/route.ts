@@ -251,6 +251,24 @@ export async function PUT(
     if (body.specifications !== undefined) updateData.specifications = body.specifications;
     if (body.seoTitle !== undefined) updateData.seoTitle = body.seoTitle?.trim() || '';
     if (body.seoDescription !== undefined) updateData.seoDescription = body.seoDescription?.trim() || '';
+    
+    // Handle variant fields (designs and sizes)
+    if (body.designs !== undefined) {
+      if (Array.isArray(body.designs) && body.designs.length > 0) {
+        updateData.designs = body.designs;
+      } else {
+        // If empty array, set to empty array (or delete if you want to remove the field)
+        updateData.designs = [];
+      }
+    }
+    if (body.sizes !== undefined) {
+      if (Array.isArray(body.sizes) && body.sizes.length > 0) {
+        updateData.sizes = body.sizes;
+      } else {
+        // If empty array, set to empty array (or delete if you want to remove the field)
+        updateData.sizes = [];
+      }
+    }
 
     console.log('Updating product with data:', updateData);
 

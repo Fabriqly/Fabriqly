@@ -21,6 +21,7 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [firebaseAuthReady, setFirebaseAuthReady] = useState(false);
   const [authError, setAuthError] = useState(false);
+  const pollingRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Check Firebase Auth state
   useEffect(() => {
@@ -131,13 +132,30 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
     }
   };
 
-  // Initial fetch if Firebase Auth is not ready
+  // Always keep dropdown data fresh via API polling when Firestore isn't usable.
   useEffect(() => {
-    if (session?.user?.id && !firebaseAuthReady && !loading) {
-      fetchNotifications();
+    if (!session?.user?.id) return;
+
+    // If Firestore is working, rely on onSnapshot.
+    if (firebaseAuthReady && !authError) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
     }
+
+    fetchNotifications();
+    pollingRef.current = setInterval(fetchNotifications, 5000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.id, firebaseAuthReady]);
+  }, [session?.user?.id, firebaseAuthReady, authError]);
 
   const handleMarkAsRead = async (id: string) => {
     try {

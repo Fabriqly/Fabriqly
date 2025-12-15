@@ -8,6 +8,8 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
+import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 
 export default function DisputeDetailPage() {
@@ -40,9 +42,9 @@ export default function DisputeDetailPage() {
   const isDesigner = session.user.role === 'designer' || session.user.role === 'business_owner';
 
   const content = (
-    <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
+    <div className="w-full">
       <Link href={isDesigner ? "/dashboard/disputes" : "/disputes"}>
-        <Button variant="outline" className="mb-6">
+        <Button variant="outline" className="mb-4 md:mb-6 w-full md:w-auto">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Disputes
         </Button>
@@ -68,11 +70,27 @@ export default function DisputeDetailPage() {
     );
   }
 
-  // For customers, use customer header
+  // For customers, use customer header with sidebar layout (same as disputes list page)
   return (
     <div className="min-h-screen bg-gray-50">
       <CustomerHeader user={session.user} />
-      {content}
+      
+      {/* Mobile: Horizontal Tab Bar */}
+      <CustomerNavigationSidebar variant="mobile" />
+      
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+        {/* Desktop: Vertical Sidebar */}
+        <CustomerNavigationSidebar variant="desktop" />
+        
+        {/* Right Content Area */}
+        <main className="flex-1 w-full">
+          <div className="max-w-6xl mx-auto">
+            {content}
+          </div>
+        </main>
+      </div>
+      
+      <ScrollToTop />
     </div>
   );
 }

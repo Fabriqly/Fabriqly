@@ -4,6 +4,7 @@ import { ShopProfileRepository } from '@/repositories/ShopProfileRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { UpdateShopProfileData } from '@/types/shop-profile';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 // Initialize services
 const shopProfileRepository = new ShopProfileRepository();
@@ -51,7 +52,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
@@ -65,6 +66,7 @@ export async function PATCH(
                    (session.user as any).email;
     
     if (!userId) {
+      console.error('[PATCH /api/shop-profiles/[id]] No user ID found in session:', session.user);
       return NextResponse.json(
         { success: false, error: 'Unable to identify user' },
         { status: 400 }
@@ -74,11 +76,27 @@ export async function PATCH(
     const { id } = await params;
     const data: UpdateShopProfileData = await request.json();
     
-    const shop = await shopProfileService.updateShopProfile(id, data, userId);
+    console.log(`[PATCH /api/shop-profiles/[id]] Updating shop ${id} for user ${userId} (role: ${(session.user as any).role})`);
+    
+    // Get shop first to check ownership
+    const shopRepo = new ShopProfileRepository();
+    const shop = await shopRepo.findById(id);
+    
+    if (!shop) {
+      return NextResponse.json(
+        { success: false, error: 'Shop profile not found' },
+        { status: 404 }
+      );
+    }
+    
+    // Log for debugging
+    console.log(`[PATCH /api/shop-profiles/[id]] Shop userId: "${shop.userId}", Session userId: "${userId}", Match: ${shop.userId === userId}`);
+    
+    const updatedShop = await shopProfileService.updateShopProfile(id, data, userId);
     
     return NextResponse.json({
       success: true,
-      data: shop,
+      data: updatedShop,
       message: 'Shop profile updated successfully'
     });
   } catch (error: any) {

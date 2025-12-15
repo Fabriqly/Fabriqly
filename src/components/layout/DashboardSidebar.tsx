@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -17,7 +17,8 @@ import {
   Settings,
   Tag,
   AlertTriangle,
-  LogOut
+  LogOut,
+  MessageSquare
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
@@ -86,6 +87,12 @@ const getNavigationItems = (userRole?: string | null) => {
   // Add remaining common items
   baseItems.push(
     {
+      name: 'Messages',
+      href: '/dashboard/messages',
+      icon: MessageSquare,
+      description: 'View and manage conversations'
+    },
+    {
       name: 'Orders',
       href: '/dashboard/orders',
       icon: ShoppingCart,
@@ -116,6 +123,7 @@ const getNavigationItems = (userRole?: string | null) => {
 
 interface DashboardSidebarProps {
   user?: {
+    id?: string | null;
     name?: string | null;
     email?: string | null;
     role?: string | null;
@@ -126,6 +134,52 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigationItems = getNavigationItems(user?.role);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+
+  const userId = user?.id || null;
+
+  // Unread messages badge (API-based, lightweight)
+  useEffect(() => {
+    if (!userId) return;
+
+    let isCancelled = false;
+
+    const fetchUnread = async () => {
+      try {
+        const response = await fetch('/api/messages', { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!data?.success || !Array.isArray(data.data)) return;
+
+        const total = (data.data as any[]).reduce((sum, conv) => {
+          const count = conv?.unreadCount?.[userId];
+          return sum + (typeof count === 'number' ? count : 0);
+        }, 0);
+
+        if (!isCancelled) setUnreadMessagesCount(total);
+      } catch {
+        // Ignore; badge will just not show
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000); // 30s refresh
+
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [userId]);
+
+  const navItemsWithBadges = useMemo(() => {
+    return navigationItems.map((item) => ({
+      ...item,
+      badge:
+        item.name === 'Messages' && unreadMessagesCount > 0
+          ? unreadMessagesCount
+          : 0
+    }));
+  }, [navigationItems, unreadMessagesCount]);
 
   // Helper function to check if a route is active (including child routes)
   const isRouteActive = (href: string) => {
@@ -185,7 +239,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
             
             <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
               <nav className="flex-1 px-2 space-y-1">
-                {navigationItems.map((item) => {
+                {navItemsWithBadges.map((item) => {
                   const Icon = item.icon;
                   const isActive = isRouteActive(item.href);
                   return (
@@ -200,7 +254,12 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
                       onClick={() => setSidebarOpen(false)}
                     >
                       <Icon className={`mr-3 h-5 w-5 ${isActive ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
-                      {item.name}
+                      <span className="flex-1">{item.name}</span>
+                      {item.badge > 0 && (
+                        <span className="ml-2 bg-blue-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                          {item.badge > 99 ? '99+' : item.badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

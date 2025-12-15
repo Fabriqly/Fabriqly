@@ -89,20 +89,20 @@ export async function GET(
         )
       }
 
-      // For designs, use designFileUrl or extract from URL
-      // Note: This assumes designFileUrl contains the storage path
-      // You may need to store storagePath separately in the Design document
-      const designFileUrl = (design as any).designFileUrl
-      if (!designFileUrl) {
+      // Get design file path - prefer storagePath/storageBucket, fallback to designFileUrl
+      if ((design as any).storagePath && (design as any).storageBucket) {
+        storagePath = (design as any).storagePath
+        storageBucket = (design as any).storageBucket
+      } else if ((design as any).designFileUrl) {
+        // Extract path from URL if storagePath not available
+        storagePath = extractPathFromUrl((design as any).designFileUrl) || (design as any).designFileUrl
+        storageBucket = (design as any).storageBucket || 'designs-private'
+      } else {
         return NextResponse.json(
           { error: 'Design file not found' },
           { status: 404 }
         )
       }
-
-      // Extract path from Supabase URL or use stored path
-      storagePath = (design as any).storagePath || extractPathFromUrl(designFileUrl)
-      storageBucket = (design as any).storageBucket || 'designs-private'
       entityId = id
     } else if (type === 'customization') {
       // Similar logic for customizations
@@ -173,6 +173,8 @@ function extractPathFromUrl(url: string): string | undefined {
   }
   return undefined
 }
+
+
 
 
 

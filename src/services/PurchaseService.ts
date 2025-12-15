@@ -93,10 +93,12 @@ export class PurchaseService {
           // This might need refinement based on your data model
         }
 
-        // Check if any item references the design (if designId is stored in items)
+        // Check if any item references the design
         return order.items.some(item => {
-          // If designId is stored in item metadata or customizations
-          return (item as any).designId === designId;
+          const orderItem = item as any;
+          // Check if item has designId field or itemType is 'design'
+          return orderItem.designId === designId || 
+                 (orderItem.itemType === 'design' && orderItem.designId === designId);
         });
       });
 
@@ -166,6 +168,8 @@ export class PurchaseService {
     // For now, we'll just let the cache expire naturally
   }
 }
+
+
 
 
 

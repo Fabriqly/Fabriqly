@@ -168,12 +168,23 @@ export class SupabaseStorageService {
         .createSignedUrl(filePath, expiresIn)
 
       if (error) {
-        throw new Error(`Signed URL failed: ${error.message}`)
+        // Create a custom error that includes the original error message
+        const customError = new Error(`Signed URL failed: ${error.message}`) as any
+        customError.isNotFound = error.message?.includes('not found') || error.message?.includes('Object not found')
+        customError.originalError = error
+        throw customError
       }
 
       return data.signedUrl
-    } catch (error) {
-      console.error('Supabase signed URL error:', error)
+    } catch (error: any) {
+      // Only log as error if it's not a "not found" error (those are expected and handled by fallback logic)
+      if (error.isNotFound) {
+        // Log at info level since this is expected behavior (fallback will try public bucket)
+        console.log(`[SupabaseStorage] File not found in ${bucket}: ${filePath} (this is expected, fallback will be attempted)`)
+      } else {
+        // Log actual errors
+        console.error('Supabase signed URL error:', error)
+      }
       throw error
     }
   }
