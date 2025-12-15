@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Plus, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { CustomerNavigationSidebar } from '@/components/layout/CustomerNavigationSidebar';
 import { ScrollToTop } from '@/components/common/ScrollToTop';
 import { DashboardHeader, DashboardSidebar } from '@/components/layout';
 
@@ -39,17 +40,17 @@ export default function DisputesPage() {
   const isDesigner = session.user.role === 'designer' || session.user.role === 'business_owner';
 
   const content = (
-    <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
+    <div className="w-full">
+      <div className="mb-6 md:mb-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Disputes</h1>
-            <p className="mt-2 text-gray-600">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Disputes</h1>
+            <p className="mt-1 md:mt-2 text-sm md:text-base text-gray-600">
               Manage and track your dispute cases
             </p>
           </div>
           <Link href="/disputes/file">
-            <Button>
+            <Button className="w-full md:w-auto">
               <Plus className="w-4 h-4 mr-2" />
               File New Dispute
             </Button>
@@ -57,14 +58,14 @@ export default function DisputesPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6">
         <DisputeList userId={session.user.id} showFilters={true} />
       </div>
 
       {/* Info Box */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="mt-4 md:mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-start">
-          <AlertCircle className="w-5 h-5 text-blue-600 mr-3 mt-0.5" />
+          <AlertCircle className="w-5 h-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
           <div>
             <h3 className="font-medium text-blue-900 mb-1">About Disputes</h3>
             <p className="text-sm text-blue-800">
@@ -85,7 +86,7 @@ export default function DisputesPage() {
         <DashboardHeader user={session.user} showMobileMenu={true} />
         <div className="flex flex-1">
           <DashboardSidebar user={session.user} />
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto px-3 sm:px-4 lg:px-6 py-4">
             {content}
           </div>
         </div>
@@ -93,11 +94,25 @@ export default function DisputesPage() {
     );
   }
 
-  // For customers, use customer header
+  // For customers, use customer header with sidebar layout (same as profile page)
   return (
     <div className="min-h-screen bg-gray-50">
       <CustomerHeader user={session.user} />
-      {content}
+      
+      {/* Mobile: Horizontal Tab Bar */}
+      <CustomerNavigationSidebar variant="mobile" />
+      
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8 p-4 md:p-8">
+        {/* Desktop: Vertical Sidebar */}
+        <CustomerNavigationSidebar variant="desktop" />
+        
+        {/* Right Content Area */}
+        <main className="flex-1 w-full">
+          <div className="max-w-6xl mx-auto">
+            {content}
+          </div>
+        </main>
+      </div>
       
       <ScrollToTop />
     </div>

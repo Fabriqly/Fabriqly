@@ -37,7 +37,7 @@ interface CartContextType {
   closeCart: () => void;
   getItemCount: () => number;
   getTotalAmount: () => number;
-  isItemInCart: (productId: string, variants: Record<string, string>, colorId?: string) => boolean;
+  isItemInCart: (productIdOrDesignId: string, variants: Record<string, string>, colorId?: string, selectedDesign?: { name: string; price: number }, selectedSize?: { name: string; price: number }) => boolean;
   refreshCart: () => Promise<void>;
   applyCoupon: (code: string) => Promise<{ success: boolean; error?: string }>;
   removeCoupon: () => Promise<void>;
@@ -123,6 +123,32 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // OPTIMIZED: Only load cart when cart is actually needed (when opened or when adding items)
   useEffect(() => {
     if (session?.user?.id) {
+      // Try to load from cache first
+      const CACHE_KEY = `cart_cache_${session.user.id}`;
+      const CACHE_TIMESTAMP_KEY = `cart_cache_timestamp_${session.user.id}`;
+      const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+      
+      if (typeof window !== 'undefined') {
+        try {
+          const cachedData = sessionStorage.getItem(CACHE_KEY);
+          const cachedTimestamp = sessionStorage.getItem(CACHE_TIMESTAMP_KEY);
+          
+          if (cachedData && cachedTimestamp) {
+            const timestamp = parseInt(cachedTimestamp, 10);
+            const now = Date.now();
+            
+            // If cache is still valid, use it
+            if (now - timestamp < CACHE_DURATION) {
+              const parsedCart = JSON.parse(cachedData);
+              dispatch({ type: 'SET_CART', payload: parsedCart });
+              return; // Use cached data, skip API call
+            }
+          }
+        } catch (error) {
+          console.error('Error loading cached cart:', error);
+        }
+      }
+
       // Only load cart if it's likely to be needed soon
       // This prevents unnecessary API calls on every page load
       const shouldLoadCart = typeof window !== 'undefined' && (
@@ -132,17 +158,51 @@ export function CartProvider({ children }: { children: ReactNode }) {
       );
 
       if (shouldLoadCart) {
-        refreshCart();
+        refreshCart(true); // Force refresh to get latest data
         localStorage.removeItem('cartNeedsRefresh');
       }
     } else {
-      // Clear cart when user logs out
+      // Clear cart and cache when user logs out
       dispatch({ type: 'SET_CART', payload: null });
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.removeItem(`cart_cache_${session?.user?.id}`);
+          sessionStorage.removeItem(`cart_cache_timestamp_${session?.user?.id}`);
+        } catch (error) {
+          console.error('Error clearing cart cache:', error);
+        }
+      }
     }
   }, [session?.user?.id]);
 
-  const refreshCart = async () => {
+  const refreshCart = async (forceRefresh = false) => {
     if (!session?.user?.id) return;
+
+    const CACHE_KEY = `cart_cache_${session.user.id}`;
+    const CACHE_TIMESTAMP_KEY = `cart_cache_timestamp_${session.user.id}`;
+    const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+
+    // Try to load from cache first (unless force refresh)
+    if (!forceRefresh && typeof window !== 'undefined') {
+      try {
+        const cachedData = sessionStorage.getItem(CACHE_KEY);
+        const cachedTimestamp = sessionStorage.getItem(CACHE_TIMESTAMP_KEY);
+        
+        if (cachedData && cachedTimestamp) {
+          const timestamp = parseInt(cachedTimestamp, 10);
+          const now = Date.now();
+          
+          // If cache is still valid, use it
+          if (now - timestamp < CACHE_DURATION) {
+            const parsedCart = JSON.parse(cachedData);
+            dispatch({ type: 'SET_CART', payload: parsedCart });
+            return; // Use cached data, skip API call
+          }
+        }
+      } catch (error) {
+        console.error('Error loading cached cart:', error);
+      }
+    }
 
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
@@ -151,6 +211,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       if (response.ok && data.success) {
         dispatch({ type: 'SET_CART', payload: data.data });
+        
+        // Cache the cart data
+        if (typeof window !== 'undefined') {
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(data.data));
+            sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+          } catch (error) {
+            console.error('Error caching cart:', error);
+          }
+        }
       } else {
         dispatch({ type: 'SET_ERROR', payload: data.error || 'Failed to load cart' });
       }
@@ -181,9 +251,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       if (response.ok && data.success) {
         dispatch({ type: 'SET_CART', payload: data.data });
-        // Mark that cart needs refresh for next page load
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('cartNeedsRefresh', 'true');
+        
+        // Update cache with new cart data
+        if (typeof window !== 'undefined' && session?.user?.id) {
+          try {
+            const CACHE_KEY = `cart_cache_${session.user.id}`;
+            const CACHE_TIMESTAMP_KEY = `cart_cache_timestamp_${session.user.id}`;
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(data.data));
+            sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+          } catch (error) {
+            console.error('Error caching cart:', error);
+          }
         }
       } else {
         dispatch({ type: 'SET_ERROR', payload: data.error || 'Failed to add item to cart' });
@@ -210,6 +288,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       if (response.ok && data.success) {
         dispatch({ type: 'SET_CART', payload: data.data });
+        
+        // Update cache with new cart data
+        if (typeof window !== 'undefined' && session?.user?.id) {
+          try {
+            const CACHE_KEY = `cart_cache_${session.user.id}`;
+            const CACHE_TIMESTAMP_KEY = `cart_cache_timestamp_${session.user.id}`;
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(data.data));
+            sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+          } catch (error) {
+            console.error('Error caching cart:', error);
+          }
+        }
       } else {
         dispatch({ type: 'SET_ERROR', payload: data.error || 'Failed to remove item from cart' });
       }
@@ -239,6 +329,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       if (response.ok && data.success) {
         dispatch({ type: 'SET_CART', payload: data.data });
+        
+        // Update cache with new cart data
+        if (typeof window !== 'undefined' && session?.user?.id) {
+          try {
+            const CACHE_KEY = `cart_cache_${session.user.id}`;
+            const CACHE_TIMESTAMP_KEY = `cart_cache_timestamp_${session.user.id}`;
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(data.data));
+            sessionStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+          } catch (error) {
+            console.error('Error caching cart:', error);
+          }
+        }
       } else {
         dispatch({ type: 'SET_ERROR', payload: data.error || 'Failed to update item quantity' });
       }
@@ -264,6 +366,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       if (response.ok && data.success) {
         dispatch({ type: 'SET_CART', payload: data.data });
+        
+        // Clear cache after clearing cart
+        if (typeof window !== 'undefined' && session?.user?.id) {
+          try {
+            const CACHE_KEY = `cart_cache_${session.user.id}`;
+            const CACHE_TIMESTAMP_KEY = `cart_cache_timestamp_${session.user.id}`;
+            sessionStorage.removeItem(CACHE_KEY);
+            sessionStorage.removeItem(CACHE_TIMESTAMP_KEY);
+          } catch (error) {
+            console.error('Error clearing cart cache:', error);
+          }
+        }
       } else {
         dispatch({ type: 'SET_ERROR', payload: data.error || 'Failed to clear cart' });
       }
@@ -374,10 +488,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'REMOVE_COUPON' });
   };
 
-  const isItemInCart = (productId: string, variants: Record<string, string>, colorId?: string) => {
+  const isItemInCart = (productIdOrDesignId: string, variants: Record<string, string>, colorId?: string, selectedDesign?: { name: string; price: number }, selectedSize?: { name: string; price: number }) => {
     if (!state.cart) return false;
-    const itemId = `${productId}-${JSON.stringify(variants)}-${colorId || 'default'}`;
-    return state.cart.items.some(item => item.id === itemId);
+    
+    // Check if it's a design (designs have simple IDs: design-{designId})
+    const designItemId = `design-${productIdOrDesignId}`;
+    if (state.cart.items.some(item => item.id === designItemId)) {
+      return true;
+    }
+    
+    // Check if it's a product (products have complex IDs with variants)
+    const designId = selectedDesign?.name || 'no-design';
+    const sizeId = selectedSize?.name || 'no-size';
+    const productItemId = `product-${productIdOrDesignId}-${JSON.stringify(variants)}-${colorId || 'default'}-${designId}-${sizeId}`;
+    return state.cart.items.some(item => item.id === productItemId);
   };
 
   const contextValue: CartContextType = {

@@ -522,8 +522,19 @@ export function ColorManagement({ onColorChange }: ColorManagementProps) {
         />
       )}
 
-      {/* Colors List */}
-      <div className="bg-white rounded-lg shadow-md">
+      {/* Colors Grid */}
+      {editingColor && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <ColorForm
+            color={editingColor}
+            onSave={(data) => handleUpdateColor(editingColor.id, data)}
+            onCancel={() => setEditingColor(null)}
+            title="Edit Color"
+          />
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
         {filteredColors.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-gray-400 mb-4">
@@ -540,95 +551,150 @@ export function ColorManagement({ onColorChange }: ColorManagementProps) {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
             {filteredColors.map((color) => (
-              <div key={color.id} className="p-6">
-                {editingColor?.id === color.id ? (
-                  <ColorForm
-                    color={color}
-                    onSave={(data) => handleUpdateColor(color.id, data)}
-                    onCancel={() => setEditingColor(null)}
-                    title="Edit Color"
-                  />
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      {/* Selection Checkbox */}
-                      <input
-                        type="checkbox"
-                        checked={selectedColors.has(color.id)}
-                        onChange={(e) => handleSelectColor(color.id, e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      {/* Color Swatch */}
-                      <div 
-                        className="w-16 h-16 rounded-lg border-2 border-gray-200 shadow-sm"
-                        style={{ backgroundColor: color.hexCode }}
-                        title={`${color.colorName} - ${color.hexCode}`}
-                      />
+              <div key={color.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-4 md:p-6">
+                {/* Mobile Layout - Stacked */}
+                <div className="flex flex-col md:hidden space-y-3">
+                  {/* Color Name with Checkbox */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedColors.has(color.id)}
+                      onChange={(e) => handleSelectColor(color.id, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <h3 className="text-sm font-semibold text-gray-900">{color.colorName}</h3>
+                  </div>
+                  
+                  {/* Color Preview */}
+                  <div className="flex justify-center">
+                    <div 
+                      className="w-full aspect-square max-w-[80px] rounded-lg border border-gray-300 shadow-sm"
+                      style={{ backgroundColor: color.hexCode }}
+                    />
+                  </div>
+                  
+                  {/* Hex and RGB */}
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-900">{color.hexCode}</p>
+                    <p className="text-xs text-gray-500">{color.rgbCode}</p>
+                  </div>
 
-                      {/* Color Info */}
+                  {/* Badges and Actions */}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1">
+                      {color.businessOwnerId ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800">
+                          <User className="w-3 h-3 mr-1" />
+                          Custom
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">
+                          <Globe className="w-3 h-3 mr-1" />
+                          Global
+                        </span>
+                      )}
+                      {color.isActive ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
+                          <Eye className="w-3 h-3 mr-1" />
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-800">
+                          <EyeOff className="w-3 h-3 mr-1" />
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => setEditingColor(color)}
+                        className="p-1 text-gray-400 hover:text-blue-600"
+                      >
+                        <Edit className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteColor(color.id)}
+                        className="p-1 text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desktop Layout */}
+                <div className="hidden md:block">
+                  {/* Color Name with Checkbox */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedColors.has(color.id)}
+                      onChange={(e) => handleSelectColor(color.id, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <h3 className="text-lg font-semibold text-gray-900">{color.colorName}</h3>
+                  </div>
+
+                  {/* Color Preview and Info */}
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <div 
+                        className="w-12 h-12 rounded-lg border border-gray-300 shadow-sm"
+                        style={{ backgroundColor: color.hexCode }}
+                      />
                       <div>
-                        <div className="flex items-center space-x-2">
-                          <h3 className="font-semibold text-gray-900">
-                            {color.colorName}
-                          </h3>
-                          <div className="flex items-center space-x-1">
-                            {color.businessOwnerId ? (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
-                                <User className="w-3 h-3 mr-1" />
-                                Custom
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                                <Globe className="w-3 h-3 mr-1" />
-                                Global
-                              </span>
-                            )}
-                            {color.isActive ? (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                <Eye className="w-3 h-3 mr-1" />
-                                Active
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
-                                <EyeOff className="w-3 h-3 mr-1" />
-                                Inactive
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="text-sm text-gray-500 mt-1">
-                          <div>HEX: {color.hexCode}</div>
-                          <div>RGB: {color.rgbCode}</div>
-                          <div className="text-xs text-gray-400">
-                            Created: {formatTimestamp(color.createdAt)}
-                          </div>
-                        </div>
+                        <p className="text-sm font-medium text-gray-900">{color.hexCode}</p>
+                        <p className="text-sm text-gray-500">{color.rgbCode}</p>
                       </div>
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingColor(color)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteColor(color.id)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                    {/* Badges and Actions */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap gap-1">
+                        {color.businessOwnerId ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
+                            <User className="w-3 h-3 mr-1" />
+                            Custom
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                            <Globe className="w-3 h-3 mr-1" />
+                            Global
+                          </span>
+                        )}
+                        {color.isActive ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                            <Eye className="w-3 h-3 mr-1" />
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
+                            <EyeOff className="w-3 h-3 mr-1" />
+                            Inactive
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => setEditingColor(color)}
+                          className="p-1 text-gray-400 hover:text-blue-600"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteColor(color.id)}
+                          className="p-1 text-gray-400 hover:text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             ))}
           </div>

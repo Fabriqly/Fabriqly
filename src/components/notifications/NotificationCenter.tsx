@@ -249,30 +249,31 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
   return (
     <div className={className}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white border-b border-gray-200 p-4 md:p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Notifications</h1>
+            <p className="text-xs md:text-sm text-gray-500 mt-1">
               {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up!'}
             </p>
           </div>
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllAsRead}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Mark All as Read
+              <span className="hidden sm:inline">Mark All as Read</span>
+              <span className="sm:hidden">Mark All Read</span>
             </button>
           )}
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">Filters:</span>
+            <Filter className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <span className="text-xs sm:text-sm font-medium text-gray-700">Filters:</span>
           </div>
           
           <select
@@ -281,7 +282,7 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
               setFilter(e.target.value as any);
               setPage(1);
             }}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All</option>
             <option value="unread">Unread</option>
@@ -294,7 +295,7 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
               setCategoryFilter(e.target.value as any);
               setPage(1);
             }}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All Categories</option>
             <option value="info">Info</option>
@@ -306,10 +307,11 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
           {(filter !== 'all' || categoryFilter !== 'all' || typeFilter !== 'all') && (
             <button
               onClick={clearFilters}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800"
+              className="flex items-center justify-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <X className="w-4 h-4" />
-              Clear Filters
+              <span className="hidden sm:inline">Clear Filters</span>
+              <span className="sm:hidden">Clear</span>
             </button>
           )}
         </div>
@@ -318,18 +320,18 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
       {/* Notifications List */}
       <div className="bg-gray-50 min-h-[400px]">
         {loading && page === 1 ? (
-          <div className="flex items-center justify-center p-12">
-            <Loader className="w-8 h-8 animate-spin text-gray-400" />
+          <div className="flex items-center justify-center p-8 md:p-12">
+            <Loader className="w-6 h-6 md:w-8 md:h-8 animate-spin text-gray-400" />
           </div>
         ) : notifications.length === 0 ? (
-          <div className="text-center p-12">
-            <p className="text-gray-500 text-lg">No notifications found</p>
-            <p className="text-gray-400 text-sm mt-2">
+          <div className="text-center p-8 md:p-12">
+            <p className="text-gray-500 text-base md:text-lg">No notifications found</p>
+            <p className="text-gray-400 text-xs md:text-sm mt-2">
               {filter === 'unread' ? 'You have no unread notifications' : 'You\'re all caught up!'}
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 mx-6 my-6 overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 mx-2 sm:mx-4 md:mx-6 my-4 md:my-6 overflow-hidden">
             {notifications.map(notification => (
               <NotificationItem
                 key={notification.id}
@@ -344,7 +346,7 @@ export function NotificationCenter({ className }: NotificationCenterProps) {
                 <button
                   onClick={handleLoadMore}
                   disabled={loading}
-                  className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  className="w-full sm:w-auto px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 text-sm"
                 >
                   {loading ? 'Loading...' : 'Load More'}
                 </button>

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { 
+import type { 
   DesignerProfile, 
   CreateDesignerProfileData, 
   UpdateDesignerProfileData 
@@ -466,4 +466,7 @@ export function DesignerProfileForm({ profile, onSave, onCancel }: DesignerProfi
     </div>
   );
 }
+
+// Default export for compatibility
+export default DesignerProfileForm;
 

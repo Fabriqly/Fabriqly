@@ -78,7 +78,18 @@ export class CartRepository extends BaseRepository<Cart> {
       }
 
       // Generate unique ID for the cart item
-      const itemId = `${newItem.productId}-${JSON.stringify(newItem.selectedVariants)}-${newItem.selectedColorId || 'default'}`;
+      let itemId: string;
+      if (newItem.itemType === 'design' && newItem.designId) {
+        // For designs: designId is unique identifier
+        itemId = `design-${newItem.designId}`;
+      } else if (newItem.itemType === 'product' && newItem.productId) {
+        // For products: Include productId, variants, color, design, and size to ensure unique items
+        const designId = newItem.selectedDesign?.name || 'no-design';
+        const sizeId = newItem.selectedSize?.name || 'no-size';
+        itemId = `product-${newItem.productId}-${JSON.stringify(newItem.selectedVariants)}-${newItem.selectedColorId || 'default'}-${designId}-${sizeId}`;
+      } else {
+        throw new Error('Invalid cart item: must have either productId or designId');
+      }
       
       // Check if item already exists
       const existingItemIndex = items.findIndex(item => item.id === itemId);

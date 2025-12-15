@@ -15,7 +15,7 @@ import { Timestamp } from 'firebase-admin/firestore';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // 1. Authenticate
@@ -27,7 +27,7 @@ export async function POST(
       );
     }
 
-    const customizationId = params.id;
+    const { id: customizationId } = await params;
     const { messageId } = await request.json();
 
     // 2. Get customization request

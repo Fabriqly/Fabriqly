@@ -210,9 +210,9 @@ export default function AdminDashboard() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6 p-4 md:p-8">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
             <p className="mt-1 text-sm text-gray-500">
@@ -227,12 +227,13 @@ export default function AdminDashboard() {
               </p>
             )}
           </div>
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={loadDashboardStats}
               className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              Refresh
+              <span className="hidden sm:inline">Refresh</span>
+              <span className="sm:hidden">↻</span>
             </button>
             <select
               value={period}
@@ -263,27 +264,27 @@ export default function AdminDashboard() {
         )}
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           {getStatCards().map((stat) => {
             const Icon = stat.icon;
             return (
               <div
                 key={stat.name}
-                className="relative bg-white pt-5 px-4 pb-12 sm:pt-6 sm:px-6 shadow rounded-lg overflow-hidden"
+                className="relative bg-white p-3 md:p-4 shadow rounded-lg overflow-hidden"
               >
                 <dt>
-                  <div className={`absolute ${stat.color} rounded-md p-3`}>
-                    <Icon className="h-6 w-6 text-white" />
+                  <div className={`absolute ${stat.color} rounded-md p-1.5 md:p-2`}>
+                    <Icon className="h-3.5 w-3.5 md:h-5 md:w-5 text-white" />
                   </div>
-                  <p className="ml-16 text-sm font-medium text-gray-500 truncate">
+                  <p className="ml-10 md:ml-12 text-xs font-medium text-gray-500 truncate">
                     {stat.name}
                   </p>
                 </dt>
-                <dd className="ml-16 pb-6 flex items-baseline sm:pb-7">
-                  <p className="text-2xl font-semibold text-gray-900">
+                <dd className="ml-10 md:ml-12 mt-1 md:mt-1.5 flex items-baseline flex-wrap gap-1">
+                  <p className="text-lg md:text-xl font-semibold text-gray-900">
                     {stat.value}
                   </p>
-                  <p className={`ml-2 flex items-baseline text-sm font-semibold ${
+                  <p className={`flex items-baseline text-xs font-semibold ${
                     stat.changeType === 'positive' ? 'text-green-600' : 
                     stat.changeType === 'negative' ? 'text-red-600' : 
                     stat.changeType === 'unavailable' ? 'text-amber-600' : 'text-gray-500'
@@ -302,10 +303,10 @@ export default function AdminDashboard() {
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
               Quick Actions
             </h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="flex overflow-x-auto pb-4 gap-3 snap-x scrollbar-hide md:grid md:grid-cols-3 md:gap-6 md:pb-0">
               <a
                 href="/dashboard/admin/categories"
-                className="relative group bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 rounded-lg border border-gray-200 hover:border-gray-300"
+                className="relative group bg-white p-4 md:p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 rounded-lg border border-gray-200 hover:border-gray-300 snap-start min-w-[140px] w-[140px] md:min-w-0 md:w-auto flex flex-col items-center text-center"
               >
                 <div>
                   <span className="rounded-lg inline-flex p-3 bg-blue-50 text-blue-700 ring-4 ring-white">
@@ -313,11 +314,11 @@ export default function AdminDashboard() {
                   </span>
                 </div>
                 <div className="mt-4">
-                  <h3 className="text-lg font-medium">
+                  <h3 className="text-sm md:text-lg font-medium">
                     <span className="absolute inset-0" />
                     Manage Categories
                   </h3>
-                  <p className="mt-2 text-sm text-gray-500">
+                  <p className="mt-2 text-xs md:text-sm text-gray-500 hidden md:block">
                     Create and organize product categories
                   </p>
                 </div>
@@ -325,7 +326,7 @@ export default function AdminDashboard() {
 
               <a
                 href="/dashboard/admin/products"
-                className="relative group bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 rounded-lg border border-gray-200 hover:border-gray-300"
+                className="relative group bg-white p-4 md:p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 rounded-lg border border-gray-200 hover:border-gray-300 snap-start min-w-[140px] w-[140px] md:min-w-0 md:w-auto flex flex-col items-center text-center"
               >
                 <div>
                   <span className="rounded-lg inline-flex p-3 bg-green-50 text-green-700 ring-4 ring-white">
@@ -333,11 +334,11 @@ export default function AdminDashboard() {
                   </span>
                 </div>
                 <div className="mt-4">
-                  <h3 className="text-lg font-medium">
+                  <h3 className="text-sm md:text-lg font-medium">
                     <span className="absolute inset-0" />
                     Manage Products
                   </h3>
-                  <p className="mt-2 text-sm text-gray-500">
+                  <p className="mt-2 text-xs md:text-sm text-gray-500 hidden md:block">
                     Review and manage all products
                   </p>
                 </div>
@@ -345,7 +346,7 @@ export default function AdminDashboard() {
 
               <a
                 href="/dashboard/admin/users"
-                className="relative group bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 rounded-lg border border-gray-200 hover:border-gray-300"
+                className="relative group bg-white p-4 md:p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 rounded-lg border border-gray-200 hover:border-gray-300 snap-start min-w-[140px] w-[140px] md:min-w-0 md:w-auto flex flex-col items-center text-center"
               >
                 <div>
                   <span className="rounded-lg inline-flex p-3 bg-purple-50 text-purple-700 ring-4 ring-white">
@@ -353,11 +354,11 @@ export default function AdminDashboard() {
                   </span>
                 </div>
                 <div className="mt-4">
-                  <h3 className="text-lg font-medium">
+                  <h3 className="text-sm md:text-lg font-medium">
                     <span className="absolute inset-0" />
                     Manage Users
                   </h3>
-                  <p className="mt-2 text-sm text-gray-500">
+                  <p className="mt-2 text-xs md:text-sm text-gray-500 hidden md:block">
                     View and manage user accounts
                   </p>
                 </div>

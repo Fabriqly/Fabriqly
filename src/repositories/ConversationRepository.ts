@@ -13,11 +13,33 @@ export class ConversationRepository extends BaseRepository<Conversation> {
    * Get conversations for a user
    */
   async findByUserId(userId: string): Promise<Conversation[]> {
-    return FirebaseAdminService.queryDocuments(
-      this.collection,
-      [{ field: 'participants', operator: 'array-contains', value: userId }],
-      { field: 'lastMessageAt', direction: 'desc' }
-    );
+    // Try with orderBy first
+    let conversations;
+    try {
+      conversations = await FirebaseAdminService.queryDocuments(
+        this.collection,
+        [{ field: 'participants', operator: 'array-contains', value: userId }],
+        { field: 'lastMessageAt', direction: 'desc' }
+      );
+    } catch {
+      // If orderBy fails (e.g., missing index or missing field), query without orderBy and sort client-side
+      conversations = await FirebaseAdminService.queryDocuments(
+        this.collection,
+        [{ field: 'participants', operator: 'array-contains', value: userId }]
+      );
+
+      conversations.sort((a, b) => {
+        const aTime = a.lastMessageAt
+          ? (a.lastMessageAt instanceof Date ? a.lastMessageAt.getTime() : (a.lastMessageAt as any)?.toMillis?.() || 0)
+          : (a.createdAt instanceof Date ? a.createdAt.getTime() : (a.createdAt as any)?.toMillis?.() || 0);
+        const bTime = b.lastMessageAt
+          ? (b.lastMessageAt instanceof Date ? b.lastMessageAt.getTime() : (b.lastMessageAt as any)?.toMillis?.() || 0)
+          : (b.createdAt instanceof Date ? b.createdAt.getTime() : (b.createdAt as any)?.toMillis?.() || 0);
+        return bTime - aTime; // Descending
+      });
+    }
+
+    return conversations;
   }
 
   /**

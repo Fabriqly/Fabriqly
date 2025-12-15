@@ -63,7 +63,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: notifications
+      // Exclude message notifications; messages are handled by the header MessageBell.
+      data: (notifications || []).filter(n => n.type !== 'message_received')
     });
   } catch (error: any) {
     console.error('Error fetching notifications:', error);

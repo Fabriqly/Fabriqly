@@ -17,6 +17,8 @@ export default function MerchandisePage() {
   const [tags, setTags] = useState<string[]>([]);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [tagSearch, setTagSearch] = useState('');
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
 
   useEffect(() => {
     loadMerchandiseProducts();
@@ -95,18 +97,42 @@ export default function MerchandisePage() {
   const clearFilters = () => {
     setSelectedTags([]);
     setTagSearch('');
+    setMinPrice('');
+    setMaxPrice('');
   };
+
+  const handlePriceChange = (min: string, max: string) => {
+    setMinPrice(min);
+    setMaxPrice(max);
+  };
+
+  const hasActiveFilters = selectedTags.length > 0 || minPrice !== '' || maxPrice !== '';
 
   const filteredTags = tags.filter(tag => 
     tag.toLowerCase().includes(tagSearch.toLowerCase())
   );
 
-  const filteredProducts = selectedTags.length > 0
-    ? products.filter((product: any) => 
-        product.tags && Array.isArray(product.tags) && 
-        product.tags.some((tag: string) => selectedTags.includes(tag))
-      )
-    : products;
+  const filteredProducts = products.filter((product: any) => {
+    // Tag filter
+    if (selectedTags.length > 0) {
+      const hasMatchingTag = product.tags && Array.isArray(product.tags) && 
+        product.tags.some((tag: string) => selectedTags.includes(tag));
+      if (!hasMatchingTag) return false;
+    }
+
+    // Price filter
+    const productPrice = product.price || 0;
+    if (minPrice !== '') {
+      const min = parseFloat(minPrice);
+      if (!isNaN(min) && productPrice < min) return false;
+    }
+    if (maxPrice !== '') {
+      const max = parseFloat(maxPrice);
+      if (!isNaN(max) && productPrice > max) return false;
+    }
+
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
@@ -141,7 +167,7 @@ export default function MerchandisePage() {
                   <Filter className="w-4 h-4" />
                   <h2>Tags</h2>
                 </div>
-                {selectedTags.length > 0 && (
+                {hasActiveFilters && (
                   <button 
                     onClick={clearFilters}
                     className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
@@ -150,6 +176,33 @@ export default function MerchandisePage() {
                     <X className="w-3 h-3" />
                   </button>
                 )}
+              </div>
+
+              {/* Price Range Section */}
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-gray-900 mb-3">Price Range</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1.5">Min Price</label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={minPrice}
+                      onChange={(e) => handlePriceChange(e.target.value, maxPrice)}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1.5">Max Price</label>
+                    <input
+                      type="number"
+                      placeholder="No limit"
+                      value={maxPrice}
+                      onChange={(e) => handlePriceChange(minPrice, e.target.value)}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Tag Search */}
@@ -223,9 +276,9 @@ export default function MerchandisePage() {
                 <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-1.5">No Merchandise Found</h3>
                 <p className="text-gray-600">
-                  {selectedTags.length === 0 
+                  {!hasActiveFilters
                     ? 'No merchandise available at the moment.' 
-                    : `No merchandise found with the selected tags.`}
+                    : `No merchandise found matching your filters.`}
                 </p>
               </div>
             ) : (
@@ -269,7 +322,7 @@ export default function MerchandisePage() {
                         <Filter className="w-4 h-4" />
                         <h2>Tags</h2>
                       </div>
-                      {selectedTags.length > 0 && (
+                      {hasActiveFilters && (
                         <button 
                           onClick={clearFilters}
                           className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
@@ -278,6 +331,33 @@ export default function MerchandisePage() {
                           <X className="w-3 h-3" />
                         </button>
                       )}
+                    </div>
+
+                    {/* Price Range Section */}
+                    <div className="mb-6">
+                      <h3 className="text-sm font-medium text-gray-900 mb-3">Price Range</h3>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1.5">Min Price</label>
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={minPrice}
+                            onChange={(e) => handlePriceChange(e.target.value, maxPrice)}
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1.5">Max Price</label>
+                          <input
+                            type="number"
+                            placeholder="No limit"
+                            value={maxPrice}
+                            onChange={(e) => handlePriceChange(minPrice, e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     {/* Tag Search */}
