@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import ShopList from '@/components/shop/ShopList';
 import { ShopProfile } from '@/types/shop-profile';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ShopReviewStats {
   averageRating: number;
@@ -11,6 +12,7 @@ interface ShopReviewStats {
 }
 
 export default function ShopsPage() {
+  const { user } = useAuth();
   const [shops, setShops] = useState<ShopProfile[]>([]);
   const [featuredShops, setFeaturedShops] = useState<ShopProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,12 +50,14 @@ export default function ShopsPage() {
           <h1 className="text-3xl font-bold mb-2">Explore Shops</h1>
           <p className="text-gray-600">Discover amazing shops and their unique products</p>
         </div>
-        <Link
-          href="/shops/create"
-          className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          Create Shop
-        </Link>
+        {user && (user.role === 'business_owner' || user.role === 'admin') && (
+          <Link
+            href="/dashboard/shop-profile/create"
+            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Create Shop
+          </Link>
+        )}
       </div>
 
       {/* Featured Shops */}
