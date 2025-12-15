@@ -5,10 +5,10 @@ import { FirebaseAdminService } from '@/services/firebase-admin';
 import { Collections } from '@/services/firebase';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
     imageId: string;
-  };
+  }>;
 }
 
 // PUT /api/products/[id]/images/[imageId] - Update image details
@@ -23,7 +23,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { id: productId, imageId } = params;
+    const { id: productId, imageId } = await params;
 
     if (!productId || !imageId) {
       return NextResponse.json(
@@ -130,7 +130,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { id: productId, imageId } = params;
+    const { id: productId, imageId } = await params;
 
     if (!productId || !imageId) {
       return NextResponse.json(

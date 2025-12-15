@@ -8,9 +8,9 @@ import { Timestamp } from 'firebase/firestore';
 import { SupabaseStorageService, StorageBuckets } from '@/lib/supabase-storage';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // POST /api/products/[id]/images - Upload product images
