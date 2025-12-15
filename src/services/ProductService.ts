@@ -74,7 +74,22 @@ export class ProductService implements IProductService {
       // Optional fields
       ...(data.weight !== undefined && data.weight > 0 && { weight: Number(data.weight) }),
       ...(data.dimensions && { dimensions: data.dimensions }),
-      ...(data.specifications && Object.keys(data.specifications).length > 0 && { specifications: data.specifications }),
+      // Clean specifications to remove empty keys and invalid field paths
+      ...(data.specifications && (() => {
+        const cleanedSpecs: Record<string, any> = {};
+        for (const [key, value] of Object.entries(data.specifications)) {
+          // Only include non-empty keys (Firestore doesn't allow empty field paths)
+          if (key && key.trim().length > 0 && value !== undefined && value !== null && value !== '') {
+            // Validate key doesn't contain invalid characters for Firestore field paths
+            // Firestore field paths can contain letters, numbers, and underscores, but not dots at the start
+            const validKey = key.trim().replace(/^\.+/, '').replace(/[^a-zA-Z0-9_]/g, '_');
+            if (validKey.length > 0) {
+              cleanedSpecs[validKey] = value;
+            }
+          }
+        }
+        return Object.keys(cleanedSpecs).length > 0 ? { specifications: cleanedSpecs } : {};
+      })()),
       ...(data.seoTitle && data.seoTitle.trim().length > 0 && { seoTitle: data.seoTitle.trim() }),
       ...(data.seoDescription && data.seoDescription.trim().length > 0 && { seoDescription: data.seoDescription.trim() }),
       // Variant fields
@@ -129,8 +144,25 @@ export class ProductService implements IProductService {
       }
     }
 
+    // Clean specifications to remove empty keys and invalid field paths before updating
+    const cleanedData: any = { ...data };
+    if (cleanedData.specifications && Object.keys(cleanedData.specifications).length > 0) {
+      const cleanedSpecs: Record<string, any> = {};
+      for (const [key, value] of Object.entries(cleanedData.specifications)) {
+        // Only include non-empty keys (Firestore doesn't allow empty field paths)
+        if (key && key.trim().length > 0 && value !== undefined && value !== null && value !== '') {
+          // Validate key doesn't contain invalid characters for Firestore field paths
+          const validKey = key.trim().replace(/^\.+/, '').replace(/[^a-zA-Z0-9_]/g, '_');
+          if (validKey.length > 0) {
+            cleanedSpecs[validKey] = value;
+          }
+        }
+      }
+      cleanedData.specifications = Object.keys(cleanedSpecs).length > 0 ? cleanedSpecs : undefined;
+    }
+
     // Update product
-    const updatedProduct = await this.productRepository.update(productId, data);
+    const updatedProduct = await this.productRepository.update(productId, cleanedData);
 
     // Log activity
     await this.logProductActivity('product_updated', productId, userId, {

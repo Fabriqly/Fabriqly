@@ -886,8 +886,23 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
       if (formData.tags && formData.tags.length > 0) {
         draftData.tags = formData.tags.filter(tag => tag.trim().length > 0);
       }
+      // Clean specifications to remove empty keys and invalid field paths
       if (formData.specifications && Object.keys(formData.specifications).length > 0) {
-        draftData.specifications = formData.specifications;
+        const cleanedSpecs: Record<string, any> = {};
+        for (const [key, value] of Object.entries(formData.specifications)) {
+          // Only include non-empty keys (Firestore doesn't allow empty field paths)
+          if (key && key.trim().length > 0 && value !== undefined && value !== null && value !== '') {
+            // Validate key doesn't contain invalid characters for Firestore field paths
+            // Firestore field paths can contain letters, numbers, and underscores, but not dots at the start
+            const validKey = key.trim().replace(/^\.+/, '').replace(/[^a-zA-Z0-9_]/g, '_');
+            if (validKey.length > 0) {
+              cleanedSpecs[validKey] = value;
+            }
+          }
+        }
+        if (Object.keys(cleanedSpecs).length > 0) {
+          draftData.specifications = cleanedSpecs;
+        }
       }
       if (formData.seoTitle?.trim()) {
         draftData.seoTitle = formData.seoTitle.trim();
@@ -1176,9 +1191,9 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
           )}
 
           {/* Split View Layout */}
-          <div className="flex flex-col lg:flex-row gap-6 p-6">
+          <div className="flex flex-col lg:flex-row gap-6 p-6 overflow-x-hidden">
             {/* Left Column - Image Upload and Product Colors (Sticky on Desktop, Hidden on Mobile) */}
-            <div className="hidden lg:block w-full lg:w-1/3 lg:sticky lg:top-6 lg:self-start space-y-6">
+            <div className="hidden lg:block w-full lg:w-1/3 lg:sticky lg:top-6 lg:self-start space-y-6 max-w-full overflow-x-hidden">
               {/* Product Images Section */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center space-x-2 mb-6">
@@ -1210,7 +1225,7 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
               </div>
 
               {/* Product Colors Section */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 w-full max-w-full overflow-x-hidden">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-2">
                     <Package className="w-5 h-5 text-purple-600" />
@@ -1247,12 +1262,14 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
                 </div>
 
                 {showColorManagement && currentProductId && (
-                  <ProductColorManager
-                    productId={currentProductId}
-                    onColorChange={() => {
-                      // Optionally refresh product data or show notification
-                    }}
-                  />
+                  <div className="mt-4 w-full">
+                    <ProductColorManager
+                      productId={currentProductId}
+                      onColorChange={() => {
+                        // Optionally refresh product data or show notification
+                      }}
+                    />
+                  </div>
                 )}
 
                 {showColorManagement && !currentProductId && (
@@ -1260,59 +1277,6 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
                     <p>Creating draft product...</p>
                   </div>
                 )}
-
-                {/* Variant Management Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-2">
-                      <Package className="w-5 h-5 text-blue-600" />
-                      <h3 className="text-lg font-bold text-gray-900">Product Variants & Sizes</h3>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        // If no productId exists, create a draft first
-                        if (!currentProductId) {
-                          try {
-                            const draftId = await createDraftProduct();
-                            if (draftId) {
-                              setCurrentProductId(draftId);
-                              setIsDraftCreated(true);
-                              setShowVariantManagement(true);
-                            } else {
-                              alert('Please fill in name, description, and category to enable variant management.');
-                              return;
-                            }
-                          } catch (error: any) {
-                            alert(error.message || 'Failed to create draft product');
-                            return;
-                          }
-                        } else {
-                          setShowVariantManagement(!showVariantManagement);
-                        }
-                      }}
-                    >
-                      {showVariantManagement ? 'Hide' : 'Manage'}
-                    </Button>
-                  </div>
-
-                  {showVariantManagement && currentProductId && (
-                    <ProductVariantManager
-                      productId={currentProductId}
-                      onVariantChange={() => {
-                        // Optionally refresh product data or show notification
-                      }}
-                    />
-                  )}
-
-                  {showVariantManagement && !currentProductId && (
-                    <div className="text-sm text-gray-500 text-center py-4">
-                      <p>Creating draft product...</p>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
 

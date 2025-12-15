@@ -17,9 +17,7 @@ import {
   X, 
   Palette,
   DollarSign,
-  Package,
-  CheckCircle,
-  XCircle
+  Package
 } from 'lucide-react';
 
 interface ProductColorManagerProps {
@@ -164,7 +162,7 @@ export function ProductColorManager({ productId, onColorChange }: ProductColorMa
 
   // Skeleton Card Component
   const SkeletonCard = () => (
-    <div className="p-6 animate-pulse">
+    <div className="p-6 animate-pulse relative">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4 flex-1">
           <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
@@ -210,7 +208,7 @@ export function ProductColorManager({ productId, onColorChange }: ProductColorMa
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       {/* Add Color Button */}
       <div className="flex justify-end">
         <Button 
@@ -225,15 +223,17 @@ export function ProductColorManager({ productId, onColorChange }: ProductColorMa
 
       {/* Add Color Form */}
       {showAddForm && (
-        <AddColorForm
-          availableColors={getAvailableColorsForSelection()}
-          onSave={handleAddColor}
-          onCancel={() => setShowAddForm(false)}
-        />
+        <div className="w-full">
+          <AddColorForm
+            availableColors={getAvailableColorsForSelection()}
+            onSave={handleAddColor}
+            onCancel={() => setShowAddForm(false)}
+          />
+        </div>
       )}
 
       {/* Colors List */}
-      <div className="bg-white rounded-lg shadow-md">
+      <div className="bg-white rounded-lg shadow-md w-full max-w-full overflow-x-hidden">
         {productColors.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-gray-400 mb-4">
@@ -247,9 +247,9 @@ export function ProductColorManager({ productId, onColorChange }: ProductColorMa
             </Button>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-gray-200 w-full">
             {productColors.map((productColor) => (
-              <div key={productColor.id} className="p-6">
+              <div key={productColor.id} className="p-6 w-full max-w-full overflow-x-hidden">
                 {editingColor?.id === productColor.id ? (
                   <EditColorForm
                     productColor={productColor}
@@ -257,55 +257,41 @@ export function ProductColorManager({ productId, onColorChange }: ProductColorMa
                     onCancel={() => setEditingColor(null)}
                   />
                 ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex items-center space-x-4 flex-1 min-w-0">
                       {/* Color Swatch */}
                       <div 
-                        className="w-12 h-12 rounded-lg border-2 border-gray-200 shadow-sm"
+                        className="w-12 h-12 rounded-lg border-2 border-gray-200 shadow-sm flex-shrink-0"
                         style={{ backgroundColor: productColor.color.hexCode }}
                         title={productColor.color.colorName}
                       />
 
                       {/* Color Info */}
-                      <div>
-                        <h4 className="font-medium text-gray-900">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-medium text-gray-900 truncate">
                           {productColor.color.colorName}
                         </h4>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-gray-500 truncate">
                           {productColor.color.hexCode} • {productColor.color.rgbCode}
                         </div>
                       </div>
                     </div>
 
                     {/* Price and Stock Info */}
-                    <div className="flex items-center space-x-6">
-                      <div className="text-center">
-                        <div className="text-lg font-semibold text-gray-900">
+                    <div className="flex items-center space-x-4 sm:space-x-6 flex-shrink-0">
+                      <div className="text-center min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 truncate">
                           {productColor.priceAdjustment > 0 ? '+' : ''}
-                          ${productColor.priceAdjustment.toFixed(2)}
+                          ₱{productColor.priceAdjustment.toFixed(2)}
                         </div>
                         <div className="text-xs text-gray-500">Price Adjustment</div>
                       </div>
 
-                      <div className="text-center">
-                        <div className="text-lg font-semibold text-gray-900">
+                      <div className="text-center min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 truncate">
                           {productColor.stockQuantity !== undefined ? productColor.stockQuantity : '∞'}
                         </div>
                         <div className="text-xs text-gray-500">Stock</div>
-                      </div>
-
-                      <div className="flex items-center">
-                        {productColor.isAvailable ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Available
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">
-                            <XCircle className="w-3 h-3 mr-1" />
-                            Unavailable
-                          </span>
-                        )}
                       </div>
 
                       {/* Actions */}
@@ -415,7 +401,7 @@ function AddColorForm({ availableColors, onSave, onCancel }: AddColorFormProps) 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Price Adjustment ($)
+              Price Adjustment (₱)
             </label>
             <div className="relative">
               <DollarSign className="absolute left-3 top-2 text-gray-400 w-4 h-4" />
@@ -523,7 +509,7 @@ function EditColorForm({ productColor, onSave, onCancel }: EditColorFormProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Price Adjustment ($)
+              Price Adjustment (₱)
             </label>
             <div className="relative">
               <DollarSign className="absolute left-3 top-2 text-gray-400 w-4 h-4" />
