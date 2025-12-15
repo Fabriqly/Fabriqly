@@ -11,6 +11,7 @@ import {
   DesignWithDetails 
 } from '@/types/enhanced-products';
 import { unstable_cache } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 
 // Serverless-friendly cache for design listings
 const cachedGetDesigns = unstable_cache(
@@ -114,6 +115,9 @@ export async function POST(request: NextRequest) {
 
     // Create design using the service
     const design = await designService.createDesign(body, session.user.id);
+
+    // Invalidate cache so new design appears immediately
+    revalidateTag('designs-list');
 
     return NextResponse.json({ design }, { status: 201 });
   } catch (error: any) {
