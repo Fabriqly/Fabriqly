@@ -52,7 +52,9 @@ export default function DesignsDashboard() {
   });
   const [shopProfile, setShopProfile] = useState<any>(null);
   const [designerProfile, setDesignerProfile] = useState<any>(null);
+  const [designerProfileId, setDesignerProfileId] = useState<string | null>(null);
 
+  // Cache designer profile ID to avoid repeated API calls
   useEffect(() => {
     if (!isLoading && !user) {
       router.push('/unauthorized');
@@ -65,12 +67,55 @@ export default function DesignsDashboard() {
     }
 
     if (user) {
-      loadDesigns();
+      // Load designer profile ID first, then designs
+      loadDesignerProfileId().then((profileId) => {
+        if (profileId) {
+          loadDesigns(true); // Skip profile check since we just loaded it
+        } else {
+          // If no profile found, still try to load (will show empty state)
+          loadDesigns(false);
+        }
+      });
       loadStats();
     }
   }, [user?.id, isLoading]); // Only depend on user.id, not the entire user object
 
-  const loadDesigns = async () => {
+  // Load designer profile ID (cached to reduce DB calls)
+  const loadDesignerProfileId = async () => {
+    if (!user?.id) {
+      console.warn('⚠️ No user ID available for loading designer profile');
+      return null;
+    }
+    
+    // Use cached value if available
+    if (designerProfileId) {
+      console.log('✅ Using cached designer profile ID:', designerProfileId);
+      return designerProfileId;
+    }
+    
+    try {
+      console.log('🔍 Fetching designer profile for user:', user.id);
+      const profileResponse = await fetch(`/api/designer-profiles?userId=${user.id}`);
+      const profileData = await profileResponse.json();
+      
+      console.log('📊 Designer profile response:', profileData);
+      
+      if (profileResponse.ok && profileData.profiles && profileData.profiles.length > 0) {
+        const profileId = profileData.profiles[0].id;
+        setDesignerProfileId(profileId);
+        setDesignerProfile(profileData.profiles[0]);
+        console.log('✅ Designer profile loaded:', profileId);
+        return profileId;
+      } else {
+        console.warn('⚠️ No designer profile found in response:', profileData);
+      }
+    } catch (error) {
+      console.error('❌ Error loading designer profile:', error);
+    }
+    return null;
+  };
+
+  const loadDesigns = async (skipProfileCheck = false) => {
     if (!user?.id) return;
     
     try {
@@ -79,21 +124,21 @@ export default function DesignsDashboard() {
 
       console.log('🔍 Loading designs for user:', user.id);
 
-      // First, get the designer profile to get the profile ID
-      const profileResponse = await fetch(`/api/designer-profiles?userId=${user.id}`);
-      const profileData = await profileResponse.json();
+      // Get designer profile ID (use cached value if available, or load it)
+      let profileId = designerProfileId;
+      if (!profileId) {
+        profileId = await loadDesignerProfileId();
+      }
       
-      if (!profileResponse.ok || !profileData.profiles || profileData.profiles.length === 0) {
+      if (!profileId) {
         console.log('❌ No designer profile found for user');
         setDesigns([]);
+        setLoading(false);
         return;
       }
 
-      const designerProfile = profileData.profiles[0];
-      console.log('✅ Found designer profile:', designerProfile.id);
-
       const queryParams = new URLSearchParams();
-      queryParams.append('designerId', designerProfile.id); // Use profile ID, not user ID
+      queryParams.append('designerId', profileId);
       
       if (searchTerm.trim()) {
         queryParams.append('search', searchTerm.trim());
@@ -111,8 +156,12 @@ export default function DesignsDashboard() {
         throw new Error(data.error || 'Failed to load designs');
       }
 
-      setDesigns(data.designs || []);
-      console.log('✅ Designs loaded:', data.designs?.length || 0);
+      const fetchedDesigns = data.designs || [];
+      setDesigns(fetchedDesigns);
+      console.log('✅ Designs loaded:', fetchedDesigns.length, 'designs');
+      if (fetchedDesigns.length === 0) {
+        console.warn('⚠️ No designs found. Profile ID:', profileId, 'User ID:', user.id);
+      }
     } catch (error: any) {
       console.error('❌ Error loading designs:', error);
       setError(error.message || 'Failed to load designs');
@@ -125,21 +174,21 @@ export default function DesignsDashboard() {
     if (!user?.id) return;
     
     try {
-      // First, get the designer profile to get the profile ID
-      const profileResponse = await fetch(`/api/designer-profiles?userId=${user.id}`);
-      const profileData = await profileResponse.json();
+      // Use cached designer profile ID if available, otherwise fetch it
+      let profileId = designerProfileId;
+      if (!profileId) {
+        profileId = await loadDesignerProfileId();
+      }
       
-      if (!profileResponse.ok || !profileData.profiles || profileData.profiles.length === 0) {
+      if (!profileId) {
         console.log('❌ No designer profile found for stats');
         return;
       }
 
-      const designerProfileData = profileData.profiles[0];
-      setDesignerProfile(designerProfileData);
-      console.log('📊 Loading stats for designer profile:', designerProfileData.id);
+      console.log('📊 Loading stats for designer profile:', profileId);
 
       // Load design stats
-      const designStatsResponse = await fetch(`/api/designs/stats?designerId=${designerProfileData.id}`);
+      const designStatsResponse = await fetch(`/api/designs/stats?designerId=${profileId}`);
       const designStatsData = await designStatsResponse.json();
 
       if (designStatsResponse.ok) {
@@ -171,16 +220,33 @@ export default function DesignsDashboard() {
 
   const handleCreateDesign = async (createdDesign: any) => {
     // This function is called after the form has already created the design
-    // We just need to update the UI, not make another API call
     console.log('✅ Design created by form, updating UI:', createdDesign);
     
     setShowCreateForm(false);
     
-    // Add a small delay to prevent rapid successive calls
+    // Optimistic update: Add the new design to the list immediately
+    if (createdDesign) {
+      setDesigns(prev => {
+        // Check if design already exists (avoid duplicates)
+        const exists = prev.some(d => d.id === createdDesign.id);
+        if (exists) return prev;
+        // Add new design at the beginning (most recent first)
+        return [createdDesign, ...prev];
+      });
+      
+      // Update stats optimistically
+      setStats(prev => ({
+        ...prev,
+        totalDesigns: prev.totalDesigns + 1
+      }));
+    }
+    
+    // Refetch in background to ensure data is in sync (but don't block UI)
+    // Use a small delay to let cache revalidation complete
     setTimeout(() => {
-      loadDesigns();
+      loadDesigns(true); // Skip profile check, use cached ID
       loadStats();
-    }, 100);
+    }, 500);
   };
 
   const handleUpdateDesign = async (designData: any) => {
@@ -202,7 +268,13 @@ export default function DesignsDashboard() {
       }
 
       setEditingDesign(null);
-      await loadDesigns();
+      // Optimistic update: Update the design in the list immediately
+      const updatedDesign = await response.json();
+      if (updatedDesign.design) {
+        setDesigns(prev => prev.map(d => d.id === updatedDesign.design.id ? updatedDesign.design : d));
+      }
+      // Refetch in background to ensure sync
+      await loadDesigns(true);
       await loadStats();
     } catch (error: any) {
       console.error('Error updating design:', error);
@@ -230,8 +302,15 @@ export default function DesignsDashboard() {
         throw new Error(error.error || 'Failed to delete design');
       }
 
+      // Optimistic update: Remove the design from the list immediately
+      setDesigns(prev => prev.filter(d => d.id !== deletingDesign.id));
+      setStats(prev => ({
+        ...prev,
+        totalDesigns: Math.max(0, prev.totalDesigns - 1)
+      }));
       setDeletingDesign(null);
-      await loadDesigns();
+      // Refetch in background to ensure sync
+      await loadDesigns(true);
       await loadStats();
     } catch (error: any) {
       console.error('Error deleting design:', error);
@@ -247,14 +326,35 @@ export default function DesignsDashboard() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    loadDesigns();
+    loadDesigns(true); // Skip profile check, use cached ID
   };
 
-  const filteredDesigns = designs.filter(design =>
-    design.designName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    design.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    design.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredDesigns = designs.filter(design => {
+    // Show all designs if no search term
+    if (!searchTerm.trim()) return true;
+    
+    // Filter by search term
+    const searchLower = searchTerm.toLowerCase();
+    const matchesName = design.designName?.toLowerCase().includes(searchLower) || false;
+    const matchesDescription = design.description?.toLowerCase().includes(searchLower) || false;
+    const matchesTags = Array.isArray(design.tags) && design.tags.some(tag => 
+      tag && typeof tag === 'string' && tag.toLowerCase().includes(searchLower)
+    ) || false;
+    
+    return matchesName || matchesDescription || matchesTags;
+  });
+
+  // Debug logging
+  useEffect(() => {
+    if (designs.length > 0) {
+      console.log('📋 Current designs state:', {
+        total: designs.length,
+        filtered: filteredDesigns.length,
+        searchTerm: searchTerm,
+        sampleDesign: designs[0]
+      });
+    }
+  }, [designs, filteredDesigns, searchTerm]);
 
   if (isLoading) {
     return (
@@ -355,7 +455,7 @@ export default function DesignsDashboard() {
             {error && (
               <div className="text-center py-12">
                 <p className="text-red-600 mb-4">{error}</p>
-                <Button onClick={loadDesigns} variant="outline">
+                <Button onClick={() => loadDesigns(false)} variant="outline">
                   Try Again
                 </Button>
               </div>
@@ -367,12 +467,26 @@ export default function DesignsDashboard() {
                 {filteredDesigns.length === 0 ? (
                   <div className="text-center py-12">
                     <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 mb-4">
-                      {searchTerm ? 'No designs found matching your search.' : 'You haven\'t uploaded any designs yet.'}
+                    <p className="text-gray-600 mb-2">
+                      {searchTerm 
+                        ? `No designs found matching "${searchTerm}".` 
+                        : designs.length === 0
+                          ? 'You haven\'t uploaded any designs yet.'
+                          : 'No designs match your search criteria.'}
                     </p>
+                    {designs.length > 0 && searchTerm && (
+                      <p className="text-sm text-gray-500 mb-4">
+                        Showing {designs.length} total design{designs.length !== 1 ? 's' : ''} in your portfolio.
+                      </p>
+                    )}
                     {!searchTerm && (
                       <Button onClick={() => setShowCreateForm(true)}>
                         Upload Your First Design
+                      </Button>
+                    )}
+                    {searchTerm && (
+                      <Button onClick={() => setSearchTerm('')} variant="outline" className="mt-2">
+                        Clear Search
                       </Button>
                     )}
                   </div>

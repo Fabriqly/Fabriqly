@@ -55,6 +55,8 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
   });
 
   const [tagInput, setTagInput] = useState('');
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [previewPreview, setPreviewPreview] = useState<string | null>(null);
 
   // Load categories on mount
   useEffect(() => {
@@ -75,6 +77,18 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
       });
     }
   }, [design]);
+
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (thumbnailPreview) {
+        URL.revokeObjectURL(thumbnailPreview);
+      }
+      if (previewPreview) {
+        URL.revokeObjectURL(previewPreview);
+      }
+    };
+  }, [thumbnailPreview, previewPreview]);
 
   const handleInputChange = (field: keyof CreateDesignData, value: any) => {
     setFormData(prev => ({
@@ -147,8 +161,18 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
         handleInputChange('designFileUrl', result.data.url);
       } else if (type === 'thumbnail') {
         handleInputChange('thumbnailUrl', result.data.url);
+        // Clean up local preview URL after successful upload
+        if (thumbnailPreview) {
+          URL.revokeObjectURL(thumbnailPreview);
+          setThumbnailPreview(null);
+        }
       } else if (type === 'preview') {
         handleInputChange('previewUrl', result.data.url);
+        // Clean up local preview URL after successful upload
+        if (previewPreview) {
+          URL.revokeObjectURL(previewPreview);
+          setPreviewPreview(null);
+        }
       }
       
       console.log(`${type} uploaded successfully:`, result.data.url);
@@ -390,15 +414,47 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                   Thumbnail *
                 </label>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                  <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600 mb-2">Upload thumbnail</p>
+                  {(thumbnailPreview || formData.thumbnailUrl) ? (
+                    <>
+                      <div className="mb-3">
+                        <img 
+                          src={thumbnailPreview || formData.thumbnailUrl || ''} 
+                          alt="Thumbnail preview" 
+                          className="mx-auto max-w-full h-32 object-contain border rounded"
+                          onError={(e) => {
+                            console.error('Thumbnail image failed to load:', thumbnailPreview || formData.thumbnailUrl);
+                            e.currentTarget.style.display = 'none';
+                          }}
+                          onLoad={() => {
+                            console.log('Thumbnail image loaded successfully:', thumbnailPreview || formData.thumbnailUrl);
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-green-600 mb-2">
+                        {formData.thumbnailUrl ? '✓ Thumbnail uploaded' : 'Preview'}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600 mb-2">Upload thumbnail</p>
+                    </>
+                  )}
                   <input
                     type="file"
                     accept="image/*"
                     onChange={(e) => {
                       console.log('Thumbnail file input changed:', e.target.files);
-                      if (e.target.files?.[0]) {
-                        handleFileUpload(e.target.files[0], 'thumbnail');
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        // Create immediate preview
+                        if (thumbnailPreview) {
+                          URL.revokeObjectURL(thumbnailPreview);
+                        }
+                        const previewUrl = URL.createObjectURL(file);
+                        setThumbnailPreview(previewUrl);
+                        // Upload file
+                        handleFileUpload(file, 'thumbnail');
                       }
                     }}
                     className="hidden"
@@ -412,23 +468,6 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                   >
                     Choose File
                   </Button>
-                  {formData.thumbnailUrl && (
-                    <div className="mt-2">
-                      <p className="text-xs text-green-600">✓ Thumbnail uploaded</p>
-                      <img 
-                        src={formData.thumbnailUrl} 
-                        alt="Thumbnail preview" 
-                        className="mt-2 max-w-full h-32 object-contain border rounded"
-                        onError={(e) => {
-                          console.error('Thumbnail image failed to load:', formData.thumbnailUrl);
-                          e.currentTarget.style.display = 'none';
-                        }}
-                        onLoad={() => {
-                          console.log('Thumbnail image loaded successfully:', formData.thumbnailUrl);
-                        }}
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -437,15 +476,54 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                   Preview (Optional)
                 </label>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                  <Eye className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600 mb-2">Upload preview</p>
+                  {(previewPreview || formData.previewUrl) ? (
+                    <>
+                      <div className="mb-3">
+                        <img 
+                          src={previewPreview || formData.previewUrl || ''} 
+                          alt="Preview" 
+                          className="mx-auto max-w-full h-32 object-contain border rounded"
+                          onError={(e) => {
+                            console.error('Preview image failed to load:', previewPreview || formData.previewUrl);
+                            if (formData.previewUrl) {
+                              console.error('This might be because the image is in a private bucket');
+                              // Don't hide, show error message instead
+                              const errorDiv = document.createElement('div');
+                              errorDiv.className = 'text-xs text-red-600 mt-2';
+                              errorDiv.textContent = '⚠️ Image cannot be displayed (may be in private bucket)';
+                              e.currentTarget.parentElement?.appendChild(errorDiv);
+                            }
+                          }}
+                          onLoad={() => {
+                            console.log('Preview image loaded successfully:', previewPreview || formData.previewUrl);
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-green-600 mb-2">
+                        {formData.previewUrl ? '✓ Preview uploaded' : 'Preview'}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600 mb-2">Upload preview</p>
+                    </>
+                  )}
                   <input
                     type="file"
                     accept="image/*"
                     onChange={(e) => {
                       console.log('Preview file input changed:', e.target.files);
-                      if (e.target.files?.[0]) {
-                        handleFileUpload(e.target.files[0], 'preview');
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        // Create immediate preview
+                        if (previewPreview) {
+                          URL.revokeObjectURL(previewPreview);
+                        }
+                        const previewUrl = URL.createObjectURL(file);
+                        setPreviewPreview(previewUrl);
+                        // Upload file
+                        handleFileUpload(file, 'preview');
                       }
                     }}
                     className="hidden"
@@ -459,28 +537,6 @@ export function DesignForm({ design, onSave, onCancel }: DesignFormProps) {
                   >
                     Choose File
                   </Button>
-                  {formData.previewUrl && (
-                    <div className="mt-2">
-                      <p className="text-xs text-green-600">✓ Preview uploaded</p>
-                      <img 
-                        src={formData.previewUrl} 
-                        alt="Preview" 
-                        className="mt-2 max-w-full h-32 object-contain border rounded"
-                        onError={(e) => {
-                          console.error('Preview image failed to load:', formData.previewUrl);
-                          console.error('This might be because the image is in a private bucket');
-                          // Don't hide, show error message instead
-                          const errorDiv = document.createElement('div');
-                          errorDiv.className = 'text-xs text-red-600 mt-2';
-                          errorDiv.textContent = '⚠️ Image cannot be displayed (may be in private bucket)';
-                          e.currentTarget.parentElement?.appendChild(errorDiv);
-                        }}
-                        onLoad={() => {
-                          console.log('Preview image loaded successfully:', formData.previewUrl);
-                        }}
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

@@ -5,6 +5,7 @@ import { DesignService } from '@/services/DesignService';
 import { DesignRepository } from '@/repositories/DesignRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { UpdateDesignData } from '@/types/enhanced-products';
+import { revalidateTag } from 'next/cache';
 
 // GET /api/designs/[id] - Get a specific design
 export async function GET(
@@ -73,6 +74,9 @@ export async function PUT(
     // Update design
     const design = await designService.updateDesign(id, body, session.user.id);
 
+    // Invalidate cache so updated design appears immediately
+    revalidateTag('designs-list');
+
     return NextResponse.json({ design });
   } catch (error: any) {
     console.error('Error updating design:', error);
@@ -107,6 +111,9 @@ export async function DELETE(
 
     // Delete design
     await designService.deleteDesign(id, session.user.id);
+
+    // Invalidate cache so deleted design is removed immediately
+    revalidateTag('designs-list');
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

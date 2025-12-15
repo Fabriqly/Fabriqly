@@ -4,6 +4,7 @@ import { ShopProfileRepository } from '@/repositories/ShopProfileRepository';
 import { ActivityRepository } from '@/repositories/ActivityRepository';
 import { CreateShopProfileData, ShopProfileFilters } from '@/types/shop-profile';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 // Initialize services
 const shopProfileRepository = new ShopProfileRepository();
@@ -59,11 +60,20 @@ export async function GET(request: NextRequest) {
 // POST /api/shop-profiles - Create new shop profile
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+
+    // Check if user has business_owner or admin role
+    const userRole = (session.user as any).role;
+    if (!['business_owner', 'admin'].includes(userRole)) {
+      return NextResponse.json(
+        { success: false, error: 'Only business owners and admins can create shop profiles' },
+        { status: 403 }
       );
     }
 
@@ -74,16 +84,42 @@ export async function POST(request: NextRequest) {
                    (session.user as any).email; // Fallback to email as unique identifier
     
     if (!userId) {
-      console.error('No user ID found in session:', session.user);
+      console.error('[POST /api/shop-profiles] No user ID found in session:', session.user);
       return NextResponse.json(
         { success: false, error: 'Unable to identify user. Please log out and log in again.' },
         { status: 400 }
       );
     }
 
+    console.log(`[POST /api/shop-profiles] Creating shop profile for user ${userId} (role: ${userRole})`);
+
     const data: CreateShopProfileData = await request.json();
     
+    // Validate required fields
+    if (!data.shopName || !data.username || !data.businessOwnerName) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields: shopName, username, and businessOwnerName are required' },
+        { status: 400 }
+      );
+    }
+
+    if (!data.contactInfo?.email) {
+      return NextResponse.json(
+        { success: false, error: 'Email address is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!data.supportedProductCategories || data.supportedProductCategories.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'At least one product category must be selected' },
+        { status: 400 }
+      );
+    }
+    
     const shop = await shopProfileService.createShopProfile(data, userId);
+    
+    console.log(`[POST /api/shop-profiles] Shop profile created successfully: ${shop.id}`);
     
     return NextResponse.json({
       success: true,
@@ -91,7 +127,7 @@ export async function POST(request: NextRequest) {
       message: 'Shop profile created successfully'
     }, { status: 201 });
   } catch (error: any) {
-    console.error('Error creating shop profile:', error);
+    console.error('[POST /api/shop-profiles] Error creating shop profile:', error);
     return NextResponse.json(
       {
         success: false,
