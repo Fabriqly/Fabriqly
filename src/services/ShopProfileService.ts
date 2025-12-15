@@ -810,7 +810,42 @@ export class ShopProfileService implements IShopProfileService {
 
   async canUserModifyShop(shopId: string, userId: string): Promise<boolean> {
     const shop = await this.shopProfileRepository.findById(shopId);
-    return shop ? shop.userId === userId : false;
+    if (!shop) {
+      console.warn(`[canUserModifyShop] Shop not found: ${shopId}`);
+      return false;
+    }
+    
+    // Normalize IDs for comparison (handle string/number/object differences)
+    const shopUserId = String(shop.userId || '').trim();
+    const requestUserId = String(userId || '').trim();
+    
+    // Check if user is the owner
+    const isOwner = shopUserId === requestUserId;
+    
+    if (isOwner) {
+      console.log(`[canUserModifyShop] User ${requestUserId} is owner of shop ${shopId}`);
+      return true;
+    }
+    
+    // Log the mismatch for debugging
+    console.warn(`[canUserModifyShop] User ID mismatch - Shop userId: "${shopUserId}", Request userId: "${requestUserId}"`);
+    
+    // Check if user is admin (admins can modify any shop)
+    try {
+      const { UserRepository } = await import('@/repositories/UserRepository');
+      const userRepository = new UserRepository();
+      const user = await userRepository.findById(requestUserId);
+      
+      if (user && user.role === 'admin') {
+        console.log(`[canUserModifyShop] User ${requestUserId} is admin, allowing modification`);
+        return true;
+      }
+    } catch (error) {
+      // If we can't check admin status, just return false
+      console.error('[canUserModifyShop] Error checking admin status:', error);
+    }
+    
+    return false;
   }
 
   async isUsernameAvailable(username: string, excludeId?: string): Promise<boolean> {
