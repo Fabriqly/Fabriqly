@@ -5,7 +5,7 @@ export function Footer() {
   return (
     <footer className="w-full bg-sky-100 border-t border-sky-200 border-l border-r border-gray-800">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* About Fabriqly Section */}
           <div>
             <h3 className="text-lg font-bold text-gray-800 mb-4">ABOUT FABRIQLY</h3>
@@ -20,6 +20,29 @@ export function Footer() {
               </li>
               <li>
                 <Link 
+                  href="/seller-centre" 
+                  className="text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Seller Centre
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Legal & Policies Section */}
+          <div>
+            <h3 className="text-lg font-bold text-gray-800 mb-4">LEGAL & POLICIES</h3>
+            <ul className="space-y-2">
+              <li>
+                <Link 
+                  href="/terms-and-conditions" 
+                  className="text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Terms & Conditions
+                </Link>
+              </li>
+              <li>
+                <Link 
                   href="/privacy-policy" 
                   className="text-gray-600 hover:text-gray-800 transition-colors"
                 >
@@ -28,10 +51,18 @@ export function Footer() {
               </li>
               <li>
                 <Link 
-                  href="/seller-centre" 
+                  href="/shipping-policy" 
                   className="text-gray-600 hover:text-gray-800 transition-colors"
                 >
-                  Seller Centre
+                  Shipping Policy
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  href="/refund-policy" 
+                  className="text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Refund Policy
                 </Link>
               </li>
             </ul>
