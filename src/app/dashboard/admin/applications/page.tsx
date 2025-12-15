@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/Button';
-import { FileText, Store, Clock, CheckCircle, XCircle, User, Mail, Eye, Download, ExternalLink, MapPin, Phone, Building2, CreditCard, Package, Globe, Tag } from 'lucide-react';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
+import { FileText, Store, Clock, CheckCircle, XCircle, User, Mail, Eye, Download, ExternalLink, MapPin, Phone, Building2, CreditCard, Package, Globe, Tag, X } from 'lucide-react';
 import { BusinessDocument } from '@/types/applications';
 
 interface Application {
@@ -59,6 +60,9 @@ export default function AdminApplicationsPage() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ appId: string; type: 'designer' | 'shop'; action: 'approve' } | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     loadApplications();
@@ -88,28 +92,39 @@ export default function AdminApplicationsPage() {
     }
   };
 
-  const handleApprove = async (appId: string, type: 'designer' | 'shop') => {
-    if (!confirm('Are you sure you want to approve this application?')) return;
+  const handleApproveClick = (appId: string, type: 'designer' | 'shop') => {
+    setPendingAction({ appId, type, action: 'approve' });
+    setShowConfirmDialog(true);
+  };
+
+  const handleApprove = async () => {
+    if (!pendingAction) return;
 
     try {
       setActionLoading(true);
-      const response = await fetch(`/api/applications/${type}/${appId}`, {
+      setShowConfirmDialog(false);
+      const response = await fetch(`/api/applications/${pendingAction.type}/${pendingAction.appId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'approve' })
       });
 
       if (response.ok) {
-        alert('Application approved successfully!');
+        setMessage({ type: 'success', text: 'Application approved successfully!' });
         setSelectedApplication(null);
+        setPendingAction(null);
         loadApplications();
+        // Clear message after 5 seconds
+        setTimeout(() => setMessage(null), 5000);
       } else {
         const data = await response.json();
-        alert(`Error: ${data.error || 'Failed to approve application'}`);
+        setMessage({ type: 'error', text: `Error: ${data.error || 'Failed to approve application'}` });
+        setTimeout(() => setMessage(null), 5000);
       }
     } catch (error) {
       console.error('Error approving application:', error);
-      alert('An error occurred while approving the application');
+      setMessage({ type: 'error', text: 'An error occurred while approving the application' });
+      setTimeout(() => setMessage(null), 5000);
     } finally {
       setActionLoading(false);
     }
@@ -117,7 +132,8 @@ export default function AdminApplicationsPage() {
 
   const handleReject = async (appId: string, type: 'designer' | 'shop') => {
     if (!rejectionReason.trim()) {
-      alert('Please provide a rejection reason');
+      setMessage({ type: 'error', text: 'Please provide a rejection reason' });
+      setTimeout(() => setMessage(null), 5000);
       return;
     }
 
@@ -130,18 +146,21 @@ export default function AdminApplicationsPage() {
       });
 
       if (response.ok) {
-        alert('Application rejected');
+        setMessage({ type: 'success', text: 'Application rejected successfully' });
         setSelectedApplication(null);
         setShowRejectModal(false);
         setRejectionReason('');
         loadApplications();
+        setTimeout(() => setMessage(null), 5000);
       } else {
         const data = await response.json();
-        alert(`Error: ${data.error || 'Failed to reject application'}`);
+        setMessage({ type: 'error', text: `Error: ${data.error || 'Failed to reject application'}` });
+        setTimeout(() => setMessage(null), 5000);
       }
     } catch (error) {
       console.error('Error rejecting application:', error);
-      alert('An error occurred while rejecting the application');
+      setMessage({ type: 'error', text: 'An error occurred while rejecting the application' });
+      setTimeout(() => setMessage(null), 5000);
     } finally {
       setActionLoading(false);
     }
@@ -188,6 +207,30 @@ export default function AdminApplicationsPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
+        {/* Message Banner */}
+        {message && (
+          <div className={`rounded-lg p-4 flex items-center justify-between ${
+            message.type === 'success' 
+              ? 'bg-green-50 border border-green-200 text-green-800' 
+              : 'bg-red-50 border border-red-200 text-red-800'
+          }`}>
+            <div className="flex items-center gap-2">
+              {message.type === 'success' ? (
+                <CheckCircle className="w-5 h-5" />
+              ) : (
+                <XCircle className="w-5 h-5" />
+              )}
+              <p className="font-medium">{message.text}</p>
+            </div>
+            <button
+              onClick={() => setMessage(null)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Application Management</h1>
           <p className="text-gray-600 mt-1">Review and manage designer and shop applications</p>
@@ -328,7 +371,7 @@ export default function AdminApplicationsPage() {
                                 </Button>
                                 <Button
                                   size="sm"
-                                  onClick={() => handleApprove(app.id, 'designer')}
+                                  onClick={() => handleApproveClick(app.id, 'designer')}
                                   disabled={actionLoading}
                                   className="bg-green-600 hover:bg-green-700"
                                 >
@@ -436,7 +479,7 @@ export default function AdminApplicationsPage() {
                                 </Button>
                                 <Button
                                   size="sm"
-                                  onClick={() => handleApprove(app.id, 'shop')}
+                                  onClick={() => handleApproveClick(app.id, 'shop')}
                                   disabled={actionLoading}
                                   className="bg-green-600 hover:bg-green-700"
                                 >
@@ -1122,7 +1165,7 @@ export default function AdminApplicationsPage() {
                 {/* Action Buttons */}
                 <div className="flex gap-3 pt-4 border-t border-gray-200">
                   <Button
-                    onClick={() => handleApprove(selectedApplication.id, activeTab)}
+                    onClick={() => handleApproveClick(selectedApplication.id, activeTab)}
                     disabled={actionLoading}
                     className="bg-green-600 hover:bg-green-700 flex-1"
                   >
@@ -1146,6 +1189,22 @@ export default function AdminApplicationsPage() {
             </div>
           </div>
         )}
+
+        {/* Confirmation Dialog */}
+        <ConfirmationDialog
+          isOpen={showConfirmDialog}
+          onClose={() => {
+            setShowConfirmDialog(false);
+            setPendingAction(null);
+          }}
+          onConfirm={handleApprove}
+          title="Approve Application"
+          message="Are you sure you want to approve this application? This action cannot be undone."
+          confirmText="Approve"
+          cancelText="Cancel"
+          variant="info"
+          loading={actionLoading}
+        />
       </div>
     </AdminLayout>
   );
