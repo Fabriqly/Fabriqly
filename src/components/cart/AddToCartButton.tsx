@@ -15,6 +15,8 @@ interface AddToCartButtonProps {
   selectedColorId?: string;
   selectedColorName?: string;
   colorPriceAdjustment?: number;
+  selectedDesign?: { name: string; price: number };
+  selectedSize?: { name: string; price: number };
   businessOwnerId: string;
   className?: string;
 
@@ -30,6 +32,8 @@ export function AddToCartButton({
   selectedColorId,
   selectedColorName,
   colorPriceAdjustment = 0,
+  selectedDesign,
+  selectedSize,
   businessOwnerId,
   className = '',
   variant = 'primary',
@@ -45,7 +49,17 @@ export function AddToCartButton({
   const calculateUnitPrice = () => {
     let unitPrice = product.price + colorPriceAdjustment;
     
-    // Add variant price adjustments
+    // Add design price modifier
+    if (selectedDesign && selectedDesign.price) {
+      unitPrice += selectedDesign.price;
+    }
+    
+    // Add size price modifier
+    if (selectedSize && selectedSize.price) {
+      unitPrice += selectedSize.price;
+    }
+    
+    // Legacy variant support (for old products)
     Object.entries(selectedVariants).forEach(([variantName, variantValue]) => {
       const variant = product.variants?.find(
         v => v.variantName === variantName && v.variantValue === variantValue
@@ -78,6 +92,8 @@ export function AddToCartButton({
         selectedColorId,
         selectedColorName,
         colorPriceAdjustment,
+        selectedDesign,
+        selectedSize,
         businessOwnerId,
       });
 
@@ -90,7 +106,7 @@ export function AddToCartButton({
     }
   };
 
-  const itemExists = isItemInCart(product.id, selectedVariants, selectedColorId);
+  const itemExists = isItemInCart(product.id, selectedVariants, selectedColorId, selectedDesign, selectedSize);
 
   // Show "Login to Purchase" for guests
   if (!session?.user) {

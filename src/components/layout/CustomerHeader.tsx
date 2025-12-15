@@ -4,12 +4,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown, Settings, Package, AlertTriangle } from 'lucide-react';
+import { Search, ShoppingCart, MessageCircle, Bell, User, LogOut, ChevronDown, Settings, Package, AlertTriangle, LayoutDashboard } from 'lucide-react';
 import { CartButton } from '@/components/cart/CartButton';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { signOut, useSession } from 'next-auth/react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { MessageBell } from '@/components/messaging/MessageBell';
 import LogoName from '@/../public/LogoName.png';
 
 interface CustomerHeaderProps {
@@ -38,7 +39,13 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
   };
 
   const handleSignOut = () => {
-    signOut({ callbackUrl: '/login' });
+    // Check if user is on dashboard or is a business user
+    const isOnDashboard = pathname?.startsWith('/dashboard');
+    const isBusinessUser = session?.user?.role === 'business_owner' || session?.user?.role === 'designer';
+    
+    // Redirect business users to business login when signing out from dashboard
+    const redirectUrl = (isOnDashboard && isBusinessUser) ? '/business/login' : '/login';
+    signOut({ callbackUrl: redirectUrl });
   };
 
   // Sync search query with URL params when on search page
@@ -116,13 +123,7 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
             <CartButton />
 
             {/* Messages */}
-            <button className="relative p-2 text-white hover:bg-white/10 rounded-lg transition-colors">
-              <MessageCircle className="w-5 h-5" />
-              {/* Message Badge */}
-              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                0
-              </span>
-            </button>
+            <MessageBell />
 
             {/* Notifications */}
             <NotificationBell />
@@ -211,6 +212,16 @@ export function CustomerHeader({ user }: CustomerHeaderProps) {
                       <Bell className="w-4 h-4 mr-3" />
                       Notifications
                     </Link>
+                    {(session?.user?.role === 'business_owner' || session?.user?.role === 'designer') && (
+                      <Link
+                        href="/dashboard"
+                        className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        onClick={() => setIsDropdownOpen(false)}
+                      >
+                        <LayoutDashboard className="w-4 h-4 mr-3" />
+                        Dashboard
+                      </Link>
+                    )}
                     <Link
                       href="/profile"
                       className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"

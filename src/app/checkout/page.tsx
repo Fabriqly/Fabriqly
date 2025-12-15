@@ -32,6 +32,7 @@ import { AddressListModal } from '@/components/customization/AddressListModal';
 import { ShippingAddressModal } from '@/components/customization/ShippingAddressModal';
 import { ShopProfile } from '@/types/shop-profile';
 import { CartItem } from '@/types/cart';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 
 interface Address {
   firstName: string;
@@ -50,7 +51,7 @@ interface Address {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { state: cartState, clearCart, applyCoupon, removeCoupon } = useCart();
+  const { state: cartState, clearCart, applyCoupon, removeCoupon, refreshCart, removeItem } = useCart();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,8 +147,11 @@ export default function CheckoutPage() {
   const [shopProfiles, setShopProfiles] = useState<Record<string, ShopProfile | null>>({});
   const [loadingShops, setLoadingShops] = useState(true);
   const [groupedItems, setGroupedItems] = useState<Array<{
-    shop: ShopProfile | null;
-    businessOwnerId: string;
+    shop?: ShopProfile | null;
+    designer?: any;
+    businessOwnerId?: string;
+    designerId?: string;
+    groupType: 'product' | 'design';
     items: (CartItem & { shop?: ShopProfile })[];
   }>>([]);
   const [orderReviewExpanded, setOrderReviewExpanded] = useState(true);
@@ -233,6 +237,16 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
+  // Refresh cart on checkout page load to ensure design storage info is up-to-date
+  useEffect(() => {
+    if (user?.id && !isBulkCheckout) {
+      // Force refresh cart to get latest design storage info (thumbnailUrl, storagePath, storageBucket)
+      refreshCart(true).catch(err => {
+        console.error('[Checkout] Error refreshing cart:', err);
+      });
+    }
+  }, [user?.id, isBulkCheckout, refreshCart]);
+
   // Group items by shop and load shop profiles
   useEffect(() => {
     const items = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
@@ -244,8 +258,16 @@ export default function CheckoutPage() {
 
     const loadShopProfiles = async () => {
       setLoadingShops(true);
-      const uniqueOwnerIds = [...new Set(items.map((item: any) => item.businessOwnerId))];
+      
+      // Separate product and design items
+      const productItems = items.filter((item: any) => item.itemType === 'product');
+      const designItems = items.filter((item: any) => item.itemType === 'design');
+      
+      const uniqueOwnerIds = [...new Set(productItems.map((item: any) => item.businessOwnerId).filter(Boolean))];
+      const uniqueDesignerIds = [...new Set(designItems.map((item: any) => item.designerId).filter(Boolean))];
+      
       const shopMap: Record<string, ShopProfile | null> = {};
+      const designerMap: Record<string, any> = {};
 
       // Fetch shop profiles for all unique business owners
       await Promise.all(
@@ -265,23 +287,85 @@ export default function CheckoutPage() {
         })
       );
 
+      // Fetch designer profiles for all unique designers
+      // Note: designerId in cart items is the profile ID, not userId
+      await Promise.all(
+        uniqueDesignerIds.map(async (designerId) => {
+          try {
+            // Try by profile ID first
+            const response = await fetch(`/api/designer-profiles/${designerId}`);
+            
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+              // If not JSON (likely HTML 404 page), try by userId
+              const userResponse = await fetch(`/api/designer-profiles?userId=${designerId}`);
+              if (userResponse.ok) {
+                const userContentType = userResponse.headers.get('content-type');
+                if (userContentType && userContentType.includes('application/json')) {
+                  const userData = await userResponse.json();
+                  if (userData.profiles && userData.profiles.length > 0) {
+                    designerMap[designerId] = userData.profiles[0];
+                    return;
+                  }
+                }
+              }
+              designerMap[designerId] = null;
+              return;
+            }
+            
+            if (!response.ok) {
+              designerMap[designerId] = null;
+              return;
+            }
+            
+            const data = await response.json();
+            if (data.profile) {
+              designerMap[designerId] = data.profile;
+            } else {
+              designerMap[designerId] = null;
+            }
+          } catch (error) {
+            console.error(`Error loading designer for ${designerId}:`, error);
+            designerMap[designerId] = null;
+          }
+        })
+      );
+
       setShopProfiles(shopMap);
 
-      // Group items by businessOwnerId
-      const grouped = items.reduce((acc: any, item: any) => {
+      // Group product items by businessOwnerId
+      const productGroups = productItems.reduce((acc: Record<string, any>, item: any) => {
         const ownerId = item.businessOwnerId;
         if (!acc[ownerId]) {
           acc[ownerId] = {
             shop: shopMap[ownerId] || null,
             businessOwnerId: ownerId,
+            groupType: 'product' as const,
             items: []
           };
         }
         acc[ownerId].items.push({ ...item, shop: shopMap[ownerId] || undefined });
         return acc;
-      }, {} as Record<string, any>);
+      }, {});
 
-      setGroupedItems(Object.values(grouped));
+      // Group design items by designerId
+      const designGroups = designItems.reduce((acc: Record<string, any>, item: any) => {
+        const designerId = item.designerId;
+        if (!acc[designerId]) {
+          acc[designerId] = {
+            designer: designerMap[designerId] || null,
+            designerId: designerId,
+            groupType: 'design' as const,
+            items: []
+          };
+        }
+        acc[designerId].items.push(item);
+        return acc;
+      }, {});
+
+      // Combine both groups
+      setGroupedItems([...Object.values(productGroups), ...Object.values(designGroups)]);
       setLoadingShops(false);
     };
 
@@ -392,7 +476,14 @@ export default function CheckoutPage() {
     if (isBulkCheckout) {
       return bulkCheckoutItems.reduce((sum, item) => sum + item.totalPrice, 0);
     }
-    return cartState.cart?.items.reduce((sum, item) => sum + item.totalPrice, 0) || 0;
+    const subtotal = cartState.cart?.items.reduce((sum, item) => sum + item.totalPrice, 0) || 0;
+    console.log('[Checkout] Calculated subtotal:', subtotal, 'items:', cartState.cart?.items.map(i => ({ 
+      type: i.itemType, 
+      price: i.unitPrice, 
+      qty: i.quantity, 
+      total: i.totalPrice 
+    })));
+    return subtotal;
   };
 
   const calculateTax = () => {
@@ -402,14 +493,38 @@ export default function CheckoutPage() {
     
     // Tax is calculated on subtotal after product/order discounts
     // Shipping discounts don't affect tax
-    const taxableAmount = (discountScope === 'shipping') 
-      ? subtotal 
-      : Math.max(0, subtotal - discount);
-    return taxableAmount * 0.08; // 8% tax
+    // IMPORTANT: Designs are never discounted, so only product discounts apply
+    const itemsToCheck = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+    const productItems = itemsToCheck.filter((item: any) => item.itemType === 'product');
+    const designItems = itemsToCheck.filter((item: any) => item.itemType === 'design');
+    
+    // Calculate product subtotal (designs are never discounted)
+    const productSubtotal = productItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+    const designSubtotal = designItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+    
+    // Only apply discount to product subtotal (designs are never discounted)
+    const productDiscount = (discountScope === 'shipping') ? 0 : discount;
+    const taxableAmount = Math.max(0, productSubtotal - productDiscount) + designSubtotal;
+    
+    const tax = taxableAmount * 0.08; // 8% tax
+    console.log('[Checkout] Tax calculation:', {
+      subtotal,
+      productSubtotal,
+      designSubtotal,
+      discount,
+      discountScope,
+      productDiscount,
+      taxableAmount,
+      tax
+    });
+    return tax;
   };
 
   const calculateShipping = () => {
-    return 9.99; // Fixed shipping cost
+    // Only calculate shipping for product items (designs are digital, no shipping)
+    const itemsToCheck = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+    const hasProducts = itemsToCheck.some((item: any) => item.itemType === 'product');
+    return hasProducts ? 9.99 : 0; // Fixed shipping cost for products only
   };
 
   const calculateTotal = () => {
@@ -417,16 +532,46 @@ export default function CheckoutPage() {
     const discount = calculateDiscount();
     const tax = calculateTax();
     const shipping = calculateShipping();
-    
-    // If discount is for shipping, apply it to shipping instead of subtotal
     const discountScope = cartState.discountScope;
+    
+    // Separate product and design items to match order service logic
+    const itemsToCheck = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+    const productItems = itemsToCheck.filter((item: any) => item.itemType === 'product');
+    const designItems = itemsToCheck.filter((item: any) => item.itemType === 'design');
+    
+    const productSubtotal = productItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+    const designSubtotal = designItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+    
+    // Match order service calculation:
+    // totalAmount = (productSubtotal - productDiscount) + designSubtotal + tax + (shipping - shippingDiscount)
+    // Designs are never discounted
     if (discountScope === 'shipping') {
-      // Shipping discount: subtract from shipping
+      // Shipping discount: subtract from shipping only
       const shippingAfterDiscount = Math.max(0, shipping - discount);
-      return Math.max(0, subtotal + tax + shippingAfterDiscount);
+      const total = productSubtotal + designSubtotal + tax + shippingAfterDiscount;
+      console.log('[Checkout] Total calculation (shipping discount):', {
+        productSubtotal,
+        designSubtotal,
+        tax,
+        shipping,
+        shippingDiscount: discount,
+        shippingAfterDiscount,
+        total
+      });
+      return Math.max(0, total);
     } else {
-      // Product/category/order discount: subtract from subtotal
-      return Math.max(0, subtotal - discount + tax + shipping);
+      // Product/category/order discount: only applies to products, not designs
+      const productDiscount = discount; // Discount only applies to products
+      const total = (productSubtotal - productDiscount) + designSubtotal + tax + shipping;
+      console.log('[Checkout] Total calculation (product discount):', {
+        productSubtotal,
+        designSubtotal,
+        productDiscount,
+        tax,
+        shipping,
+        total
+      });
+      return Math.max(0, total);
     }
   };
 
@@ -444,7 +589,18 @@ export default function CheckoutPage() {
   // Payment handling is now done by XenditPaymentForm component
 
   const validateForm = () => {
-    // Check if shipping address is selected
+    // Check if cart contains only designs (no shipping needed)
+    const items = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+    const hasProducts = items.some((item: any) => item.itemType === 'product');
+    const isDesignOnly = !hasProducts && items.some((item: any) => item.itemType === 'design');
+    
+    // Skip shipping address validation for design-only orders
+    if (isDesignOnly) {
+      // Designs are digital - no shipping address needed
+      return true;
+    }
+    
+    // For orders with products, shipping address is required
     if (!shippingAddress.address1) {
       setError('Please select a shipping address');
       return false;
@@ -481,15 +637,24 @@ export default function CheckoutPage() {
 
   const validateStock = async () => {
     const itemsToProcess = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
-    
+
     // Skip validation if no items
     if (itemsToProcess.length === 0) {
       console.log('No items to validate, skipping stock validation');
       return true;
     }
+
+    // Only validate product items - designs don't need stock validation
+    const productItems = itemsToProcess.filter((item: any) => item.itemType === 'product');
     
+    // If no product items, skip validation
+    if (productItems.length === 0) {
+      console.log('No product items to validate, skipping stock validation');
+      return true;
+    }
+
     const stockValidationRequest = {
-      items: itemsToProcess.map(item => ({
+      items: productItems.map(item => ({
         productId: item.productId,
         quantity: item.quantity
       }))
@@ -542,27 +707,48 @@ export default function CheckoutPage() {
       // Validate product availability and stock before proceeding
       await validateStock();
 
-      // Group items by business owner
+      // Group items by business owner (for products) or designer (for designs)
       const itemsToProcess = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
-      const ordersByBusinessOwner = itemsToProcess.reduce((acc: Record<string, any[]>, item: any) => {
-        if (!acc[item.businessOwnerId]) {
-          acc[item.businessOwnerId] = [];
+      
+      // Separate products and designs
+      const productItems = itemsToProcess.filter((item: any) => item.itemType === 'product');
+      const designItems = itemsToProcess.filter((item: any) => item.itemType === 'design');
+      
+      // Group products by business owner
+      const ordersByBusinessOwner = productItems.reduce((acc: Record<string, any[]>, item: any) => {
+        const ownerId = item.businessOwnerId;
+        if (!acc[ownerId]) {
+          acc[ownerId] = [];
         }
-        acc[item.businessOwnerId].push(item);
+        acc[ownerId].push(item);
         return acc;
       }, {});
 
-      // Create orders for each business owner
-      const orderPromises = Object.entries(ordersByBusinessOwner).map(async ([businessOwnerId, items]) => {
+      // Group designs by designer
+      const ordersByDesigner = designItems.reduce((acc: Record<string, any[]>, item: any) => {
+        const designerId = item.designerId;
+        if (!acc[designerId]) {
+          acc[designerId] = [];
+        }
+        acc[designerId].push(item);
+        return acc;
+      }, {});
+
+      // Create orders for each business owner (products)
+      const productOrderPromises = Object.entries(ordersByBusinessOwner).map(async ([businessOwnerId, items]) => {
         const orderData = {
           businessOwnerId,
-          items: items.map(item => ({
+          items: items.map((item: any) => ({
+            itemType: 'product' as const,
             productId: item.productId,
             quantity: item.quantity,
             price: item.unitPrice,
             customizations: {
               ...item.selectedVariants,
               colorId: item.selectedColorId,
+              selectedColorName: item.selectedColorName,
+              selectedDesign: item.selectedDesign,
+              selectedSize: item.selectedSize,
             },
           })),
           shippingAddress,
@@ -589,7 +775,95 @@ export default function CheckoutPage() {
         return response.json();
       });
 
-      const orders = await Promise.all(orderPromises);
+      // Create orders for each designer (designs - no shipping)
+      const designOrderPromises = Object.entries(ordersByDesigner).map(async ([designerId, items]) => {
+        // For design-only orders, we don't need a shipping address
+        // Create a minimal address structure if needed, or use null
+        const minimalAddress = shippingAddress.address1 ? shippingAddress : {
+          firstName: user?.name?.split(' ')[0] || '',
+          lastName: user?.name?.split(' ')[1] || '',
+          address1: 'Digital Delivery',
+          city: 'N/A',
+          state: 'N/A',
+          zipCode: '00000',
+          country: 'N/A',
+          phone: user?.phone || ''
+        };
+        
+        // Convert designer profile ID to userId for businessOwnerId
+        // designerId in cart items is the profile ID, but orders need userId
+        let businessOwnerUserId = designerId; // Default fallback
+        try {
+          // Fetch designer profile to get userId
+          const designerProfileResponse = await fetch(`/api/designer-profiles/${designerId}`);
+          if (designerProfileResponse.ok) {
+            const designerData = await designerProfileResponse.json();
+            if (designerData.profile?.userId) {
+              businessOwnerUserId = designerData.profile.userId;
+              console.log(`[Checkout] Converted designer profile ID ${designerId} to userId ${businessOwnerUserId}`);
+            }
+          }
+        } catch (error) {
+          console.error(`[Checkout] Error fetching designer profile ${designerId}:`, error);
+          // Fallback to using designerId as-is (might work if it's already a userId)
+        }
+        
+        const orderData = {
+          businessOwnerId: businessOwnerUserId, // Use userId for businessOwnerId in design orders
+          items: items.map((item: any) => {
+            // Ensure price consistency - use unitPrice from cart item
+            const itemPrice = item.unitPrice || (item.design?.price || 0);
+            console.log(`[Checkout] Design order item:`, {
+              designId: item.designId,
+              designName: item.design?.name,
+              unitPrice: item.unitPrice,
+              designPrice: item.design?.price,
+              quantity: item.quantity,
+              totalPrice: item.totalPrice,
+              calculatedPrice: itemPrice * item.quantity,
+              hasStoragePath: !!item.design?.storagePath,
+              hasStorageBucket: !!item.design?.storageBucket,
+              hasThumbnailUrl: !!item.design?.thumbnailUrl
+            });
+            
+            return {
+              itemType: 'design' as const,
+              designId: item.designId,
+              quantity: item.quantity,
+              price: itemPrice, // Use unitPrice from cart
+              designName: item.design?.name || `Design ${item.designId?.slice(-8)}`,
+              designType: item.design?.designType,
+              storagePath: item.design?.storagePath,
+              storageBucket: item.design?.storageBucket,
+            };
+          }),
+          shippingAddress: minimalAddress, // Minimal address for design orders (not used but required by schema)
+          couponCode: cartState.couponCode || undefined,
+          billingAddress: useSameAddress ? minimalAddress : (billingAddress.address1 ? billingAddress : minimalAddress),
+          paymentMethod: 'xendit',
+          notes: orderNotes,
+          shippingCost: 0, // Digital designs have no shipping cost
+        };
+
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(orderData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create design order');
+        }
+
+        return response.json();
+      });
+
+      // Create all orders (products and designs)
+      const allOrderPromises = [...productOrderPromises, ...designOrderPromises];
+      const orders = await Promise.all(allOrderPromises);
       console.log('[Checkout] Orders created:', orders.map(o => ({
         id: o.order.id,
         totalAmount: o.order.totalAmount,
@@ -597,13 +871,21 @@ export default function CheckoutPage() {
         appliedCouponCode: o.order.appliedCouponCode
       })));
       setCreatedOrders(orders);
-      setCurrentStep('payment');
       
-      // Clear bulk checkout items from sessionStorage after order is created
-      if (isBulkCheckout) {
+      // Remove items from cart after orders are successfully created
+      // For regular checkout, the entire cart is being checked out, so clear it
+      // This ensures items (including designs) are removed from cart once they're in an order
+      if (!isBulkCheckout) {
+        console.log('[Checkout] Clearing cart after order creation');
+        await clearCart();
+        console.log('[Checkout] Cart cleared after order creation');
+      } else {
+        // For bulk checkout, items are in sessionStorage, just clear it
         sessionStorage.removeItem('bulkCheckoutItems');
         console.log('[Checkout] Cleared bulk checkout items from sessionStorage after order creation');
       }
+      
+      setCurrentStep('payment');
       
     } catch (error) {
       console.error('Error creating orders:', error);
@@ -726,13 +1008,23 @@ export default function CheckoutPage() {
                     </div>
                   ) : (
                     <div className="space-y-6 pt-4">
-                      {groupedItems.map((group) => (
-                        <div key={group.businessOwnerId} className="border-b border-gray-200 last:border-b-0 pb-6 last:pb-0">
-                          {/* Shop Header */}
+                      {groupedItems.map((group) => {
+                        const groupKey = group.businessOwnerId || group.designerId || 'unknown';
+                        const isDesignGroup = group.groupType === 'design';
+                        
+                        return (
+                        <div key={groupKey} className="border-b border-gray-200 last:border-b-0 pb-6 last:pb-0">
+                          {/* Shop/Designer Header */}
                           <div className="flex items-center space-x-2 mb-4 pb-3 border-b border-gray-100">
-                            <Store className="w-4 h-4 text-gray-600" />
+                            {isDesignGroup ? (
+                              <User className="w-4 h-4 text-gray-600" />
+                            ) : (
+                              <Store className="w-4 h-4 text-gray-600" />
+                            )}
                             <h3 className="font-semibold text-sm text-gray-900">
-                              {group.shop?.username ? (
+                              {isDesignGroup ? (
+                                group.designer?.businessName || group.designer?.displayName || 'Designer'
+                              ) : group.shop?.username ? (
                                 <Link 
                                   href={`/shops/${group.shop.username}`}
                                   className="hover:text-blue-600 transition-colors"
@@ -745,13 +1037,55 @@ export default function CheckoutPage() {
                             </h3>
                           </div>
 
-                          {/* Items from this shop */}
+                          {/* Items from this shop/designer */}
                           <div className="space-y-4">
-                            {group.items.map((item) => (
+                            {group.items.map((item) => {
+                              const isDesign = item.itemType === 'design';
+                              
+                              return (
                               <div key={item.id} className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-4">
-                                {/* Product Image */}
+                                {/* Product/Design Image */}
                                 <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                                  {item.product.images && item.product.images.length > 0 ? (
+                                  {isDesign ? (
+                                    // Design item - show watermarked image or thumbnail
+                                    (() => {
+                                      // Try to use WatermarkedImage if we have storage info
+                                      if (item.design?.storagePath && item.design?.storageBucket && item.designId) {
+                                        return (
+                                          <WatermarkedImage
+                                            storagePath={item.design.storagePath}
+                                            storageBucket={item.design.storageBucket}
+                                            designId={item.designId}
+                                            isFree={false}
+                                            designType={item.design?.designType}
+                                            alt={item.design?.name || 'Design'}
+                                            className="w-full h-full object-cover"
+                                            fallbackSrc={item.design?.thumbnailUrl}
+                                          />
+                                        );
+                                      }
+                                      // Fallback to thumbnailUrl if available
+                                      if (item.design?.thumbnailUrl) {
+                                        return (
+                                          <img
+                                            src={item.design.thumbnailUrl}
+                                            alt={item.design.name || 'Design'}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              console.error('[Checkout] Design thumbnail failed to load:', item.design?.thumbnailUrl);
+                                              e.currentTarget.style.display = 'none';
+                                            }}
+                                          />
+                                        );
+                                      }
+                                      // Final fallback
+                                      return (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <Package className="w-6 h-6 text-gray-400" />
+                                        </div>
+                                      );
+                                    })()
+                                  ) : item.product?.images && item.product.images.length > 0 ? (
                                     <img
                                       src={item.product.images[0].imageUrl}
                                       alt={item.product.name}
@@ -764,15 +1098,35 @@ export default function CheckoutPage() {
                                   )}
                                 </div>
 
-                                {/* Product Details */}
+                                {/* Product/Design Details */}
                                 <div className="flex-1 min-w-0 w-full sm:w-auto">
-                                  <h4 className="font-medium text-gray-900 mb-1">
-                                    {item.product.name}
-                                  </h4>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <h4 className="font-medium text-gray-900 mb-1 flex-1">
+                                      {isDesign 
+                                        ? (item.design?.name || `Design ${item.designId?.slice(-8)}`)
+                                        : (item.product?.name || `Product ${item.productId?.slice(-8)}`)
+                                      }
+                                    </h4>
+                                    {isDesign && item.design?.designType && (
+                                      <span className={`text-xs px-2 py-1 rounded ${
+                                        item.design.designType === 'premium' 
+                                          ? 'bg-purple-100 text-purple-700' 
+                                          : 'bg-blue-100 text-blue-700'
+                                      }`}>
+                                        {item.design.designType}
+                                      </span>
+                                    )}
+                                  </div>
                                   
-                                  {/* Variant Info */}
-                                  {(item.selectedVariants && Object.keys(item.selectedVariants).length > 0) || item.selectedColorId ? (
+                                  {/* Variant Info (for products) */}
+                                  {!isDesign && (item.selectedDesign || item.selectedSize || (item.selectedVariants && Object.keys(item.selectedVariants).length > 0) || item.selectedColorId) && (
                                     <div className="text-sm text-gray-400 mb-2 space-y-0.5">
+                                      {item.selectedDesign && (
+                                        <div>Design: {item.selectedDesign.name}</div>
+                                      )}
+                                      {item.selectedSize && (
+                                        <div>Size: {item.selectedSize.name}</div>
+                                      )}
                                       {item.selectedVariants && Object.entries(item.selectedVariants).map(([key, value]) => (
                                         <div key={key}>{key}: {value}</div>
                                       ))}
@@ -780,7 +1134,7 @@ export default function CheckoutPage() {
                                         <div>Color: {item.selectedColorName || item.selectedColorId}</div>
                                       )}
                                     </div>
-                                  ) : null}
+                                  )}
 
                                   {/* Price and Quantity Row */}
                                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 space-y-1 sm:space-y-0">
@@ -798,78 +1152,91 @@ export default function CheckoutPage() {
                                   </div>
                                 </div>
                               </div>
-                            ))}
+                            )})}
                           </div>
                         </div>
-                      ))}
+                      )})}
                     </div>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Shipping Address */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                  <MapPin className="w-5 h-5 text-blue-600" />
-                  <h2 className="text-lg font-semibold">Shipping Address</h2>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAddressListModal(true)}
-                >
-                  {shippingAddress.address1 ? (
-                    <>
-                      <Edit className="w-4 h-4 mr-2" />
-                      Change Address
-                    </>
-                  ) : (
-                    <>
-                      <MapPin className="w-4 h-4 mr-2" />
-                      Choose Address
-                    </>
-                  )}
-                </Button>
-              </div>
+            {/* Shipping Address - Only show for orders with physical products */}
+            {(() => {
+              const items = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+              const hasProducts = items.some((item: any) => item.itemType === 'product');
+              const isDesignOnly = !hasProducts && items.some((item: any) => item.itemType === 'design');
               
-              {shippingAddress.address1 ? (
-                <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Check className="w-4 h-4 text-green-600" />
-                        <span className="font-semibold text-gray-900">
-                          {shippingAddress.firstName} {shippingAddress.lastName}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-600 space-y-1 ml-6">
-                        <p>{shippingAddress.address1}</p>
-                        {shippingAddress.address2 && <p>{shippingAddress.address2}</p>}
-                        <p>
-                          {shippingAddress.city}, {shippingAddress.state} {shippingAddress.zipCode}
-                        </p>
-                        <p>{shippingAddress.country}</p>
-                        <p className="text-gray-500">📱 {shippingAddress.phone}</p>
+              // Hide shipping address section for design-only orders
+              if (isDesignOnly) {
+                return null;
+              }
+              
+              return (
+                <div className="bg-white p-6 rounded-lg shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-2">
+                      <MapPin className="w-5 h-5 text-blue-600" />
+                      <h2 className="text-lg font-semibold">Shipping Address</h2>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAddressListModal(true)}
+                    >
+                      {shippingAddress.address1 ? (
+                        <>
+                          <Edit className="w-4 h-4 mr-2" />
+                          Change Address
+                        </>
+                      ) : (
+                        <>
+                          <MapPin className="w-4 h-4 mr-2" />
+                          Choose Address
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {shippingAddress.address1 ? (
+                    <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Check className="w-4 h-4 text-green-600" />
+                            <span className="font-semibold text-gray-900">
+                              {shippingAddress.firstName} {shippingAddress.lastName}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-600 space-y-1 ml-6">
+                            <p>{shippingAddress.address1}</p>
+                            {shippingAddress.address2 && <p>{shippingAddress.address2}</p>}
+                            <p>
+                              {shippingAddress.city}, {shippingAddress.state} {shippingAddress.zipCode}
+                            </p>
+                            <p>{shippingAddress.country}</p>
+                            <p className="text-gray-500">📱 {shippingAddress.phone}</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                      <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-600 mb-4">No shipping address selected</p>
+                      <Button
+                        onClick={() => setShowAddressListModal(true)}
+                        className="mx-auto"
+                      >
+                        <MapPin className="w-4 h-4 mr-2" />
+                        Choose Shipping Address
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                  <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-4">No shipping address selected</p>
-                  <Button
-                    onClick={() => setShowAddressListModal(true)}
-                    className="mx-auto"
-                  >
-                    <MapPin className="w-4 h-4 mr-2" />
-                    Choose Shipping Address
-                  </Button>
-                </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Billing Address */}
             <div className="bg-white p-6 rounded-lg shadow-sm">
@@ -1052,7 +1419,20 @@ export default function CheckoutPage() {
                 )}
                 <div className="flex justify-between text-sm">
                   <span>Shipping</span>
-                  <span>{formatPrice(Math.max(0, calculateShipping() - (cartState.discountScope === 'shipping' ? calculateDiscount() : 0)))}</span>
+                  <span>
+                    {(() => {
+                      const shipping = calculateShipping();
+                      const shippingDiscount = cartState.discountScope === 'shipping' ? calculateDiscount() : 0;
+                      const finalShipping = Math.max(0, shipping - shippingDiscount);
+                      // Show "Free" for design-only orders
+                      const itemsToCheck = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+                      const hasProducts = itemsToCheck.some((item: any) => item.itemType === 'product');
+                      if (!hasProducts && itemsToCheck.some((item: any) => item.itemType === 'design')) {
+                        return <span className="text-green-600 font-medium">Free (Digital)</span>;
+                      }
+                      return formatPrice(finalShipping);
+                    })()}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Tax</span>
@@ -1174,8 +1554,8 @@ export default function CheckoutPage() {
           orderAmount={calculateSubtotal()}
           shippingCost={calculateShipping()}
           productIds={isBulkCheckout 
-            ? bulkCheckoutItems.map(item => item.productId)
-            : cartState.cart?.items.map(item => item.productId) || []}
+            ? bulkCheckoutItems.filter((item: any) => item.itemType === 'product').map((item: any) => item.productId)
+            : cartState.cart?.items.filter((item: any) => item.itemType === 'product').map((item: any) => item.productId) || []}
           categoryIds={[]} // Could be fetched from products if needed
           currentCouponCode={cartState.couponCode}
         />

@@ -93,18 +93,43 @@ export function RevenueBreakdown({ analytics, role, loading = false }: RevenueBr
       )}
 
       {role === 'designer' && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Palette className="h-4 w-4 text-purple-600" />
-              <span className="text-sm font-medium text-gray-700">Design Fees</span>
+        <div className="space-y-4">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Palette className="h-4 w-4 text-purple-600" />
+                <span className="text-sm font-medium text-gray-700">Design Fees (Customizations)</span>
+              </div>
+              <span className="text-sm font-semibold text-gray-900">
+                {formatCurrency(analytics.breakdown.customizations)}
+              </span>
             </div>
-            <span className="text-sm font-semibold text-gray-900">
-              {formatCurrency(analytics.breakdown.customizations)}
-            </span>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-purple-600 h-2 rounded-full transition-all"
+                style={{ width: `${customizationPercentage}%` }}
+              ></div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">{customizationPercentage.toFixed(1)}%</p>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div className="bg-purple-600 h-2 rounded-full" style={{ width: '100%' }}></div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-gray-700">Design Orders</span>
+              </div>
+              <span className="text-sm font-semibold text-gray-900">
+                {formatCurrency(analytics.breakdown.orders)}
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-blue-600 h-2 rounded-full transition-all"
+                style={{ width: `${orderPercentage}%` }}
+              ></div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">{orderPercentage.toFixed(1)}%</p>
           </div>
         </div>
       )}

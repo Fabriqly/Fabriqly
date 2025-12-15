@@ -62,6 +62,19 @@ export default function ShopOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  
+  // Check if user is a designer (design orders are automatically delivered)
+  const isDesigner = user?.role === 'designer';
+  
+  // Check if all orders are design orders
+  const allDesignOrders = orders.length > 0 && orders.every(order => 
+    order.items.every((item: any) => 
+      item.itemType === 'design' || (item.designId && !item.productId)
+    )
+  );
+  
+  // For designers or when all orders are design orders, show simplified tabs
+  const showSimplifiedTabs = isDesigner || allDesignOrders;
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [trackingNumber, setTrackingNumber] = useState('');
   const [carrier, setCarrier] = useState('');
@@ -80,11 +93,20 @@ export default function ShopOrdersPage() {
     try {
       setLoading(true);
       setError(null);
+      // Fetch all orders (no status filter) to include cancelled orders
       const response = await fetch('/api/orders');
       const data = await response.json();
       
       if (response.ok) {
-        setOrders(data.orders || []);
+        const ordersList = data.orders || [];
+        console.log(`[Orders Dashboard] Loaded ${ordersList.length} orders for ${user?.role}`);
+        // Log order statuses for debugging
+        const statusCounts = ordersList.reduce((acc: Record<string, number>, order: Order) => {
+          acc[order.status] = (acc[order.status] || 0) + 1;
+          return acc;
+        }, {});
+        console.log('[Orders Dashboard] Order status breakdown:', statusCounts);
+        setOrders(ordersList);
       } else {
         setError(data.error || 'Failed to load orders');
       }
@@ -362,103 +384,153 @@ export default function ShopOrdersPage() {
       <div className="bg-white rounded-lg shadow mb-6">
         <div className="border-b border-gray-200">
           <nav className="flex overflow-x-auto" aria-label="Tabs">
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                statusFilter === 'all'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              All
-              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                {getStatusCount('all')}
-              </span>
-            </button>
-            <button
-              onClick={() => setStatusFilter('pending')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
-                statusFilter === 'pending'
-                  ? 'border-yellow-500 text-yellow-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <Clock className="w-4 h-4" />
-              Pending
-              <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                {getStatusCount('pending')}
-              </span>
-            </button>
-            <button
-              onClick={() => setStatusFilter('processing')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
-                statusFilter === 'processing'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <Package className="w-4 h-4" />
-              Processing
-              <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                {getStatusCount('processing')}
-              </span>
-            </button>
-            <button
-              onClick={() => setStatusFilter('to_ship')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
-                statusFilter === 'to_ship'
-                  ? 'border-purple-500 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <AlertCircle className="w-4 h-4" />
-              To Ship
-              <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                {getStatusCount('to_ship')}
-              </span>
-            </button>
-            <button
-              onClick={() => setStatusFilter('shipped')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
-                statusFilter === 'shipped'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <Truck className="w-4 h-4" />
-              Shipped
-              <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                {getStatusCount('shipped')}
-              </span>
-            </button>
-            <button
-              onClick={() => setStatusFilter('delivered')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
-                statusFilter === 'delivered'
-                  ? 'border-green-500 text-green-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <CheckCircle className="w-4 h-4" />
-              Delivered
-              <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                {getStatusCount('delivered')}
-              </span>
-            </button>
-            <button
-              onClick={() => setStatusFilter('cancelled')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
-                statusFilter === 'cancelled'
-                  ? 'border-red-500 text-red-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <XCircle className="w-4 h-4" />
-              Cancelled
-              <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                {getStatusCount('cancelled')}
-              </span>
-            </button>
+            {showSimplifiedTabs ? (
+              // Simplified tabs for designers (design orders are automatically delivered)
+              <>
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    statusFilter === 'all'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  All
+                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    {getStatusCount('all')}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStatusFilter('delivered')}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+                    statusFilter === 'delivered'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Delivered
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    {getStatusCount('delivered')}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStatusFilter('cancelled')}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+                    statusFilter === 'cancelled'
+                      ? 'border-red-500 text-red-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <XCircle className="w-4 h-4" />
+                  Cancelled
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    {getStatusCount('cancelled')}
+                  </span>
+                </button>
+              </>
+            ) : (
+              // Full tabs for shop owners (product orders)
+              <>
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    statusFilter === 'all'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  All
+                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    {getStatusCount('all')}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStatusFilter('pending')}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+                    statusFilter === 'pending'
+                      ? 'border-yellow-500 text-yellow-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Clock className="w-4 h-4" />
+                  Pending
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    {getStatusCount('pending')}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStatusFilter('processing')}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+                    statusFilter === 'processing'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Package className="w-4 h-4" />
+                  Processing
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    {getStatusCount('processing')}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStatusFilter('to_ship')}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+                    statusFilter === 'to_ship'
+                      ? 'border-purple-500 text-purple-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  To Ship
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    {getStatusCount('to_ship')}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStatusFilter('shipped')}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+                    statusFilter === 'shipped'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Truck className="w-4 h-4" />
+                  Shipped
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    {getStatusCount('shipped')}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStatusFilter('delivered')}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+                    statusFilter === 'delivered'
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Delivered
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    {getStatusCount('delivered')}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStatusFilter('cancelled')}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+                    statusFilter === 'cancelled'
+                      ? 'border-red-500 text-red-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <XCircle className="w-4 h-4" />
+                  Cancelled
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                    {getStatusCount('cancelled')}
+                  </span>
+                </button>
+              </>
+            )}
           </nav>
         </div>
       </div>
@@ -622,33 +694,52 @@ export default function ShopOrdersPage() {
 
                   {/* Order Items */}
                   <div className="border-t border-b border-gray-200 py-3 md:py-4 mb-3 md:mb-4">
-                    {order.items.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between py-1.5 md:py-2">
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">
-                            Product ID: {item.productId.substring(0, 8)}
-                          </p>
-                          {item.customizations?.designerName && (
-                            <p className="text-sm text-gray-600">
-                              Designer: {item.customizations.designerName}
+                    {order.items.map((item, index) => {
+                      const isDesign = item.itemType === 'design' || (item.designId && !item.productId);
+                      
+                      return (
+                        <div key={index} className="flex items-center justify-between py-1.5 md:py-2">
+                          <div className="flex-1">
+                            {isDesign ? (
+                              <>
+                                <p className="font-medium text-gray-900">
+                                  {item.designName || `Design ${item.designId?.substring(0, 8) || 'Unknown'}`}
+                                </p>
+                                {item.designType && (
+                                  <p className="text-xs text-gray-500 mt-0.5 capitalize">
+                                    {item.designType}
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-medium text-gray-900">
+                                  {item.productName || (item.productId ? `Product ${item.productId.substring(0, 8)}` : 'Unknown Product')}
+                                </p>
+                                {item.customizations?.designerName && (
+                                  <p className="text-sm text-gray-600">
+                                    Designer: {item.customizations.designerName}
+                                  </p>
+                                )}
+                                {item.customizations?.customizationRequestId && (
+                                  <Link
+                                    href={`/customizations/${item.customizations.customizationRequestId}`}
+                                    className="text-sm text-blue-600 hover:underline"
+                                  >
+                                    View Customization Request
+                                  </Link>
+                                )}
+                              </>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium text-gray-900">
+                              {item.quantity} × ₱{item.price.toFixed(2)}
                             </p>
-                          )}
-                          {item.customizations?.customizationRequestId && (
-                            <Link
-                              href={`/customizations/${item.customizations.customizationRequestId}`}
-                              className="text-sm text-blue-600 hover:underline"
-                            >
-                              View Customization Request
-                            </Link>
-                          )}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-medium text-gray-900">
-                            {item.quantity} × ₱{item.price.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Order Summary */}

@@ -1,8 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { RatingInput } from './RatingInput';
-import { X, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, Package } from 'lucide-react';
+import Link from 'next/link';
+
+interface PurchasedDesign {
+  id: string;
+  designName: string;
+  thumbnailUrl?: string | null;
+  designType?: string | null;
+  orderId: string;
+  orderDate: any;
+}
 
 interface ReviewFormProps {
   reviewType: 'product' | 'shop' | 'designer' | 'design' | 'customization';
@@ -24,6 +34,9 @@ export function ReviewForm({
   const [images, setImages] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedDesigns, setSelectedDesigns] = useState<string[]>([]);
+  const [purchasedDesigns, setPurchasedDesigns] = useState<PurchasedDesign[]>([]);
+  const [loadingDesigns, setLoadingDesigns] = useState(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -70,6 +83,37 @@ export function ReviewForm({
     }
   };
 
+  // Load purchased designs when reviewing a designer
+  useEffect(() => {
+    if (reviewType === 'designer') {
+      loadPurchasedDesigns();
+    }
+  }, [reviewType, targetId]);
+
+  const loadPurchasedDesigns = async () => {
+    try {
+      setLoadingDesigns(true);
+      const response = await fetch(`/api/designers/${targetId}/purchased-designs`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setPurchasedDesigns(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading purchased designs:', error);
+    } finally {
+      setLoadingDesigns(false);
+    }
+  };
+
+  const toggleDesignSelection = (designId: string) => {
+    setSelectedDesigns(prev => 
+      prev.includes(designId) 
+        ? prev.filter(id => id !== designId)
+        : [...prev, designId]
+    );
+  };
+
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
   };
@@ -100,8 +144,15 @@ export function ReviewForm({
       // Add the appropriate ID field based on review type
       if (reviewType === 'product') requestBody.productId = targetId;
       else if (reviewType === 'shop') requestBody.shopId = targetId;
-      else if (reviewType === 'designer') requestBody.designerId = targetId;
-      else if (reviewType === 'design') requestBody.designId = targetId;
+      else if (reviewType === 'designer') {
+        requestBody.designerId = targetId;
+        // Include selected design IDs if any
+        if (selectedDesigns.length > 0) {
+          requestBody.designIds = selectedDesigns; // Support multiple designs
+          // Also set designId for backward compatibility (use first selected)
+          requestBody.designId = selectedDesigns[0];
+        }
+      } else if (reviewType === 'design') requestBody.designId = targetId;
       else if (reviewType === 'customization') requestBody.customizationRequestId = targetId;
 
       const response = await fetch('/api/reviews', {
@@ -156,6 +207,66 @@ export function ReviewForm({
         </label>
         <RatingInput value={rating} onChange={setRating} />
       </div>
+
+      {/* Design Selection for Designer Reviews */}
+      {reviewType === 'designer' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Design(s) (Optional)
+            <span className="text-xs text-gray-500 ml-2">
+              Choose which design(s) this review is about
+            </span>
+          </label>
+          {loadingDesigns ? (
+            <div className="text-sm text-gray-500">Loading purchased designs...</div>
+          ) : purchasedDesigns.length > 0 ? (
+            <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
+              {purchasedDesigns.map((design) => (
+                <label
+                  key={design.id}
+                  className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-colors ${
+                    selectedDesigns.includes(design.id)
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedDesigns.includes(design.id)}
+                    onChange={() => toggleDesignSelection(design.id)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  {design.thumbnailUrl ? (
+                    <img
+                      src={design.thumbnailUrl}
+                      alt={design.designName}
+                      className="w-12 h-12 object-cover rounded"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
+                      <Package className="w-6 h-6 text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {design.designName}
+                    </p>
+                    {design.designType && (
+                      <p className="text-xs text-gray-500 capitalize">
+                        {design.designType}
+                      </p>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500 p-3 border border-gray-200 rounded-lg bg-gray-50">
+              No purchased designs found. You can still write a review about the designer.
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">

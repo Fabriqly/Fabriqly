@@ -48,6 +48,7 @@ export default function DesignerProfilePage() {
   const [showAppealForm, setShowAppealForm] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<any>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
+  const [showVerifiedBanner, setShowVerifiedBanner] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -64,9 +65,24 @@ export default function DesignerProfilePage() {
     if (user && !hasLoaded) {
       loadProfile();
       loadVerificationStatus();
+      checkVerifiedBannerVisibility();
       setHasLoaded(true);
     }
   }, [user, isLoading, router, hasLoaded]);
+
+  const checkVerifiedBannerVisibility = () => {
+    if (typeof window !== 'undefined') {
+      const bannerClosed = localStorage.getItem(`designer-verified-banner-closed-${user?.id}`);
+      setShowVerifiedBanner(!bannerClosed);
+    }
+  };
+
+  const handleCloseVerifiedBanner = () => {
+    if (typeof window !== 'undefined' && user?.id) {
+      localStorage.setItem(`designer-verified-banner-closed-${user.id}`, 'true');
+      setShowVerifiedBanner(false);
+    }
+  };
 
   const loadProfile = async () => {
     if (!user?.id) return;
@@ -228,333 +244,230 @@ export default function DesignerProfilePage() {
         {/* Main Content */}
         <div className="flex-1 pt-20 overflow-y-auto bg-gray-50 lg:ml-64">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
-            <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Designer Profile</h1>
-              <p className="text-gray-600 mt-1">
-                {profile ? 'Manage your designer profile and showcase your work' : 'Create your designer profile to get started'}
-              </p>
-            </div>
-            {profile && !isEditing && (
-              <div className="flex space-x-3">
-                <Button
-                  onClick={handleSyncStats}
-                  disabled={syncingStats}
-                  variant="outline"
-                  className="flex items-center space-x-2"
-                >
-                  <RefreshCw className={`h-4 w-4 ${syncingStats ? 'animate-spin' : ''}`} />
-                  <span>{syncingStats ? 'Syncing...' : 'Sync Stats'}</span>
-                </Button>
-                <Button
-                  onClick={() => setIsEditing(true)}
-                  className="flex items-center space-x-2"
-                >
-                  <Edit className="h-4 w-4" />
-                  <span>Edit Profile</span>
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Content */}
-        {!profile && !isEditing ? (
-          /* No Profile - Show Create Button */
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <div className="text-gray-400 mb-4">
-              <User className="h-16 w-16 mx-auto" />
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">No Profile Found</h2>
-            <p className="text-gray-600 mb-6">
-              Create your designer profile to showcase your work and connect with customers.
-            </p>
-            <Button
-              onClick={() => setIsEditing(true)}
-              className="flex items-center space-x-2 mx-auto"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Create Profile</span>
-            </Button>
-          </div>
-        ) : isEditing ? (
-          /* Edit Mode */
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <DesignerProfileForm
-              profile={profile || undefined}
-              onSave={handleSave}
-              onCancel={handleCancel}
-            />
-          </div>
-        ) : (
-          /* Display Mode */
-          <div className="space-y-6">
-            {/* Profile Display */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              {profile && (
-                <DesignerProfileDisplay
-                  profile={profile}
-                  showActions={true}
-                  onEdit={() => setIsEditing(true)}
-                />
+            <div className="max-w-6xl mx-auto">
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+                  <h3 className="text-red-800 font-semibold mb-2">Error</h3>
+                  <p className="text-red-700">{error}</p>
+                </div>
               )}
-            </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <User className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Designs</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {profile?.portfolioStats?.totalDesigns || 0}
+              {!profile ? (
+                <div className="max-w-2xl mx-auto text-center py-12">
+                  <div className="bg-white rounded-lg shadow-sm border p-8">
+                    <svg
+                      className="w-24 h-24 text-gray-400 mx-auto mb-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                      />
+                    </svg>
+                    <h2 className="text-2xl font-bold mb-2">No Designer Profile Yet</h2>
+                    <p className="text-gray-600 mb-6">
+                      Create your designer profile to showcase your work and connect with customers.
                     </p>
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                    >
+                      Create Designer Profile
+                    </button>
                   </div>
                 </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <Download className="h-6 w-6 text-green-600" />
+              ) : isEditing ? (
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-3xl font-bold">Edit Designer Profile</h1>
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      className="px-4 py-2 text-gray-600 hover:text-gray-900"
+                    >
+                      Cancel
+                    </button>
                   </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Downloads</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {profile?.portfolioStats?.totalDownloads || 0}
-                    </p>
-                  </div>
+                  <DesignerProfileForm
+                    profile={profile || undefined}
+                    onSave={handleSave}
+                    onCancel={handleCancel}
+                  />
                 </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Eye className="h-6 w-6 text-purple-600" />
+              ) : (
+                <div>
+                  <div className="mb-6">
+                    {/* Title Section */}
+                    <div className="mb-4">
+                      <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Designer Profile</h1>
+                    </div>
+                    
+                    {/* Action Buttons - Stack on mobile, horizontal on desktop */}
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                      <a
+                        href={`/explore/designers/${profile.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors text-sm sm:text-base"
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Public Page
+                      </a>
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className="flex items-center justify-center px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors text-sm sm:text-base"
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit Profile
+                      </button>
+                    </div>
                   </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Views</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {profile?.portfolioStats?.totalViews || 0}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-yellow-100 rounded-lg">
-                    <Star className="h-6 w-6 text-yellow-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Average Rating</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {profile?.portfolioStats?.averageRating || 0}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button
-                  onClick={() => router.push('/dashboard/designs')}
-                  variant="outline"
-                  className="flex items-center justify-center space-x-2 h-12"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add New Design</span>
-                </Button>
-                
-                <Button
-                  onClick={() => router.push('/dashboard/designs')}
-                  variant="outline"
-                  className="flex items-center justify-center space-x-2 h-12"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  <span>View Analytics</span>
-                </Button>
-                
-                <Button
-                  onClick={() => router.push('/designs')}
-                  variant="outline"
-                  className="flex items-center justify-center space-x-2 h-12"
-                >
-                  <Globe className="h-4 w-4" />
-                  <span>View Public Profile</span>
-                </Button>
-              </div>
-            </div>
-
-            {/* Verification Status */}
-            {profile && verificationStatus && (
+                  {/* Enhanced Status Banner */}
+                  {profile && verificationStatus && (
               <>
-                {/* Approved Status */}
-                {verificationStatus.verificationStatus === 'approved' && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <CheckCircle className="h-6 w-6 text-green-600" />
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-green-800">
-                          Profile Verified ✅
-                        </h3>
-                        <div className="mt-2 text-sm text-green-700">
-                          <p>
-                            Congratulations! Your designer profile has been verified. This helps build trust with customers 
-                            and increases your visibility on the platform.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Pending Status */}
-                {verificationStatus.verificationStatus === 'pending' && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <Clock className="h-6 w-6 text-yellow-600" />
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-yellow-800">
-                          Verification Under Review
-                        </h3>
-                        <div className="mt-2 text-sm text-yellow-700">
-                          <p>
-                            Your verification request is currently under review. We'll notify you once the review is complete.
-                          </p>
-                          {verificationStatus.verificationRequest?.submittedAt && (
-                            <p className="mt-1">
-                              Submitted: {new Date(verificationStatus.verificationRequest.submittedAt).toLocaleDateString()}
+                    {/* Approved Status - Closable, One-time View */}
+                    {verificationStatus.verificationStatus === 'approved' && showVerifiedBanner && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6 relative">
+                        <button
+                          onClick={handleCloseVerifiedBanner}
+                          className="absolute top-4 right-4 text-green-600 hover:text-green-800 transition-colors"
+                          aria-label="Close banner"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                        <div className="flex items-start pr-8">
+                          <CheckCircle className="h-6 w-6 text-green-600 mt-0.5 mr-3 flex-shrink-0" />
+                          <div>
+                            <h3 className="font-semibold text-green-800">Profile Verified ✅</h3>
+                            <p className="text-sm text-green-700 mt-1">
+                              Congratulations! Your designer profile has been verified. This helps build trust with customers 
+                              and increases your visibility on the platform.
                             </p>
-                          )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
-                {/* Rejected Status */}
-                {verificationStatus.verificationStatus === 'rejected' && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <XCircle className="h-6 w-6 text-red-600" />
+                    {/* Pending Status */}
+                    {verificationStatus.verificationStatus === 'pending' && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+                        <div className="flex items-start">
+                          <Clock className="h-6 w-6 text-yellow-600 mt-0.5 mr-3" />
+                          <div>
+                            <h3 className="font-semibold text-yellow-800">Verification Under Review</h3>
+                            <p className="text-sm text-yellow-700 mt-1">
+                              Your verification request is currently under review. We'll notify you once the review is complete.
+                            </p>
+                            {verificationStatus.verificationRequest?.submittedAt && (
+                              <p className="text-xs text-yellow-600 mt-2">
+                                Submitted: {new Date(verificationStatus.verificationRequest.submittedAt).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-red-800">
-                          Verification Rejected
-                        </h3>
-                        <div className="mt-2 text-sm text-red-700">
-                          <p>
-                            Your verification request was not approved. You can review the feedback and submit a new request.
-                          </p>
-                          {verificationStatus.rejectionReason && (
-                            <div className="mt-3 p-3 bg-red-100 rounded-lg">
-                              <p className="font-medium text-red-800">Reason:</p>
-                              <p className="text-red-700">{verificationStatus.rejectionReason}</p>
+                    )}
+
+                    {/* Rejected Status */}
+                    {verificationStatus.verificationStatus === 'rejected' && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+                        <div className="flex items-start">
+                          <XCircle className="h-6 w-6 text-red-600 mt-0.5 mr-3" />
+                          <div>
+                            <h3 className="font-semibold text-red-800">Verification Rejected</h3>
+                            <p className="text-sm text-red-700 mt-1">
+                              Your verification request was not approved. You can review the feedback and submit a new request.
+                            </p>
+                            {verificationStatus.rejectionReason && (
+                              <div className="mt-3 p-3 bg-red-100 rounded-lg">
+                                <p className="font-medium text-red-800">Reason:</p>
+                                <p className="text-red-700">{verificationStatus.rejectionReason}</p>
+                              </div>
+                            )}
+                            <div className="mt-4">
+                              <button
+                                onClick={() => setShowVerificationForm(true)}
+                                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium"
+                              >
+                                <RefreshCw className="h-4 w-4 inline mr-2" />
+                                Re-submit Verification Request
+                              </button>
                             </div>
-                          )}
-                        </div>
-                        <div className="mt-4">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="text-red-800 border-red-300 hover:bg-red-100"
-                            onClick={() => setShowVerificationForm(true)}
-                          >
-                            Re-submit Verification Request
-                          </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
-                {/* Suspended Status */}
-                {verificationStatus.verificationStatus === 'suspended' && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <AlertTriangle className="h-6 w-6 text-red-600" />
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-red-800">
-                          Account Suspended
-                        </h3>
-                        <div className="mt-2 text-sm text-red-700">
-                          <p>
-                            Your designer account has been suspended. You can submit an appeal to request a review of this decision.
-                          </p>
-                          {verificationStatus.suspensionReason && (
-                            <div className="mt-3 p-3 bg-red-100 rounded-lg">
-                              <p className="font-medium text-red-800">Reason:</p>
-                              <p className="text-red-700">{verificationStatus.suspensionReason}</p>
+                    {/* Suspended Status */}
+                    {verificationStatus.verificationStatus === 'suspended' && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+                        <div className="flex items-start">
+                          <AlertTriangle className="h-6 w-6 text-red-600 mt-0.5 mr-3" />
+                          <div>
+                            <h3 className="font-semibold text-red-800">Account Suspended</h3>
+                            <p className="text-sm text-red-700 mt-1">
+                              Your designer account has been suspended. You can submit an appeal to request a review of this decision.
+                            </p>
+                            {verificationStatus.suspensionReason && (
+                              <div className="mt-3 p-3 bg-red-100 rounded-lg">
+                                <p className="font-medium text-red-800">Reason:</p>
+                                <p className="text-red-700">{verificationStatus.suspensionReason}</p>
+                              </div>
+                            )}
+                            <div className="mt-4">
+                              <button
+                                onClick={() => setShowAppealForm(true)}
+                                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-sm font-medium"
+                              >
+                                <MessageSquare className="h-4 w-4 inline mr-2" />
+                                Submit Appeal
+                              </button>
                             </div>
-                          )}
-                        </div>
-                        <div className="mt-4">
-                          <Button 
-                            size="sm" 
-                            className="bg-orange-600 hover:bg-orange-700 text-white"
-                            onClick={() => setShowAppealForm(true)}
-                          >
-                            <MessageSquare className="h-4 w-4 mr-2" />
-                            Submit Appeal
-                          </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
-                {/* Not Requested Status */}
-                {verificationStatus.verificationStatus === 'not_requested' && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <Award className="h-6 w-6 text-yellow-600" />
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-yellow-800">
-                          Profile Verification
-                        </h3>
-                        <div className="mt-2 text-sm text-yellow-700">
-                          <p>
-                            Your profile is not yet verified. Verification helps build trust with customers 
-                            and can increase your visibility on the platform.
-                          </p>
-                        </div>
-                        <div className="mt-4">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="text-yellow-800 border-yellow-300 hover:bg-yellow-100"
-                            onClick={() => setShowVerificationForm(true)}
-                          >
-                            Request Verification
-                          </Button>
+                    {/* Not Requested Status */}
+                    {verificationStatus.verificationStatus === 'not_requested' && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+                        <div className="flex items-start">
+                          <Award className="h-6 w-6 text-yellow-600 mt-0.5 mr-3" />
+                          <div>
+                            <h3 className="font-semibold text-yellow-800">Profile Verification</h3>
+                            <p className="text-sm text-yellow-700 mt-1">
+                              Your profile is not yet verified. Verification helps build trust with customers 
+                              and can increase your visibility on the platform.
+                            </p>
+                            <div className="mt-4">
+                              <button
+                                onClick={() => setShowVerificationForm(true)}
+                                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 text-sm font-medium"
+                              >
+                                Request Verification
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
+                    )}
+                  </>
+                  )}
+
+                  {/* Profile Display - Using DesignerProfileDisplay component with shop profile style */}
+                  {profile && (
+                    <DesignerProfileDisplay
+                      profile={profile}
+                      showActions={false}
+                      onEdit={() => setIsEditing(true)}
+                    />
+                  )}
+                </div>
+              )}
 
         {/* Verification Request Modal */}
         {showVerificationForm && (
