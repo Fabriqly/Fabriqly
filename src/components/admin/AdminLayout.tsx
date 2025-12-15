@@ -67,13 +67,7 @@ const adminNavigation = [
     name: 'Shop Management',
     href: '/dashboard/admin/shops',
     icon: Store,
-    description: 'Manage shop profiles'
-  },
-  {
-    name: 'Shop Appeals',
-    href: '/dashboard/admin/shop-appeals',
-    icon: MessageSquare,
-    description: 'Review shop suspension appeals'
+    description: 'Manage shop profiles and appeals'
   },
   {
     name: 'Disputes',
@@ -88,10 +82,10 @@ const adminNavigation = [
     description: 'Review designer and shop applications'
   },
   {
-    name: 'Designer Verification',
-    href: '/dashboard/admin/designer-verification',
+    name: 'Designer Management',
+    href: '/dashboard/admin/designers',
     icon: Shield,
-    description: 'Verify designer accounts'
+    description: 'Manage designer accounts and verification requests'
   },
   {
     name: 'Payouts',
