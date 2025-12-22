@@ -234,44 +234,143 @@ const PricingInventorySection = ({ formData, handleInputChange }: any) => (
   </div>
 );
 
-const ProductOptionsSection = ({ formData, handleInputChange }: any) => (
-  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-    <div className="flex items-center space-x-2 mb-6">
-      <Settings className="w-5 h-5 text-purple-600" />
-      <h3 className="text-lg font-bold text-gray-900">Product Options</h3>
-    </div>
-    <div className="space-y-6">
+const ProductOptionsSection = ({ formData, handleInputChange }: any) => {
+  // Common T-shirt brands (Philippine market)
+  const allBrands = [
+    'Gildan',
+    'Fruit of the Loom',
+    'Hanes',
+    'Champion',
+    'Anvil',
+    'Jerzees',
+    'Port & Company',
+    'Local/Generic Brand',
+    'Other (Designer will recommend)'
+  ];
+  
+  // Common printing types
+  const allPrintingTypes = [
+    'Screen Print',
+    'DTG (Direct to Garment)',
+    'Heat Transfer',
+    'Embroidery',
+    'Sublimation',
+    'Vinyl',
+    'Other (Shop will recommend)'
+  ];
 
-    <div className="space-y-4">
-      <div className="flex items-center space-x-3">
-        <input
-          type="checkbox"
-          id="isCustomizable"
-          checked={formData.isCustomizable}
-          onChange={(e) => handleInputChange('isCustomizable', e.target.checked)}
-          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-        />
-        <label htmlFor="isCustomizable" className="text-sm font-medium text-gray-700">
-          Allow customization
-        </label>
-      </div>
+  const handleBrandToggle = (brand: string) => {
+    const currentBrands = formData.availableBrands || [];
+    const newBrands = currentBrands.includes(brand)
+      ? currentBrands.filter((b: string) => b !== brand)
+      : [...currentBrands, brand];
+    handleInputChange('availableBrands', newBrands);
+  };
 
-      <div className="flex items-center space-x-3">
-        <input
-          type="checkbox"
-          id="isDigital"
-          checked={formData.isDigital}
-          onChange={(e) => handleInputChange('isDigital', e.target.checked)}
-          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-        />
-        <label htmlFor="isDigital" className="text-sm font-medium text-gray-700">
-          Digital product
-        </label>
+  const handlePrintingTypeToggle = (type: string) => {
+    const currentTypes = formData.availablePrintingTypes || [];
+    const newTypes = currentTypes.includes(type)
+      ? currentTypes.filter((t: string) => t !== type)
+      : [...currentTypes, type];
+    handleInputChange('availablePrintingTypes', newTypes);
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="flex items-center space-x-2 mb-6">
+        <Settings className="w-5 h-5 text-purple-600" />
+        <h3 className="text-lg font-bold text-gray-900">Product Options</h3>
+      </div>
+      <div className="space-y-6">
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="isCustomizable"
+              checked={formData.isCustomizable}
+              onChange={(e) => handleInputChange('isCustomizable', e.target.checked)}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="isCustomizable" className="text-sm font-medium text-gray-700">
+              Allow customization
+            </label>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="isDigital"
+              checked={formData.isDigital}
+              onChange={(e) => handleInputChange('isDigital', e.target.checked)}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="isDigital" className="text-sm font-medium text-gray-700">
+              Digital product
+            </label>
+          </div>
+        </div>
+
+        {/* Available Brands (only show if customizable) */}
+        {formData.isCustomizable && (
+          <div className="border-t pt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Available T-Shirt Brands
+              <span className="text-xs text-gray-500 ml-2">(Select brands you offer for this product)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {allBrands.map((brand) => (
+                <button
+                  key={brand}
+                  type="button"
+                  onClick={() => handleBrandToggle(brand)}
+                  className={`px-3 py-1.5 rounded-md text-sm border transition-colors ${
+                    (formData.availableBrands || []).includes(brand)
+                      ? 'bg-blue-50 border-blue-500 text-blue-700'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                  }`}
+                >
+                  {brand}
+                </button>
+              ))}
+            </div>
+            {(formData.availableBrands || []).length === 0 && (
+              <p className="text-xs text-gray-500 mt-2">No brands selected. Customers can choose any brand or designer will recommend.</p>
+            )}
+          </div>
+        )}
+
+        {/* Available Printing Types (only show if customizable) */}
+        {formData.isCustomizable && (
+          <div className="border-t pt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Available Printing Types
+              <span className="text-xs text-gray-500 ml-2">(Select printing methods you offer for this product)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {allPrintingTypes.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => handlePrintingTypeToggle(type)}
+                  className={`px-3 py-1.5 rounded-md text-sm border transition-colors ${
+                    (formData.availablePrintingTypes || []).includes(type)
+                      ? 'bg-blue-50 border-blue-500 text-blue-700'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+            {(formData.availablePrintingTypes || []).length === 0 && (
+              <p className="text-xs text-gray-500 mt-2">No printing types selected. Customers can choose any type or designer will recommend.</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
-    </div>
-  </div>
-);
+  );
+};
 
 const TagsSection = ({ formData, handleInputChange, tagInput, setTagInput, handleAddTag, handleRemoveTag }: any) => (
   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -604,6 +703,8 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
     designs: [],
     sizes: [],
     specifications: {},
+    availableBrands: [],
+    availablePrintingTypes: [],
     seoTitle: '',
     seoDescription: ''
   });
@@ -655,6 +756,8 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
         designs: productData.designs || [],
         sizes: productData.sizes || [],
         specifications: productData.specifications || {},
+        availableBrands: productData.availableBrands || [],
+        availablePrintingTypes: productData.availablePrintingTypes || [],
         seoTitle: productData.seoTitle || '',
         seoDescription: productData.seoDescription || ''
       });
@@ -978,11 +1081,11 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
       }
       
       // Filter out undefined values and prepare clean data
-      // But explicitly include designs and sizes even if empty arrays
+      // But explicitly include designs, sizes, availableBrands, and availablePrintingTypes even if empty arrays
       const cleanFormData = Object.fromEntries(
         Object.entries(formData).filter(([key, value]) => {
-          // Always include designs and sizes, even if empty arrays
-          if (key === 'designs' || key === 'sizes') {
+          // Always include these array fields, even if empty arrays
+          if (key === 'designs' || key === 'sizes' || key === 'availableBrands' || key === 'availablePrintingTypes') {
             return true;
           }
           // Filter out undefined and empty strings for other fields
@@ -990,12 +1093,18 @@ export function ProductForm({ productId, onSave, onCancel }: ProductFormProps) {
         })
       );
       
-      // Ensure designs and sizes are always included (as arrays, even if empty)
+      // Ensure array fields are always included (as arrays, even if empty)
       if (!cleanFormData.designs) {
         cleanFormData.designs = [];
       }
       if (!cleanFormData.sizes) {
         cleanFormData.sizes = [];
+      }
+      if (!cleanFormData.availableBrands) {
+        cleanFormData.availableBrands = [];
+      }
+      if (!cleanFormData.availablePrintingTypes) {
+        cleanFormData.availablePrintingTypes = [];
       }
       
       console.log(`${isEditMode ? 'Updating' : 'Creating'} product:`, cleanFormData);

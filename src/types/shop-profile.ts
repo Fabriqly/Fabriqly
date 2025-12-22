@@ -58,6 +58,7 @@ export interface ShopProfile {
   
   // Customization & Offerings
   supportedProductCategories: string[]; // Category IDs
+  supportedPrintingTypes?: string[]; // Printing types supported (e.g., ["Screen Print", "DTG", "Heat Transfer", "Embroidery"])
   customizationPolicy?: {
     turnaroundTime?: string; // e.g., "3-5 business days"
     revisionsAllowed?: number;
@@ -161,6 +162,7 @@ export interface CreateShopProfileData {
   
   // Customization & Offerings
   supportedProductCategories: string[];
+  supportedPrintingTypes?: string[];
   customizationPolicy?: ShopProfile['customizationPolicy'];
   
   // Social & External Links

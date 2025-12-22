@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { CustomizationService } from '@/services/CustomizationService';
 import { ResponseBuilder } from '@/utils/ResponseBuilder';
 import { ErrorHandler } from '@/errors/ErrorHandler';
+import { AppError } from '@/errors/AppError';
 
 const customizationService = new CustomizationService();
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     
     if (!session) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Unauthorized', statusCode: 401 }),
+        ResponseBuilder.error(AppError.unauthorized()),
         { status: 401 }
       );
     }
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     // Only admins and designers can view workload
     if (!['designer', 'business_owner', 'admin'].includes(session.user.role)) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Forbidden', statusCode: 403 }),
+        ResponseBuilder.error(AppError.forbidden()),
         { status: 403 }
       );
     }
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       // Get specific designer's workload
       if (session.user.role !== 'admin' && designerId !== session.user.id) {
         return NextResponse.json(
-          ResponseBuilder.error({ message: 'Forbidden', statusCode: 403 }),
+          ResponseBuilder.error(AppError.forbidden()),
           { status: 403 }
         );
       }

@@ -24,6 +24,7 @@ import { PerformanceMonitor } from '@/monitoring/PerformanceMonitor';
 import { CouponService } from './CouponService';
 import { DiscountService } from './DiscountService';
 import { AppliedDiscount } from '@/types/promotion';
+import { calculateCommission } from '@/utils/commission';
 
 export class OrderService implements IOrderService {
   private couponService: CouponService;
@@ -184,17 +185,30 @@ export class OrderService implements IOrderService {
       const shipping = data.shippingCost || 0;
       const shippingAfterDiscount = Math.max(0, effectiveShippingCost - shippingDiscountAmount);
       
-      // Total = (productSubtotal + designSubtotal - productDiscount) + tax + (shipping - shipping discount)
-      // Designs are never discounted, so: (productSubtotal - productDiscount) + designSubtotal + tax + shipping
+      // Calculate platform commission/convenience fee (8-10% based on transaction type)
+      // 8% for product orders, 10% for design purchases
+      const commissionResult = calculateCommission({
+        productSubtotal,
+        designSubtotal
+      });
+      const commissionFee = commissionResult.amount;
+      
+      // Total = (productSubtotal + designSubtotal - productDiscount) + tax + commissionFee + (shipping - shipping discount)
+      // Designs are never discounted, so: (productSubtotal - productDiscount) + designSubtotal + tax + commissionFee + shipping
       // For design-only orders, shipping is 0
-      const totalAmount = taxableAmount + tax + shippingAfterDiscount;
+      const totalAmount = taxableAmount + tax + commissionFee + shippingAfterDiscount;
 
       console.log('[OrderService] Order totals calculated:', {
         subtotal,
+        productSubtotal,
+        designSubtotal,
         productDiscountAmount,
         shippingDiscountAmount,
         taxableAmount,
         tax,
+        commissionRate: commissionResult.rate,
+        commissionFee,
+        commissionType: commissionResult.type,
         shipping,
         shippingAfterDiscount,
         totalAmount,
@@ -216,6 +230,7 @@ export class OrderService implements IOrderService {
         subtotal,
         discountAmount: totalDiscountAmount > 0 ? totalDiscountAmount : undefined,
         tax,
+        commissionFee, // Platform commission/convenience fee
         shippingCost: effectiveShippingCost, // 0 for design-only orders
         totalAmount,
         status: initialStatus,

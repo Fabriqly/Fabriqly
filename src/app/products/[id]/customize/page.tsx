@@ -24,6 +24,8 @@ export default function CustomizeProductPage() {
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [selectedColorId, setSelectedColorId] = useState<string>('');
   const [colorPriceAdjustment, setColorPriceAdjustment] = useState<number>(0);
+  const [selectedBrand, setSelectedBrand] = useState<string>('');
+  const [selectedPrintingType, setSelectedPrintingType] = useState<string>('');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -257,6 +259,8 @@ export default function CustomizeProductPage() {
           selectedVariants={selectedVariants}
           selectedColorId={selectedColorId}
           colorPriceAdjustment={colorPriceAdjustment}
+          selectedBrand={selectedBrand}
+          selectedPrintingType={selectedPrintingType}
         />
       </div>
       

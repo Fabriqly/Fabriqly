@@ -74,6 +74,8 @@ export function ProductDetail() {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [hasUserReviewed, setHasUserReviewed] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
+  const [selectedBrand, setSelectedBrand] = useState<string>('');
+  const [selectedPrintingType, setSelectedPrintingType] = useState<string>('');
 
   useEffect(() => {
     if (productId) {
@@ -182,7 +184,8 @@ export function ProductDetail() {
       const data = await response.json();
       
       if (response.ok) {
-        setProduct(data.data);
+        const productData = data.data;
+        setProduct(productData);
       } else {
         setError(data.error || 'Product not found');
       }
@@ -228,7 +231,6 @@ export function ProductDetail() {
         response = await fetch(`/api/shop-profiles/username/${product.shop.username}`);
         data = await response.json();
         if (data.success && data.data) {
-          console.log('Shop profile loaded by username:', data.data);
           setShopProfile(data.data);
           setShopLogoError(false); // Reset logo error when new profile loads
           return;
@@ -240,7 +242,6 @@ export function ProductDetail() {
         response = await fetch(`/api/shop-profiles/${product.shopId}`);
         data = await response.json();
         if (data.success && data.data) {
-          console.log('Shop profile loaded by shopId:', data.data);
           setShopProfile(data.data);
           setShopLogoError(false);
           return;
@@ -252,14 +253,11 @@ export function ProductDetail() {
         response = await fetch(`/api/shop-profiles/user/${product.businessOwnerId}`);
         data = await response.json();
         if (data.success && data.data) {
-          console.log('Shop profile loaded by userId:', data.data);
           setShopProfile(data.data);
           setShopLogoError(false);
           return;
         }
       }
-      
-      console.log('No shop profile found for product:', product.id);
     } catch (error) {
       console.error('Error loading shop profile:', error);
     }
@@ -277,7 +275,6 @@ export function ProductDetail() {
           average: data.data.average || 0,
           total: data.data.total || 0
         });
-        console.log('Shop rating loaded:', data.data);
       }
     } catch (error) {
       console.error('Error loading shop rating:', error);
@@ -365,7 +362,7 @@ export function ProductDetail() {
           url: window.location.href,
         });
       } catch (error) {
-        console.log('Error sharing:', error);
+        // Silently handle share errors
       }
     } else {
       navigator.clipboard.writeText(window.location.href);
@@ -925,6 +922,86 @@ export function ProductDetail() {
               </div>
             )}
 
+            {/* Available Brands (for customizable products) */}
+            {product.isCustomizable && (
+              <div className="border-t border-slate-200 pt-4">
+                <label htmlFor="selectedBrand" className="block text-sm font-medium text-slate-900 mb-2">
+                  T-Shirt Brand <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                {(() => {
+                  // Get available brands from product, or use default list
+                  const availableBrands = product.availableBrands && product.availableBrands.length > 0
+                    ? [...product.availableBrands, 'Other (Designer will recommend)']
+                    : [
+                        'Gildan',
+                        'Fruit of the Loom',
+                        'Hanes',
+                        'Champion',
+                        'Anvil',
+                        'Jerzees',
+                        'Port & Company',
+                        'Local/Generic Brand',
+                        'Other (Designer will recommend)'
+                      ];
+                  
+                  return (
+                    <select
+                      id="selectedBrand"
+                      value={selectedBrand}
+                      onChange={(e) => setSelectedBrand(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-slate-900 bg-white shadow-sm transition-all hover:border-slate-300"
+                    >
+                      <option value="">Select a brand or leave blank</option>
+                      {availableBrands.map((brand) => (
+                        <option key={brand} value={brand}>
+                          {brand}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Available Printing Types (for customizable products) */}
+            {product.isCustomizable && (
+              <div className="border-t border-slate-200 pt-4">
+                <label htmlFor="selectedPrintingType" className="block text-sm font-medium text-slate-900 mb-2">
+                  Printing Type <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                {(() => {
+                  // Get available printing types from product, or use default list
+                  const availablePrintingTypes = product.availablePrintingTypes && product.availablePrintingTypes.length > 0
+                    ? [...product.availablePrintingTypes, 'Other (Shop will recommend)']
+                    : [
+                        'Screen Print',
+                        'DTG (Direct to Garment)',
+                        'Heat Transfer',
+                        'Embroidery',
+                        'Sublimation',
+                        'Vinyl',
+                        'Other (Shop will recommend)'
+                      ];
+                  
+                  return (
+                    <select
+                      id="selectedPrintingType"
+                      value={selectedPrintingType}
+                      onChange={(e) => setSelectedPrintingType(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-slate-900 bg-white shadow-sm transition-all hover:border-slate-300"
+                    >
+                      <option value="">Select a printing type or leave blank</option>
+                      {availablePrintingTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
+              </div>
+            )}
+
             {/* Stock Status */}
             {product.stockQuantity === 0 ? (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -1012,6 +1089,8 @@ export function ProductDetail() {
                         sessionStorage.setItem(`product_${product.id}_variants`, JSON.stringify(selectedVariants));
                         sessionStorage.setItem(`product_${product.id}_color`, selectedColorId);
                         sessionStorage.setItem(`product_${product.id}_colorAdjustment`, colorPriceAdjustment.toString());
+                        sessionStorage.setItem(`product_${product.id}_brand`, selectedBrand);
+                        sessionStorage.setItem(`product_${product.id}_printingType`, selectedPrintingType);
                         
                         // Navigate with URL params as well
                         const params = new URLSearchParams();
@@ -1020,6 +1099,12 @@ export function ProductDetail() {
                         }
                         if (selectedColorId) {
                           params.set('color', selectedColorId);
+                        }
+                        if (selectedBrand) {
+                          params.set('brand', selectedBrand);
+                        }
+                        if (selectedPrintingType) {
+                          params.set('printingType', selectedPrintingType);
                         }
                         
                         const queryString = params.toString();
@@ -1279,7 +1364,7 @@ export function ProductDetail() {
                     <ReviewForm
                       reviewType="product"
                       targetId={productId}
-                      targetName={product?.productName || 'Product'}
+                      targetName={product?.name || 'Product'}
                       onSuccess={() => {
                         setShowReviewForm(false);
                         loadReviews();
@@ -1308,8 +1393,10 @@ export function ProductDetail() {
                               <div className="flex items-center space-x-2 mt-1">
                                 <RatingDisplay rating={review.rating} size="sm" showNumber={false} />
                                 <span className="text-xs text-slate-500">
-                                  {review.createdAt?.toDate ? 
-                                    new Date(review.createdAt.toDate()).toLocaleDateString() : 
+                                  {review.createdAt ? 
+                                    (typeof review.createdAt === 'object' && 'toDate' in review.createdAt && typeof review.createdAt.toDate === 'function'
+                                      ? new Date(review.createdAt.toDate()).toLocaleDateString()
+                                      : new Date(review.createdAt as Date).toLocaleDateString()) : 
                                     'Unknown date'}
                                 </span>
                               </div>

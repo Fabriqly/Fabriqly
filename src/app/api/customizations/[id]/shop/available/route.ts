@@ -5,6 +5,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import { Collections } from '@/services/firebase';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ShopProfile } from '@/types/shop-profile';
 
 const customizationService = new CustomizationService();
 
@@ -77,16 +78,18 @@ export async function GET(
     const allShops = shopsSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
-    }));
+    })) as (ShopProfile & { id: string })[];
 
+    // Get printing type from customization request (customer selection or designer recommendation)
+    const printingType = customizationRequest.selectedPrintingType || customizationRequest.recommendedPrintingType;
+    
     // Filter shops that can handle this product type
     const matchingShops = allShops.filter(shop => {
       // Check if shop supports the product category
-      if (productCategory && shop.supportedProductCategories?.includes(productCategory)) {
-        return true;
-      }
-
+      const categoryMatch = productCategory && shop.supportedProductCategories?.includes(productCategory);
+      
       // Check if shop specialties match product name or tags
+      let specialtyMatch = false;
       if (shop.specialties && shop.specialties.length > 0) {
         const specialtiesLower = shop.specialties.map((s: string) => s.toLowerCase());
         const productNameLower = productName.toLowerCase();
@@ -104,12 +107,22 @@ export async function GET(
           )
         );
 
-        if (nameMatches || tagMatches) {
-          return true;
-        }
+        specialtyMatch = nameMatches || tagMatches;
       }
-
-      return false;
+      
+      // Check if shop supports the required printing type (if specified)
+      let printingTypeMatch = true; // Default to true if no printing type specified
+      if (printingType && shop.supportedPrintingTypes && shop.supportedPrintingTypes.length > 0) {
+        // Check if shop supports the selected/recommended printing type
+        printingTypeMatch = shop.supportedPrintingTypes.some((type: string) => 
+          type.toLowerCase() === printingType.toLowerCase() ||
+          type.toLowerCase().includes(printingType.toLowerCase()) ||
+          printingType.toLowerCase().includes(type.toLowerCase())
+        );
+      }
+      
+      // Shop matches if it supports the category/specialty AND printing type (if specified)
+      return (categoryMatch || specialtyMatch) && printingTypeMatch;
     });
 
     // Separate product owner's shop, designer's shop, and other shops
@@ -119,7 +132,7 @@ export async function GET(
 
     const formatShop = (shop: any) => ({
             id: shop.id,
-            businessName: shop.shopName || shop.businessName,
+            businessName: shop.shopName,
             description: shop.description,
             location: shop.location?.city && shop.location?.province
               ? `${shop.location.city}, ${shop.location.province}`

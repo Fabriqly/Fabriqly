@@ -87,6 +87,7 @@ export interface Order extends BaseDocument {
   discountAmount?: number;
   tax: number;
   shippingCost: number;
+  commissionFee?: number; // Platform commission/convenience fee (8-10% of subtotal based on transaction type)
   totalAmount: number;
   status: 'pending' | 'processing' | 'to_ship' | 'shipped' | 'delivered' | 'cancelled';
   shippingAddress: Address;

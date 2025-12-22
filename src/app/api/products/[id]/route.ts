@@ -269,6 +269,24 @@ export async function PUT(
         updateData.sizes = [];
       }
     }
+    
+    // Handle customization options (availableBrands and availablePrintingTypes)
+    if (body.availableBrands !== undefined) {
+      if (Array.isArray(body.availableBrands) && body.availableBrands.length > 0) {
+        updateData.availableBrands = body.availableBrands;
+      } else {
+        // If empty array, set to empty array
+        updateData.availableBrands = [];
+      }
+    }
+    if (body.availablePrintingTypes !== undefined) {
+      if (Array.isArray(body.availablePrintingTypes) && body.availablePrintingTypes.length > 0) {
+        updateData.availablePrintingTypes = body.availablePrintingTypes;
+      } else {
+        // If empty array, set to empty array
+        updateData.availablePrintingTypes = [];
+      }
+    }
 
     console.log('Updating product with data:', updateData);
 

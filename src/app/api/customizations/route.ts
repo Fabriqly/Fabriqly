@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { CustomizationService } from '@/services/CustomizationService';
 import { ResponseBuilder } from '@/utils/ResponseBuilder';
 import { ErrorHandler } from '@/errors/ErrorHandler';
+import { AppError } from '@/errors/AppError';
 import { CreateCustomizationRequest, CustomizationFilters } from '@/types/customization';
 
 const customizationService = new CustomizationService();
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     
     if (!session) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Unauthorized', statusCode: 401 }),
+        ResponseBuilder.error(AppError.unauthorized()),
         { status: 401 }
       );
     }
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
       // Designers can see requests assigned to them or pending ones
       if (designerId && designerId !== session.user.id) {
         return NextResponse.json(
-          ResponseBuilder.error({ message: 'Forbidden', statusCode: 403 }),
+          ResponseBuilder.error(AppError.forbidden()),
           { status: 403 }
         );
       }
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
     
     if (!session) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Unauthorized', statusCode: 401 }),
+        ResponseBuilder.error(AppError.unauthorized()),
         { status: 401 }
       );
     }
@@ -102,10 +103,9 @@ export async function POST(request: NextRequest) {
     // Validate required fields
     if (!body.productId || !body.productName || !body.customizationNotes) {
       return NextResponse.json(
-        ResponseBuilder.error({ 
-          message: 'Missing required fields: productId, productName, customizationNotes', 
-          statusCode: 400 
-        }),
+        ResponseBuilder.error(
+          AppError.badRequest('Missing required fields: productId, productName, customizationNotes')
+        ),
         { status: 400 }
       );
     }
@@ -119,6 +119,8 @@ export async function POST(request: NextRequest) {
       productImage: body.productImage,
       selectedColorId: body.selectedColorId,
       colorPriceAdjustment: body.colorPriceAdjustment || 0,
+      selectedBrand: body.selectedBrand,
+      selectedPrintingType: body.selectedPrintingType,
       customizationNotes: body.customizationNotes,
       customerDesignFile: body.customerDesignFile,
       customerPreviewImage: body.customerPreviewImage
@@ -127,7 +129,7 @@ export async function POST(request: NextRequest) {
     const customizationRequest = await customizationService.createRequest(requestData);
 
     return NextResponse.json(
-      ResponseBuilder.success(customizationRequest, 'Customization request created successfully'),
+      ResponseBuilder.success(customizationRequest),
       { status: 201 }
     );
   } catch (error) {

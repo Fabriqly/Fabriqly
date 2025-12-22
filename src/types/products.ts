@@ -86,6 +86,8 @@ export interface Product {
   designs?: ProductVariantOption[]; // Design variants with price modifiers
   sizes?: ProductVariantOption[]; // Size variants with price modifiers
   specifications?: Record<string, unknown>; // Flexible specs
+  availableBrands?: string[]; // Available T-shirt brands for customization (e.g., ["Gildan", "Fruit of the Loom"])
+  availablePrintingTypes?: string[]; // Available printing types (e.g., ["Screen Print", "DTG", "Heat Transfer"])
   seoTitle?: string;
   seoDescription?: string;
   createdAt: Timestamp;
@@ -133,6 +135,8 @@ export interface CreateProductData {
   designs?: ProductVariantOption[]; // Design variants with price modifiers
   sizes?: ProductVariantOption[]; // Size variants with price modifiers
   specifications?: Record<string, any>;
+  availableBrands?: string[]; // Available T-shirt brands for customization
+  availablePrintingTypes?: string[]; // Available printing types
   seoTitle?: string;
   seoDescription?: string;
 }

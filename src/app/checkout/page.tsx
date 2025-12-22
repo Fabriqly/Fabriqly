@@ -25,7 +25,6 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { Header } from '@/components/layout';
 import { AddressListModal } from '@/components/customization/AddressListModal';
@@ -33,6 +32,7 @@ import { ShippingAddressModal } from '@/components/customization/ShippingAddress
 import { ShopProfile } from '@/types/shop-profile';
 import { CartItem } from '@/types/cart';
 import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
+import { calculateCommission } from '@/utils/commission';
 
 interface Address {
   firstName: string;
@@ -66,7 +66,6 @@ export default function CheckoutPage() {
           try {
             const items = JSON.parse(storedItems);
             if (items && Array.isArray(items) && items.length > 0) {
-              console.log('[Checkout] Initialized bulk checkout items from sessionStorage:', items);
               return items; // Return items immediately
             }
           } catch (e) {
@@ -88,7 +87,6 @@ export default function CheckoutPage() {
           try {
             const items = JSON.parse(storedItems);
             if (items && Array.isArray(items) && items.length > 0) {
-              console.log('[Checkout] Initialized bulk checkout mode from sessionStorage');
               return true; // Will be confirmed in useEffect
             }
           } catch (e) {
@@ -165,27 +163,21 @@ export default function CheckoutPage() {
       const urlParams = new URLSearchParams(window.location.search);
       const isBulk = urlParams.get('bulk') === 'true';
       
-      console.log('[Checkout] Checking bulk checkout:', { isBulk, search: window.location.search });
-      
       // Only set bulk checkout if explicitly requested via URL parameter
       // AND there are stored items in sessionStorage
       if (isBulk) {
         const storedItems = sessionStorage.getItem('bulkCheckoutItems');
-        console.log('[Checkout] Bulk checkout requested, stored items:', storedItems);
         
         if (storedItems) {
           try {
             const items = JSON.parse(storedItems);
-            console.log('[Checkout] Parsed bulk checkout items:', items);
             
             if (items && Array.isArray(items) && items.length > 0) {
               setBulkCheckoutItems(items);
               setIsBulkCheckout(true);
-              console.log('[Checkout] Set bulk checkout mode with', items.length, 'items');
               // Don't clear immediately - wait until order is created to prevent issues on refresh
             } else {
               // If no valid items, reset to regular checkout
-              console.log('[Checkout] No valid items, resetting to regular checkout');
               setIsBulkCheckout(false);
               setBulkCheckoutItems([]);
             }
@@ -196,14 +188,12 @@ export default function CheckoutPage() {
           }
         } else {
           // No stored items, reset to regular checkout
-          console.log('[Checkout] No stored items found, resetting to regular checkout');
           setIsBulkCheckout(false);
           setBulkCheckoutItems([]);
         }
       } else {
         // Not a bulk checkout, ensure we're in regular mode
         // Also clear any leftover bulk items from sessionStorage
-        console.log('[Checkout] Not bulk checkout, clearing sessionStorage');
         sessionStorage.removeItem('bulkCheckoutItems');
         setIsBulkCheckout(false);
         setBulkCheckoutItems([]);
@@ -241,7 +231,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (user?.id && !isBulkCheckout) {
       // Force refresh cart to get latest design storage info (thumbnailUrl, storagePath, storageBucket)
-      refreshCart(true).catch(err => {
+      refreshCart().catch(err => {
         console.error('[Checkout] Error refreshing cart:', err);
       });
     }
@@ -250,6 +240,7 @@ export default function CheckoutPage() {
   // Group items by shop and load shop profiles
   useEffect(() => {
     const items = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+    
     if (items.length === 0) {
       setGroupedItems([]);
       setLoadingShops(false);
@@ -259,12 +250,37 @@ export default function CheckoutPage() {
     const loadShopProfiles = async () => {
       setLoadingShops(true);
       
-      // Separate product and design items
-      const productItems = items.filter((item: any) => item.itemType === 'product');
-      const designItems = items.filter((item: any) => item.itemType === 'design');
+      // Separate product and design items with fallback detection
+      const productItems = items.filter((item: any) => {
+        if (item.itemType) {
+          return item.itemType === 'product';
+        }
+        // Fallback: if it has productId and no designId, it's a product
+        return item.productId && !item.designId;
+      });
       
-      const uniqueOwnerIds = [...new Set(productItems.map((item: any) => item.businessOwnerId).filter(Boolean))];
-      const uniqueDesignerIds = [...new Set(designItems.map((item: any) => item.designerId).filter(Boolean))];
+      const designItems = items.filter((item: any) => {
+        if (item.itemType) {
+          return item.itemType === 'design';
+        }
+        // Fallback: if it has designId and no productId, it's a design
+        return item.designId && !item.productId;
+      });
+      
+      // If items don't match either category, treat them as products (default)
+      const unclassifiedItems = items.filter((item: any) => {
+        const isProduct = productItems.includes(item);
+        const isDesign = designItems.includes(item);
+        return !isProduct && !isDesign;
+      });
+      
+      if (unclassifiedItems.length > 0) {
+        // Add unclassified items to productItems
+        productItems.push(...unclassifiedItems);
+      }
+      
+      const uniqueOwnerIds = Array.from(new Set(productItems.map((item: any) => item.businessOwnerId).filter(Boolean)));
+      const uniqueDesignerIds = Array.from(new Set(designItems.map((item: any) => item.designerId).filter(Boolean)));
       
       const shopMap: Record<string, ShopProfile | null> = {};
       const designerMap: Record<string, any> = {};
@@ -336,7 +352,7 @@ export default function CheckoutPage() {
 
       // Group product items by businessOwnerId
       const productGroups = productItems.reduce((acc: Record<string, any>, item: any) => {
-        const ownerId = item.businessOwnerId;
+        const ownerId = item.businessOwnerId || 'unknown';
         if (!acc[ownerId]) {
           acc[ownerId] = {
             shop: shopMap[ownerId] || null,
@@ -351,7 +367,7 @@ export default function CheckoutPage() {
 
       // Group design items by designerId
       const designGroups = designItems.reduce((acc: Record<string, any>, item: any) => {
-        const designerId = item.designerId;
+        const designerId = item.designerId || 'unknown';
         if (!acc[designerId]) {
           acc[designerId] = {
             designer: designerMap[designerId] || null,
@@ -434,7 +450,6 @@ export default function CheckoutPage() {
         const responseData = await response.json();
         
         if (response.ok) {
-          console.log('[Checkout] Address saved successfully:', responseData);
           // Increment refresh trigger to reload address list
           setAddressRefreshTrigger(prev => prev + 1);
           // Reopen address list modal so user can see the saved address
@@ -463,9 +478,9 @@ export default function CheckoutPage() {
     }).format(price);
   };
 
-  const getShopName = (group: { shop: ShopProfile | null; businessOwnerId: string }) => {
+  const getShopName = (group: { shop?: ShopProfile | null; businessOwnerId?: string }) => {
     if (group.shop) {
-      return group.shop.shopName || group.shop.businessName || 'Shop';
+      return group.shop.shopName || 'Shop';
     }
     return 'Shop';
   };
@@ -476,14 +491,7 @@ export default function CheckoutPage() {
     if (isBulkCheckout) {
       return bulkCheckoutItems.reduce((sum, item) => sum + item.totalPrice, 0);
     }
-    const subtotal = cartState.cart?.items.reduce((sum, item) => sum + item.totalPrice, 0) || 0;
-    console.log('[Checkout] Calculated subtotal:', subtotal, 'items:', cartState.cart?.items.map(i => ({ 
-      type: i.itemType, 
-      price: i.unitPrice, 
-      qty: i.quantity, 
-      total: i.totalPrice 
-    })));
-    return subtotal;
+    return cartState.cart?.items.reduce((sum, item) => sum + item.totalPrice, 0) || 0;
   };
 
   const calculateTax = () => {
@@ -495,36 +503,130 @@ export default function CheckoutPage() {
     // Shipping discounts don't affect tax
     // IMPORTANT: Designs are never discounted, so only product discounts apply
     const itemsToCheck = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
-    const productItems = itemsToCheck.filter((item: any) => item.itemType === 'product');
-    const designItems = itemsToCheck.filter((item: any) => item.itemType === 'design');
+    
+    // More robust item type detection - check itemType first, then fallback to productId/designId
+    const productItems = itemsToCheck.filter((item: any) => {
+      if (item.itemType) {
+        return item.itemType === 'product';
+      }
+      // Fallback: if it has productId and no designId, it's a product
+      return item.productId && !item.designId;
+    });
+    
+    const designItems = itemsToCheck.filter((item: any) => {
+      if (item.itemType) {
+        return item.itemType === 'design';
+      }
+      // Fallback: if it has designId and no productId, it's a design
+      return item.designId && !item.productId;
+    });
     
     // Calculate product subtotal (designs are never discounted)
-    const productSubtotal = productItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
-    const designSubtotal = designItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+    const productSubtotal = productItems.reduce((sum: number, item: any) => {
+      const itemPrice = item.totalPrice || (item.unitPrice * item.quantity) || 0;
+      return sum + itemPrice;
+    }, 0);
+    
+    const designSubtotal = designItems.reduce((sum: number, item: any) => {
+      const itemPrice = item.totalPrice || (item.unitPrice * item.quantity) || 0;
+      return sum + itemPrice;
+    }, 0);
+    
+    // If we can't determine item types, assume all items are products for tax calculation
+    const effectiveProductSubtotal = (productSubtotal === 0 && designSubtotal === 0 && subtotal > 0) 
+      ? subtotal 
+      : productSubtotal;
+    const effectiveDesignSubtotal = (productSubtotal === 0 && designSubtotal === 0 && subtotal > 0) 
+      ? 0 
+      : designSubtotal;
     
     // Only apply discount to product subtotal (designs are never discounted)
     const productDiscount = (discountScope === 'shipping') ? 0 : discount;
-    const taxableAmount = Math.max(0, productSubtotal - productDiscount) + designSubtotal;
+    const taxableAmount = Math.max(0, effectiveProductSubtotal - productDiscount) + effectiveDesignSubtotal;
     
-    const tax = taxableAmount * 0.08; // 8% tax
-    console.log('[Checkout] Tax calculation:', {
-      subtotal,
-      productSubtotal,
-      designSubtotal,
-      discount,
-      discountScope,
-      productDiscount,
-      taxableAmount,
-      tax
-    });
+    const tax = taxableAmount * 0.12; // 12% VAT (Philippines standard VAT rate)
     return tax;
   };
 
   const calculateShipping = () => {
     // Only calculate shipping for product items (designs are digital, no shipping)
     const itemsToCheck = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
-    const hasProducts = itemsToCheck.some((item: any) => item.itemType === 'product');
+    
+    // More robust product detection
+    const hasProducts = itemsToCheck.some((item: any) => {
+      if (item.itemType) {
+        return item.itemType === 'product';
+      }
+      // Fallback: if it has productId and no designId, it's a product
+      return item.productId && !item.designId;
+    });
+    
+    // Check if it's design-only (has designs but no products)
+    const hasDesigns = itemsToCheck.some((item: any) => {
+      if (item.itemType) {
+        return item.itemType === 'design';
+      }
+      return item.designId && !item.productId;
+    });
+    
+    // If we can't determine item types but have items, assume they're products
+    if (!hasProducts && !hasDesigns && itemsToCheck.length > 0) {
+      return 9.99; // Default to shipping for physical items
+    }
+    
     return hasProducts ? 9.99 : 0; // Fixed shipping cost for products only
+  };
+
+  const getCommissionDetails = () => {
+    const itemsToCheck = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
+    
+    // Filter items by type, with fallback for items without itemType
+    const productItems = itemsToCheck.filter((item: any) => {
+      if (item.itemType === 'product') return true;
+      // Fallback: if itemType is missing but has productId, treat as product
+      if (!item.itemType && item.productId) return true;
+      return false;
+    });
+    
+    const designItems = itemsToCheck.filter((item: any) => {
+      if (item.itemType === 'design') return true;
+      // Fallback: if itemType is missing but has designId, treat as design
+      if (!item.itemType && item.designId) return true;
+      return false;
+    });
+    
+    const productSubtotal = productItems.reduce((sum: number, item: any) => {
+      const price = item.totalPrice || (item.unitPrice || 0) * (item.quantity || 1) || 0;
+      return sum + price;
+    }, 0);
+    
+    const designSubtotal = designItems.reduce((sum: number, item: any) => {
+      const price = item.totalPrice || (item.unitPrice || 0) * (item.quantity || 1) || 0;
+      return sum + price;
+    }, 0);
+    
+    // If we can't determine the breakdown, use the total subtotal and assume it's a product order (8%)
+    const totalSubtotal = productSubtotal + designSubtotal;
+    if (totalSubtotal === 0) {
+      const fallbackSubtotal = calculateSubtotal();
+      if (fallbackSubtotal > 0) {
+        // If subtotal exists but breakdown is 0, assume it's all products (8%)
+        return calculateCommission({
+          productSubtotal: fallbackSubtotal,
+          designSubtotal: 0
+        });
+      }
+    }
+    
+    // Calculate commission based on transaction type (8% for products, 10% for designs)
+    return calculateCommission({
+      productSubtotal,
+      designSubtotal
+    });
+  };
+
+  const getCommissionAmount = () => {
+    return getCommissionDetails().amount;
   };
 
   const calculateTotal = () => {
@@ -532,46 +634,58 @@ export default function CheckoutPage() {
     const discount = calculateDiscount();
     const tax = calculateTax();
     const shipping = calculateShipping();
+    const commission = getCommissionAmount();
     const discountScope = cartState.discountScope;
+    
+    // Get commission details to determine product vs design breakdown
+    const commissionDetails = getCommissionDetails();
     
     // Separate product and design items to match order service logic
     const itemsToCheck = isBulkCheckout ? bulkCheckoutItems : cartState.cart?.items || [];
-    const productItems = itemsToCheck.filter((item: any) => item.itemType === 'product');
-    const designItems = itemsToCheck.filter((item: any) => item.itemType === 'design');
     
-    const productSubtotal = productItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
-    const designSubtotal = designItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+    // Filter items with fallback logic (same as getCommissionDetails)
+    const productItems = itemsToCheck.filter((item: any) => {
+      if (item.itemType === 'product') return true;
+      if (!item.itemType && item.productId) return true;
+      return false;
+    });
+    
+    const designItems = itemsToCheck.filter((item: any) => {
+      if (item.itemType === 'design') return true;
+      if (!item.itemType && item.designId) return true;
+      return false;
+    });
+    
+    const productSubtotal = productItems.reduce((sum: number, item: any) => {
+      const price = item.totalPrice || (item.unitPrice || 0) * (item.quantity || 1) || 0;
+      return sum + price;
+    }, 0);
+    
+    const designSubtotal = designItems.reduce((sum: number, item: any) => {
+      const price = item.totalPrice || (item.unitPrice || 0) * (item.quantity || 1) || 0;
+      return sum + price;
+    }, 0);
+    
+    // Use calculated breakdown if available, otherwise use subtotal as fallback
+    // If breakdown sums to 0 but subtotal exists, assume all products
+    const effectiveProductSubtotal = (productSubtotal + designSubtotal) > 0 
+      ? productSubtotal 
+      : subtotal;
+    const effectiveDesignSubtotal = (productSubtotal + designSubtotal) > 0 
+      ? designSubtotal 
+      : 0;
     
     // Match order service calculation:
-    // totalAmount = (productSubtotal - productDiscount) + designSubtotal + tax + (shipping - shippingDiscount)
+    // totalAmount = (productSubtotal - productDiscount) + designSubtotal + tax + commissionFee + (shipping - shippingDiscount)
     // Designs are never discounted
     if (discountScope === 'shipping') {
       // Shipping discount: subtract from shipping only
       const shippingAfterDiscount = Math.max(0, shipping - discount);
-      const total = productSubtotal + designSubtotal + tax + shippingAfterDiscount;
-      console.log('[Checkout] Total calculation (shipping discount):', {
-        productSubtotal,
-        designSubtotal,
-        tax,
-        shipping,
-        shippingDiscount: discount,
-        shippingAfterDiscount,
-        total
-      });
-      return Math.max(0, total);
+      return Math.max(0, effectiveProductSubtotal + effectiveDesignSubtotal + tax + commission + shippingAfterDiscount);
     } else {
       // Product/category/order discount: only applies to products, not designs
       const productDiscount = discount; // Discount only applies to products
-      const total = (productSubtotal - productDiscount) + designSubtotal + tax + shipping;
-      console.log('[Checkout] Total calculation (product discount):', {
-        productSubtotal,
-        designSubtotal,
-        productDiscount,
-        tax,
-        shipping,
-        total
-      });
-      return Math.max(0, total);
+      return Math.max(0, (effectiveProductSubtotal - productDiscount) + effectiveDesignSubtotal + tax + commission + shipping);
     }
   };
 
@@ -640,7 +754,6 @@ export default function CheckoutPage() {
 
     // Skip validation if no items
     if (itemsToProcess.length === 0) {
-      console.log('No items to validate, skipping stock validation');
       return true;
     }
 
@@ -649,7 +762,6 @@ export default function CheckoutPage() {
     
     // If no product items, skip validation
     if (productItems.length === 0) {
-      console.log('No product items to validate, skipping stock validation');
       return true;
     }
 
@@ -672,7 +784,6 @@ export default function CheckoutPage() {
       if (!response.ok) {
         console.error('Stock validation API error:', response.status, response.statusText);
         // For now, let's skip stock validation if API fails
-        console.log('Skipping stock validation due to API error');
         return true;
       }
 
@@ -686,8 +797,7 @@ export default function CheckoutPage() {
       return true;
     } catch (error) {
       console.error('Product validation error:', error);
-      // For now, let's skip stock validation if it fails
-      console.log('Skipping stock validation due to error');
+      // Skip stock validation if it fails
       return true;
     }
   };
@@ -699,11 +809,6 @@ export default function CheckoutPage() {
     setError(null);
 
     try {
-      // Debug: Log cart state
-      console.log('Cart state:', cartState);
-      console.log('Bulk checkout items:', bulkCheckoutItems);
-      console.log('Is bulk checkout:', isBulkCheckout);
-      
       // Validate product availability and stock before proceeding
       await validateStock();
 
@@ -787,7 +892,7 @@ export default function CheckoutPage() {
           state: 'N/A',
           zipCode: '00000',
           country: 'N/A',
-          phone: user?.phone || ''
+          phone: ''
         };
         
         // Convert designer profile ID to userId for businessOwnerId
@@ -800,7 +905,6 @@ export default function CheckoutPage() {
             const designerData = await designerProfileResponse.json();
             if (designerData.profile?.userId) {
               businessOwnerUserId = designerData.profile.userId;
-              console.log(`[Checkout] Converted designer profile ID ${designerId} to userId ${businessOwnerUserId}`);
             }
           }
         } catch (error) {
@@ -813,18 +917,6 @@ export default function CheckoutPage() {
           items: items.map((item: any) => {
             // Ensure price consistency - use unitPrice from cart item
             const itemPrice = item.unitPrice || (item.design?.price || 0);
-            console.log(`[Checkout] Design order item:`, {
-              designId: item.designId,
-              designName: item.design?.name,
-              unitPrice: item.unitPrice,
-              designPrice: item.design?.price,
-              quantity: item.quantity,
-              totalPrice: item.totalPrice,
-              calculatedPrice: itemPrice * item.quantity,
-              hasStoragePath: !!item.design?.storagePath,
-              hasStorageBucket: !!item.design?.storageBucket,
-              hasThumbnailUrl: !!item.design?.thumbnailUrl
-            });
             
             return {
               itemType: 'design' as const,
@@ -864,25 +956,16 @@ export default function CheckoutPage() {
       // Create all orders (products and designs)
       const allOrderPromises = [...productOrderPromises, ...designOrderPromises];
       const orders = await Promise.all(allOrderPromises);
-      console.log('[Checkout] Orders created:', orders.map(o => ({
-        id: o.order.id,
-        totalAmount: o.order.totalAmount,
-        discountAmount: o.order.discountAmount,
-        appliedCouponCode: o.order.appliedCouponCode
-      })));
       setCreatedOrders(orders);
       
       // Remove items from cart after orders are successfully created
       // For regular checkout, the entire cart is being checked out, so clear it
       // This ensures items (including designs) are removed from cart once they're in an order
       if (!isBulkCheckout) {
-        console.log('[Checkout] Clearing cart after order creation');
         await clearCart();
-        console.log('[Checkout] Cart cleared after order creation');
       } else {
         // For bulk checkout, items are in sessionStorage, just clear it
         sessionStorage.removeItem('bulkCheckoutItems');
-        console.log('[Checkout] Cleared bulk checkout items from sessionStorage after order creation');
       }
       
       setCurrentStep('payment');
@@ -1336,13 +1419,11 @@ export default function CheckoutPage() {
                   amount={(() => {
                     // Calculate the total from orders (should include discount)
                     const orderTotal = createdOrders.reduce((sum, order) => {
-                      console.log('[Checkout] Order totalAmount:', order.order.totalAmount, 'discountAmount:', order.order.discountAmount, 'appliedCouponCode:', order.order.appliedCouponCode);
                       return sum + order.order.totalAmount;
                     }, 0);
                     
                     // Also calculate from cart state for comparison (this is what's shown in the summary)
                     const calculatedTotal = calculateTotal();
-                    console.log('[Checkout] Payment amount - Order total:', orderTotal, 'Calculated total (from cart):', calculatedTotal);
                     
                     // Use the calculated total from cart state to match what's shown in the order summary
                     // This ensures the payment amount matches what the user sees
@@ -1438,6 +1519,16 @@ export default function CheckoutPage() {
                   <span>Tax</span>
                   <span>{formatPrice(calculateTax())}</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">
+                    {(() => {
+                      const commissionDetails = getCommissionDetails();
+                      const ratePercent = Math.round(commissionDetails.rate * 100);
+                      return `Commission/Convenience Fee (${ratePercent}%)`;
+                    })()}
+                  </span>
+                  <span className="text-gray-700">{formatPrice(getCommissionAmount())}</span>
+                </div>
                 <div className="flex justify-between items-center border-t pt-3 mt-2">
                   <span className="text-lg font-semibold text-gray-900">Total</span>
                   <span className="text-2xl font-bold text-gray-900">{formatPrice(calculateTotal())}</span>
@@ -1531,12 +1622,9 @@ export default function CheckoutPage() {
           isOpen={showCouponModal}
           onClose={() => setShowCouponModal(false)}
           onSelect={async (couponCode, discountId) => {
-            console.log('[Checkout] Coupon selected:', { couponCode, discountId });
             if (couponCode) {
               // Apply the coupon code
-              console.log('[Checkout] Applying coupon code:', couponCode);
               const result = await applyCoupon(couponCode);
-              console.log('[Checkout] Coupon apply result:', result);
               if (result.success) {
                 setShowCouponModal(false);
               } else {

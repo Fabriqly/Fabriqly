@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { SupabaseStorageService, StorageBuckets } from '@/lib/supabase-storage';
 import { ResponseBuilder } from '@/utils/ResponseBuilder';
 import { ErrorHandler } from '@/errors/ErrorHandler';
+import { AppError } from '@/errors/AppError';
 import { Timestamp } from 'firebase/firestore';
 
 /**
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     
     if (!session) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Unauthorized', statusCode: 401 }),
+        ResponseBuilder.error(AppError.unauthorized()),
         { status: 401 }
       );
     }
@@ -27,14 +28,14 @@ export async function POST(request: NextRequest) {
     
     if (!file) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'File is required', statusCode: 400 }),
+        ResponseBuilder.error(AppError.badRequest('File is required')),
         { status: 400 }
       );
     }
 
     if (!type || !['customer_design', 'designer_final', 'preview'].includes(type)) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Type must be customer_design, designer_final, or preview', statusCode: 400 }),
+        ResponseBuilder.error(AppError.badRequest('Type must be customer_design, designer_final, or preview')),
         { status: 400 }
       );
     }
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     if (type === 'preview') {
       if (!file.type.startsWith('image/')) {
         return NextResponse.json(
-          ResponseBuilder.error({ message: 'Preview files must be images', statusCode: 400 }),
+          ResponseBuilder.error(AppError.badRequest('Preview files must be images')),
           { status: 400 }
         );
       }
@@ -53,10 +54,9 @@ export async function POST(request: NextRequest) {
     const maxSize = type === 'preview' ? 5 * 1024 * 1024 : 20 * 1024 * 1024; // 5MB for preview, 20MB for design files
     if (file.size > maxSize) {
       return NextResponse.json(
-        ResponseBuilder.error({ 
-          message: `File size must be less than ${type === 'preview' ? '5MB' : '20MB'}`,
-          statusCode: 400 
-        }),
+        ResponseBuilder.error(
+          AppError.badRequest(`File size must be less than ${type === 'preview' ? '5MB' : '20MB'}`)
+        ),
         { status: 400 }
       );
     }
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     };
 
     return NextResponse.json(
-      ResponseBuilder.success(fileData, 'File uploaded successfully'),
+      ResponseBuilder.success(fileData),
       { status: 201 }
     );
   } catch (error) {

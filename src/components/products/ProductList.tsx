@@ -253,7 +253,9 @@ const GridCard = ({ product, onEdit, onDelete }: {
   onDelete?: (product: Product) => void;
 }) => {
   const primaryImage = product.images?.find((img: any) => img.isPrimary) || product.images?.[0];
-  const imageUrl = primaryImage?.imageUrl || 'https://via.placeholder.com/400?text=No+Image';
+  // Use a simple SVG data URI placeholder instead of external service
+  const placeholderSvg = encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect fill="#e5e7eb" width="400" height="400"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#9ca3af" font-family="Arial, sans-serif" font-size="16">No Image</text></svg>');
+  const imageUrl = primaryImage?.imageUrl || `data:image/svg+xml,${placeholderSvg}`;
   const categoryName = product.category?.name || 'Uncategorized';
   const imagesCount = product.images?.length || 0;
   const tagsCount = product.tags?.length || 0;
@@ -265,7 +267,12 @@ const GridCard = ({ product, onEdit, onDelete }: {
         <img 
           src={imageUrl} 
           alt={product.name} 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={(e) => {
+            // Fallback to placeholder SVG if image fails to load
+            const placeholderSvg = encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect fill="#e5e7eb" width="400" height="400"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#9ca3af" font-family="Arial, sans-serif" font-size="16">No Image</text></svg>');
+            e.currentTarget.src = `data:image/svg+xml,${placeholderSvg}`;
+          }}
         />
         <div className="absolute top-2 left-2">
           <StatusBadge status={product.status} />
@@ -371,7 +378,9 @@ const ListCard = ({ product, onEdit, onDelete }: {
   onDelete?: (product: Product) => void;
 }) => {
   const primaryImage = product.images?.find((img: any) => img.isPrimary) || product.images?.[0];
-  const imageUrl = primaryImage?.imageUrl || 'https://via.placeholder.com/400?text=No+Image';
+  // Use a simple SVG data URI placeholder instead of external service
+  const placeholderSvg = encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect fill="#e5e7eb" width="400" height="400"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#9ca3af" font-family="Arial, sans-serif" font-size="16">No Image</text></svg>');
+  const imageUrl = primaryImage?.imageUrl || `data:image/svg+xml,${placeholderSvg}`;
   const categoryName = product.category?.name || 'Uncategorized';
   const imagesCount = product.images?.length || 0;
   const tagsCount = product.tags?.length || 0;
@@ -653,7 +662,7 @@ const EmptyState = ({ hasActiveFilters, onClearFilters, onCreateProduct }: any) 
           Clear Filters
         </Button>
       ) : (
-        <Button onClick={onCreateProduct} variant="primary" className="flex items-center space-x-2">
+        <Button onClick={onCreateProduct} variant="default" className="flex items-center space-x-2">
           <Plus className="w-4 h-4" />
           <span>Create Product</span>
         </Button>
@@ -877,7 +886,7 @@ export function ProductList({ businessOwnerId, showCreateButton = true, onRefres
         <div className="flex items-center space-x-3">
           <div className="flex items-center border border-gray-300 rounded-md">
             <Button
-              variant={state.viewMode === 'grid' ? 'primary' : 'outline'}
+              variant={state.viewMode === 'grid' ? 'default' : 'outline'}
               size="sm"
               onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'grid' })}
               className="rounded-r-none border-r-0"
@@ -885,7 +894,7 @@ export function ProductList({ businessOwnerId, showCreateButton = true, onRefres
               <Grid className="w-4 h-4" />
             </Button>
             <Button
-              variant={state.viewMode === 'list' ? 'primary' : 'outline'}
+              variant={state.viewMode === 'list' ? 'default' : 'outline'}
               size="sm"
               onClick={() => dispatch({ type: 'SET_VIEW_MODE', payload: 'list' })}
               className="rounded-l-none"
@@ -1004,7 +1013,7 @@ export function ProductList({ businessOwnerId, showCreateButton = true, onRefres
                       return (
                         <Button
                           key={pageNum}
-                          variant={state.currentPage === pageNum ? 'primary' : 'outline'}
+                          variant={state.currentPage === pageNum ? 'default' : 'outline'}
                           size="sm"
                           onClick={() => dispatch({ type: 'SET_CURRENT_PAGE', payload: pageNum })}
                           disabled={state.loading || totalPages <= 1}

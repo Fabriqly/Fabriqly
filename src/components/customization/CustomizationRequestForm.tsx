@@ -14,6 +14,8 @@ interface CustomizationRequestFormProps {
   selectedVariants?: Record<string, string>;
   selectedColorId?: string;
   colorPriceAdjustment?: number;
+  selectedBrand?: string;
+  selectedPrintingType?: string;
 }
 
 export interface CustomizationFormData {
@@ -22,6 +24,8 @@ export interface CustomizationFormData {
   productImage?: string;
   selectedColorId?: string;
   colorPriceAdjustment?: number;
+  selectedBrand?: string; // T-shirt brand selection
+  selectedPrintingType?: string; // Printing type selection
   quantity: number;
   customizationNotes: string;
   customerDesignFile?: any;
@@ -34,7 +38,9 @@ export function CustomizationRequestForm({
   onCancel,
   selectedVariants = {},
   selectedColorId: initialSelectedColorId = '',
-  colorPriceAdjustment: initialColorPriceAdjustment = 0
+  colorPriceAdjustment: initialColorPriceAdjustment = 0,
+  selectedBrand: initialBrand = '',
+  selectedPrintingType: initialPrintingType = ''
 }: CustomizationRequestFormProps) {
   const [notes, setNotes] = useState('');
   const [designFile, setDesignFile] = useState<File | null>(null);
@@ -46,10 +52,50 @@ export function CustomizationRequestForm({
   const [selectedColorId, setSelectedColorId] = useState<string>(initialSelectedColorId);
   const [colorPriceAdjustment, setColorPriceAdjustment] = useState<number>(initialColorPriceAdjustment);
   const [quantity, setQuantity] = useState(1);
+  const [selectedBrand, setSelectedBrand] = useState<string>(initialBrand || '');
+  const [selectedPrintingType, setSelectedPrintingType] = useState<string>(initialPrintingType || '');
   const [isDraggingDesign, setIsDraggingDesign] = useState(false);
   const [isDraggingPreview, setIsDraggingPreview] = useState(false);
   const designDropRef = useRef<HTMLDivElement>(null);
   const previewDropRef = useRef<HTMLDivElement>(null);
+  
+  // Get available brands from product, or use default list
+  const tshirtBrands = (() => {
+    const productBrands = ('availableBrands' in product && product.availableBrands) || [];
+    if (productBrands.length > 0) {
+      return [...productBrands, 'Other (Designer will recommend)'];
+    }
+    // Fallback to default list if product doesn't specify
+    return [
+      'Gildan',
+      'Fruit of the Loom',
+      'Hanes',
+      'Champion',
+      'Anvil',
+      'Jerzees',
+      'Port & Company',
+      'Local/Generic Brand',
+      'Other (Designer will recommend)'
+    ];
+  })();
+  
+  // Get available printing types from product, or use default list
+  const printingTypes = (() => {
+    const productTypes = ('availablePrintingTypes' in product && product.availablePrintingTypes) || [];
+    if (productTypes.length > 0) {
+      return [...productTypes, 'Other (Designer will recommend)'];
+    }
+    // Fallback to default list if product doesn't specify
+    return [
+      'Screen Print',
+      'DTG (Direct to Garment)',
+      'Heat Transfer',
+      'Embroidery',
+      'Sublimation',
+      'Vinyl',
+      'Other (Designer will recommend)'
+    ];
+  })();
 
   const MAX_NOTES_LENGTH = 2000;
 
@@ -258,9 +304,11 @@ export function CustomizationRequestForm({
       await onSubmit({
         productId: product.id,
         productName: product.name,
-        productImage: product.images?.[0]?.imageUrl || undefined,
+        productImage: ('images' in product && product.images?.[0]?.imageUrl) || undefined,
         selectedColorId: selectedColorId || undefined,
         colorPriceAdjustment: colorPriceAdjustment || 0,
+        selectedBrand: selectedBrand || undefined,
+        selectedPrintingType: selectedPrintingType || undefined,
         quantity: quantity,
         customizationNotes: notes,
         customerDesignFile: designFileData,
@@ -285,10 +333,10 @@ export function CustomizationRequestForm({
           <div className="lg:col-span-4">
             <div className="lg:sticky lg:top-28 bg-slate-50 rounded-xl border border-slate-200 shadow-sm p-6 space-y-6">
               {/* Product Image */}
-              {product.images?.[0]?.imageUrl && (
+              {('images' in product && product.images?.[0]?.imageUrl) && (
                 <div className="aspect-[4/3] bg-white rounded-lg overflow-hidden border border-slate-200">
                   <img
-                    src={product.images[0].imageUrl}
+                    src={('images' in product ? product.images[0].imageUrl : '')}
                     alt={product.name}
                     className="w-full h-full object-contain"
                   />
@@ -452,6 +500,28 @@ export function CustomizationRequestForm({
                     </span>
                   </div>
                 </div>
+
+                {/* T-Shirt Brand and Printing Type Display (Read-only, selected from product page) */}
+                {(selectedBrand || selectedPrintingType) && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                    <h4 className="text-sm font-medium text-slate-900">Selected Options</h4>
+                    {selectedBrand && (
+                      <div>
+                        <span className="text-xs text-slate-500">T-Shirt Brand:</span>
+                        <p className="text-sm text-slate-900 font-medium mt-0.5">{selectedBrand}</p>
+                      </div>
+                    )}
+                    {selectedPrintingType && (
+                      <div>
+                        <span className="text-xs text-slate-500">Printing Type:</span>
+                        <p className="text-sm text-slate-900 font-medium mt-0.5">{selectedPrintingType}</p>
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-500 italic">
+                      To change these selections, go back to the product page.
+                    </p>
+                  </div>
+                )}
 
                 {/* Design File Upload - Drag & Drop */}
                 <div>

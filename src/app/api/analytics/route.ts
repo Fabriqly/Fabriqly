@@ -6,8 +6,9 @@ import { Collections } from '@/services/firebase';
 import { CacheService } from '@/services/CacheService';
 import { DashboardSummaryService } from '@/services/DashboardSummaryService';
 
-// Platform commission rate (5% of order subtotal)
-const PLATFORM_COMMISSION_RATE = 0.05; // 5%
+// Platform commission rates (8-10% based on transaction type)
+// Note: Commission is now calculated dynamically based on order type
+// Use stored commissionFee from orders when available
 
 // GET /api/analytics - Get real analytics data
 export async function GET(request: NextRequest) {
@@ -195,7 +196,7 @@ async function calculateRevenueData(orders: any[], customizations: any[], days: 
   
   // Group orders by month
   // Revenue = subtotal only (excludes tax and shipping as those are pass-through costs)
-  // Platform Commission = percentage of subtotal
+  // Platform Commission = 8-10% based on transaction type
   orders.forEach(order => {
     if (order.createdAt && order.subtotal) {
       const date = new Date(order.createdAt);
@@ -205,14 +206,17 @@ async function calculateRevenueData(orders: any[], customizations: any[], days: 
       // Gross revenue (product prices only, excluding tax and shipping)
       revenueByMonth.set(monthKey, (revenueByMonth.get(monthKey) || 0) + subtotal);
       
-      // Platform commission (percentage of subtotal)
-      const commission = subtotal * PLATFORM_COMMISSION_RATE;
+      // Platform commission - use stored commissionFee if available (new orders with dynamic commission)
+      // Otherwise estimate (8% for old orders)
+      const commission = order.commissionFee !== undefined && order.commissionFee !== null
+        ? order.commissionFee
+        : subtotal * 0.08; // Fallback: assume 8% for old orders
       commissionByMonth.set(monthKey, (commissionByMonth.get(monthKey) || 0) + commission);
     }
   });
 
   // Group customizations by month (design fees)
-  // Platform Commission = percentage of design fee
+  // Platform Commission = 10% of design fee
   customizations.forEach(customization => {
     if (customization.createdAt && customization.pricingAgreement?.designFee) {
       const date = new Date(customization.createdAt);
@@ -222,8 +226,8 @@ async function calculateRevenueData(orders: any[], customizations: any[], days: 
       // Add design fee to revenue
       revenueByMonth.set(monthKey, (revenueByMonth.get(monthKey) || 0) + designFee);
       
-      // Platform commission from design fee (percentage of design fee)
-      const commission = designFee * PLATFORM_COMMISSION_RATE;
+      // Platform commission from design fee (10% for customizations)
+      const commission = designFee * 0.10;
       commissionByMonth.set(monthKey, (commissionByMonth.get(monthKey) || 0) + commission);
     }
   });

@@ -14,7 +14,7 @@ export interface DashboardSummary {
   todayRevenue: number;
   thisMonthRevenue: number;
   
-  // Platform Commission (5% of subtotal)
+  // Platform Commission (8-10% of subtotal based on transaction type)
   totalCommission: number;
   todayCommission: number;
   thisMonthCommission: number;

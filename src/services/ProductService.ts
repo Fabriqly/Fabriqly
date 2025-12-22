@@ -79,7 +79,10 @@ export class ProductService implements IProductService {
       ...(data.seoDescription && data.seoDescription.trim().length > 0 && { seoDescription: data.seoDescription.trim() }),
       // Variant fields
       ...(data.designs && Array.isArray(data.designs) && { designs: data.designs }),
-      ...(data.sizes && Array.isArray(data.sizes) && { sizes: data.sizes })
+      ...(data.sizes && Array.isArray(data.sizes) && { sizes: data.sizes }),
+      // Customization options
+      ...(data.availableBrands && Array.isArray(data.availableBrands) && data.availableBrands.length > 0 && { availableBrands: data.availableBrands }),
+      ...(data.availablePrintingTypes && Array.isArray(data.availablePrintingTypes) && data.availablePrintingTypes.length > 0 && { availablePrintingTypes: data.availablePrintingTypes })
     };
 
       const product = await this.productRepository.create(productData);

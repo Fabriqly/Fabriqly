@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { CustomizationService } from '@/services/CustomizationService';
 import { ResponseBuilder } from '@/utils/ResponseBuilder';
 import { ErrorHandler } from '@/errors/ErrorHandler';
+import { AppError } from '@/errors/AppError';
 import { Timestamp } from 'firebase-admin/firestore';
 
 const customizationService = new CustomizationService();
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     
     if (!session) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Unauthorized', statusCode: 401 }),
+        ResponseBuilder.error(AppError.unauthorized()),
         { status: 401 }
       );
     }
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (!requestData) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Request not found', statusCode: 404 }),
+        ResponseBuilder.error(AppError.notFound('Request not found')),
         { status: 404 }
       );
     }
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (!isOwner && !isAssignedDesigner && !isAdmin && !isDesignerViewingPending && !isShopOwner) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Forbidden', statusCode: 403 }),
+        ResponseBuilder.error(AppError.forbidden()),
         { status: 403 }
       );
     }
@@ -117,7 +118,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     
     if (!session) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Unauthorized', statusCode: 401 }),
+        ResponseBuilder.error(AppError.unauthorized()),
         { status: 401 }
       );
     }
@@ -129,7 +130,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const existingRequest = await customizationService.getRequestById(id);
     if (!existingRequest) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Request not found', statusCode: 404 }),
+        ResponseBuilder.error(AppError.notFound('Request not found')),
         { status: 404 }
       );
     }
@@ -145,7 +146,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     if (!isOwner && !isAssignedDesigner && !isAdmin && !isDesignerAssigning) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Forbidden', statusCode: 403 }),
+        ResponseBuilder.error(AppError.forbidden()),
         { status: 403 }
       );
     }
@@ -154,7 +155,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (body.action === 'assign' && (session.user.role === 'designer' || session.user.role === 'business_owner' || session.user.role === 'admin')) {
       const updated = await customizationService.assignDesigner(id, session.user.id);
       return NextResponse.json(
-        ResponseBuilder.success(updated, 'Request assigned successfully'),
+        ResponseBuilder.success(updated),
         { status: 200 }
       );
     }
@@ -162,7 +163,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (body.action === 'uploadFinal' && isAssignedDesigner) {
       if (!body.designerFinalFile || !body.designerPreviewImage) {
         return NextResponse.json(
-          ResponseBuilder.error({ message: 'Missing required files', statusCode: 400 }),
+          ResponseBuilder.error(AppError.badRequest('Missing required files')),
           { status: 400 }
         );
       }
@@ -171,10 +172,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         session.user.id,
         body.designerFinalFile,
         body.designerPreviewImage,
-        body.designerNotes
+        body.designerNotes,
+        body.recommendedBrand,
+        body.recommendedPrintingType
       );
       return NextResponse.json(
-        ResponseBuilder.success(updated, 'Final design uploaded successfully'),
+        ResponseBuilder.success(updated),
         { status: 200 }
       );
     }
@@ -182,7 +185,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (body.action === 'approve' && isOwner) {
       const updated = await customizationService.approveDesign(id, session.user.id);
       return NextResponse.json(
-        ResponseBuilder.success(updated, 'Design approved successfully'),
+        ResponseBuilder.success(updated),
         { status: 200 }
       );
     }
@@ -190,13 +193,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (body.action === 'reject' && isOwner) {
       if (!body.rejectionReason) {
         return NextResponse.json(
-          ResponseBuilder.error({ message: 'Rejection reason is required', statusCode: 400 }),
+          ResponseBuilder.error(AppError.badRequest('Rejection reason is required')),
           { status: 400 }
         );
       }
       const updated = await customizationService.rejectDesign(id, session.user.id, body.rejectionReason);
       return NextResponse.json(
-        ResponseBuilder.success(updated, 'Design rejected. Designer will revise.'),
+        ResponseBuilder.success(updated),
         { status: 200 }
       );
     }
@@ -204,13 +207,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (body.action === 'cancel') {
       const updated = await customizationService.cancelRequest(id, session.user.id);
       return NextResponse.json(
-        ResponseBuilder.success(updated, 'Request cancelled'),
+        ResponseBuilder.success(updated),
         { status: 200 }
       );
     }
 
     return NextResponse.json(
-      ResponseBuilder.error({ message: 'Invalid action', statusCode: 400 }),
+      ResponseBuilder.error(AppError.badRequest('Invalid action')),
       { status: 400 }
     );
   } catch (error) {
@@ -232,7 +235,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     
     if (!session) {
       return NextResponse.json(
-        ResponseBuilder.error({ message: 'Unauthorized', statusCode: 401 }),
+        ResponseBuilder.error(AppError.unauthorized()),
         { status: 401 }
       );
     }
@@ -241,7 +244,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const updated = await customizationService.cancelRequest(id, session.user.id);
 
     return NextResponse.json(
-      ResponseBuilder.success(updated, 'Request cancelled'),
+      ResponseBuilder.success(updated),
       { status: 200 }
     );
   } catch (error) {

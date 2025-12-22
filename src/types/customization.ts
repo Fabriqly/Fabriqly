@@ -146,6 +146,14 @@ export interface CustomizationRequest {
   selectedColorId?: string;
   colorPriceAdjustment?: number;
   
+  // T-Shirt Brand Selection
+  selectedBrand?: string; // Customer's selected brand (e.g., "Gildan", "Fruit of the Loom", "Hanes")
+  recommendedBrand?: string; // Designer's recommended brand
+  
+  // T-Shirt Printing Type Selection
+  selectedPrintingType?: string; // Customer's selected printing type (e.g., "Screen Print", "DTG", "Heat Transfer", "Embroidery")
+  recommendedPrintingType?: string; // Designer's recommended printing type
+  
   // Design Files
   customerDesignFile?: CustomizationFile; // Original customer upload
   customerPreviewImage?: CustomizationFile; // System-generated preview
@@ -199,6 +207,8 @@ export interface CreateCustomizationRequest {
   productImage?: string;
   selectedColorId?: string;
   colorPriceAdjustment?: number;
+  selectedBrand?: string; // Customer's selected T-shirt brand
+  selectedPrintingType?: string; // Customer's selected printing type
   customizationNotes: string;
   customerDesignFile?: CustomizationFile;
   customerPreviewImage?: CustomizationFile;
@@ -215,6 +225,8 @@ export interface UpdateCustomizationRequest {
   designerPreviewImage?: CustomizationFile;
   designerNotes?: string;
   rejectionReason?: string;
+  recommendedBrand?: string; // Designer's recommended T-shirt brand
+  recommendedPrintingType?: string; // Designer's recommended printing type
   orderId?: string;
 }
 

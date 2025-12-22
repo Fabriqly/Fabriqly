@@ -172,7 +172,9 @@ export class CustomizationService {
     designerId: string,
     finalFile: { url: string; fileName?: string; size?: number; type?: string },
     previewImage: { url: string; fileName?: string; size?: number; type?: string },
-    notes?: string
+    notes?: string,
+    recommendedBrand?: string,
+    recommendedPrintingType?: string
   ): Promise<CustomizationRequest> {
     const request = await this.customizationRepo.findById(requestId);
     if (!request) {
@@ -191,14 +193,24 @@ export class CustomizationService {
     // Payment is only required for customer to VIEW the design
     // Designer can set pricing after uploading, or before uploading
 
+    const updateData: any = {
+      designerFinalFile: finalFile,
+      designerPreviewImage: previewImage,
+      designerNotes: notes
+    };
+
+    // Add recommended brand and printing type if provided
+    if (recommendedBrand) {
+      updateData.recommendedBrand = recommendedBrand;
+    }
+    if (recommendedPrintingType) {
+      updateData.recommendedPrintingType = recommendedPrintingType;
+    }
+
     const updatedRequest = await this.customizationRepo.updateStatus(
       requestId,
       'awaiting_customer_approval',
-      {
-        designerFinalFile: finalFile,
-        designerPreviewImage: previewImage,
-        designerNotes: notes
-      }
+      updateData
     );
 
     // Emit event
