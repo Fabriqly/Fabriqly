@@ -157,20 +157,20 @@ export class DashboardSummaryService {
         return customDate >= thisMonth;
       }).reduce((sum, c) => sum + (c.pricingAgreement?.designFee || 0), 0),
       
-      // Platform commission (8-10% based on transaction type)
+      // Platform commission (8% per transaction - approved rate)
       // Use stored commissionFee if available (for new orders), otherwise estimate
       totalCommission: orders.reduce((sum, o) => {
         // Use stored commissionFee if available (new orders with dynamic commission)
         if (o.commissionFee !== undefined && o.commissionFee !== null) {
           return sum + o.commissionFee;
         }
-        // Fallback: estimate commission for old orders (assume 8% for products)
-        const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.16 : 0); // Approximate subtotal (assuming 8% tax + 8% commission)
+        // Fallback: estimate commission for old orders (8% per transaction)
+        const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.20 : 0); // Approximate subtotal (assuming 12% tax + 8% commission)
         return sum + (subtotal * 0.08);
       }, 0) + customizations.reduce((sum, c) => {
-        // Customizations use 10% commission on design fees
+        // Customizations use 8% commission on design fees (approved rate)
         const designFee = c.pricingAgreement?.designFee || 0;
-        return sum + (designFee * 0.10);
+        return sum + (designFee * 0.08);
       }, 0),
       todayCommission: orders.filter(o => {
         const orderDate = new Date(o.createdAt);
@@ -181,15 +181,15 @@ export class DashboardSummaryService {
           return sum + o.commissionFee;
         }
         // Fallback: estimate commission for old orders
-        const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.16 : 0);
+        const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.20 : 0); // Approximate subtotal (assuming 12% tax + 8% commission)
         return sum + (subtotal * 0.08);
       }, 0) + customizations.filter(c => {
         const customDate = new Date(c.createdAt);
         return customDate >= today;
       }).reduce((sum, c) => {
-        // Customizations use 10% commission on design fees
+        // Customizations use 8% commission on design fees (approved rate)
         const designFee = c.pricingAgreement?.designFee || 0;
-        return sum + (designFee * 0.10);
+        return sum + (designFee * 0.08);
       }, 0),
       thisMonthCommission: orders.filter(o => {
         const orderDate = new Date(o.createdAt);
@@ -200,15 +200,15 @@ export class DashboardSummaryService {
           return sum + o.commissionFee;
         }
         // Fallback: estimate commission for old orders
-        const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.16 : 0);
+        const subtotal = o.subtotal || (o.totalAmount ? o.totalAmount / 1.20 : 0); // Approximate subtotal (assuming 12% tax + 8% commission)
         return sum + (subtotal * 0.08);
       }, 0) + customizations.filter(c => {
         const customDate = new Date(c.createdAt);
         return customDate >= thisMonth;
       }).reduce((sum, c) => {
-        // Customizations use 10% commission on design fees
+        // Customizations use 8% commission on design fees (approved rate)
         const designFee = c.pricingAgreement?.designFee || 0;
-        return sum + (designFee * 0.10);
+        return sum + (designFee * 0.08);
       }, 0),
       
       newUsersToday: users.filter(u => {
@@ -284,11 +284,11 @@ export class DashboardSummaryService {
           updated.todayRevenue += subtotal;
           updated.thisMonthRevenue += subtotal;
           
-          // Use stored commissionFee if available (new orders with dynamic 8-10% commission)
+          // Use stored commissionFee if available (new orders with 8% commission per transaction)
           // Otherwise estimate (8% for old orders)
           const commission = operation.entityData.commissionFee !== undefined && operation.entityData.commissionFee !== null
             ? operation.entityData.commissionFee
-            : subtotal * 0.08; // Fallback: assume 8% for old orders
+            : subtotal * 0.08; // Fallback: assume 8% per transaction (approved rate)
           updated.totalCommission = (updated.totalCommission || 0) + commission;
           updated.todayCommission = (updated.todayCommission || 0) + commission;
           updated.thisMonthCommission = (updated.thisMonthCommission || 0) + commission;

@@ -208,7 +208,7 @@ export default function AdminAnalyticsPage() {
       value: `₱${(analytics.overview.totalCommission || 0).toLocaleString()}`,
       icon: DollarSign,
       color: 'bg-purple-500',
-      change: '5% of revenue',
+      change: '8% per transaction (Approved)',
       changeType: 'neutral' as const
     }
   ];

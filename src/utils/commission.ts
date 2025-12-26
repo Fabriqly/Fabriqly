@@ -1,9 +1,8 @@
 /**
  * Commission calculation utility
  * 
- * Commission rates:
- * - 8% for product orders (physical goods)
- * - 10% for design purchases and customizations (digital/higher margin services)
+ * Commission rate:
+ * - 8% per transaction (approved rate for all transaction types)
  */
 
 export interface CommissionCalculationParams {
@@ -13,7 +12,7 @@ export interface CommissionCalculationParams {
 }
 
 export interface CommissionResult {
-  rate: number; // Commission rate as decimal (0.08 or 0.10)
+  rate: number; // Commission rate as decimal (0.08 = 8%)
   amount: number; // Commission amount
   type: 'product' | 'design' | 'mixed' | 'customization';
 }
@@ -27,17 +26,8 @@ export interface CommissionResult {
 export function calculateCommission(params: CommissionCalculationParams): CommissionResult {
   const { productSubtotal, designSubtotal, customizationDesignFee = 0 } = params;
   
-  // For customization requests (design fees)
-  if (customizationDesignFee > 0) {
-    return {
-      rate: 0.10, // 10% for customizations
-      amount: customizationDesignFee * 0.10,
-      type: 'customization'
-    };
-  }
-  
-  // For regular orders
-  const totalSubtotal = productSubtotal + designSubtotal;
+  // Calculate total transaction amount
+  const totalSubtotal = productSubtotal + designSubtotal + customizationDesignFee;
   
   // If no items, return zero commission
   if (totalSubtotal === 0) {
@@ -48,20 +38,25 @@ export function calculateCommission(params: CommissionCalculationParams): Commis
     };
   }
   
-  // Design-only orders or design-dominant orders (design >= product)
-  if (designSubtotal >= productSubtotal) {
-    return {
-      rate: 0.10, // 10% for design purchases
-      amount: totalSubtotal * 0.10,
-      type: designSubtotal > 0 && productSubtotal === 0 ? 'design' : 'mixed'
-    };
+  // All transactions use 8% commission rate (approved rate)
+  const commissionRate = 0.08; // 8% per transaction
+  
+  // Determine transaction type for reporting
+  let transactionType: 'product' | 'design' | 'mixed' | 'customization';
+  if (customizationDesignFee > 0) {
+    transactionType = 'customization';
+  } else if (designSubtotal > 0 && productSubtotal === 0) {
+    transactionType = 'design';
+  } else if (productSubtotal > 0 && designSubtotal === 0) {
+    transactionType = 'product';
+  } else {
+    transactionType = 'mixed';
   }
   
-  // Product-dominant orders (product > design)
   return {
-    rate: 0.08, // 8% for product orders
-    amount: totalSubtotal * 0.08,
-    type: 'product'
+    rate: commissionRate,
+    amount: totalSubtotal * commissionRate,
+    type: transactionType
   };
 }
 

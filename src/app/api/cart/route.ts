@@ -7,37 +7,111 @@ import { AddToCartRequest, CartResponse } from '@/types/cart';
 import { ResponseBuilder } from '@/utils/ResponseBuilder';
 import { CacheService } from '@/services/CacheService';
 
+// Helper function to serialize Date objects and Firebase Timestamps to ISO strings
+function serializeDates(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  
+  // Handle Date objects
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  }
+  
+  // Handle Firebase Admin SDK Timestamp (has toDate method)
+  if (obj && typeof obj === 'object' && typeof obj.toDate === 'function') {
+    try {
+      return obj.toDate().toISOString();
+    } catch (e) {
+      console.warn('Error converting Timestamp to Date:', e);
+      return null;
+    }
+  }
+  
+  // Handle Firebase Timestamp format with seconds and nanoseconds
+  if (obj && typeof obj === 'object' && typeof obj.seconds === 'number') {
+    try {
+      const seconds = obj.seconds || 0;
+      const nanoseconds = obj.nanoseconds || 0;
+      return new Date(seconds * 1000 + nanoseconds / 1000000).toISOString();
+    } catch (e) {
+      console.warn('Error converting Timestamp (seconds/nanoseconds) to Date:', e);
+      return null;
+    }
+  }
+  
+  // Handle Firebase Timestamp format with _seconds and _nanoseconds (underscore prefix)
+  if (obj && typeof obj === 'object' && typeof obj._seconds === 'number') {
+    try {
+      const seconds = obj._seconds || 0;
+      const nanoseconds = obj._nanoseconds || 0;
+      return new Date(seconds * 1000 + nanoseconds / 1000000).toISOString();
+    } catch (e) {
+      console.warn('Error converting Timestamp (_seconds/_nanoseconds) to Date:', e);
+      return null;
+    }
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => serializeDates(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const serialized: any = {};
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        serialized[key] = serializeDates(obj[key]);
+      }
+    }
+    return serialized;
+  }
+  
+  return obj;
+}
+
 export async function GET(request: NextRequest) {
   try {
+    console.log('[GET /api/cart] Request received');
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
+      console.log('[GET /api/cart] No session or user ID');
       return NextResponse.json(ResponseBuilder.error('Authentication required'), { status: 401 });
     }
+
+    console.log('[GET /api/cart] User ID:', session.user.id);
 
     // Try to get cached cart first (BEFORE database fetch)
     const cacheKey = `cart-${session.user.id}`;
     const cached = await CacheService.get(cacheKey);
     
     if (cached) {
-      return NextResponse.json(cached);
+      console.log('[GET /api/cart] Returning cached cart');
+      // Serialize cached response in case it contains Date objects
+      const serializedCached = serializeDates(cached);
+      return NextResponse.json(serializedCached);
     }
 
     const cartRepository = new CartRepository();
+    console.log('[GET /api/cart] Fetching cart from repository');
     const cart = await cartRepository.findByUserId(session.user.id);
 
     if (!cart) {
+      console.log('[GET /api/cart] No cart found, returning empty cart');
       // Return empty cart
+      const now = new Date();
       return NextResponse.json(ResponseBuilder.success({
         id: '',
         userId: session.user.id,
         items: [],
         totalItems: 0,
         totalAmount: 0,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
       }));
     }
+
+    console.log('[GET /api/cart] Cart found, refreshing item data');
 
     // Refresh product images and design storage info for all cart items
     const { FirebaseAdminService } = await import('@/services/firebase-admin');
@@ -145,51 +219,113 @@ export async function GET(request: NextRequest) {
       items: updatedItems
     };
 
-    const response = ResponseBuilder.success(updatedCart);
+    // Serialize all Date objects to ISO strings before sending
+    console.log('[GET /api/cart] Serializing cart dates');
+    const serializedCart = serializeDates(updatedCart);
+    const response = ResponseBuilder.success(serializedCart);
     
     // Cache the response for 2 minutes (cart changes frequently)
+    // Note: ResponseBuilder already serializes dates in meta.timestamp, so cached response should be safe
+    console.log('[GET /api/cart] Caching response');
     await CacheService.set(cacheKey, response, 2 * 60 * 1000);
 
+    console.log('[GET /api/cart] Returning response');
     return NextResponse.json(response);
-  } catch (error) {
-    console.error('Error fetching cart:', error);
+  } catch (error: any) {
+    console.error('[GET /api/cart] Error fetching cart:', error);
+    console.error('[GET /api/cart] Error stack:', error?.stack);
+    console.error('[GET /api/cart] Error message:', error?.message);
+    
+    // If it's a serialization error, return 400
+    if (error?.message?.includes('JSON') || error?.message?.includes('serialize') || error?.message?.includes('Date')) {
+      console.error('[GET /api/cart] Serialization error detected, returning 400');
+      return NextResponse.json(ResponseBuilder.error(`Failed to serialize cart data: ${error.message}`), { status: 400 });
+    }
+    
+    // If it's a validation error, return 400
+    if (error?.statusCode === 400 || error?.code === 'BAD_REQUEST') {
+      console.error('[GET /api/cart] Bad request error detected, returning 400');
+      return NextResponse.json(ResponseBuilder.error(error.message || 'Bad request'), { status: 400 });
+    }
+    
+    console.error('[GET /api/cart] Returning 500 error');
     return NextResponse.json(ResponseBuilder.error('Failed to fetch cart'), { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[POST /api/cart] Request received');
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
+      console.log('[POST /api/cart] No session or user ID');
       return NextResponse.json(ResponseBuilder.error('Authentication required'), { status: 401 });
     }
 
-    const body: AddToCartRequest = await request.json();
+    console.log('[POST /api/cart] User ID:', session.user.id);
+
+    let body: AddToCartRequest;
+    try {
+      const bodyText = await request.text();
+      if (!bodyText || bodyText.trim() === '') {
+        console.error('[POST /api/cart] Empty request body');
+        return NextResponse.json(ResponseBuilder.error('Request body is required'), { status: 400 });
+      }
+      body = JSON.parse(bodyText);
+      console.log('[POST /api/cart] Request body:', JSON.stringify(body, null, 2));
+    } catch (error) {
+      console.error('[POST /api/cart] Error parsing request body:', error);
+      return NextResponse.json(ResponseBuilder.error('Invalid request body. Expected valid JSON.'), { status: 400 });
+    }
+
+    if (!body || typeof body !== 'object') {
+      console.error('[POST /api/cart] Invalid body type');
+      return NextResponse.json(ResponseBuilder.error('Request body must be a valid object'), { status: 400 });
+    }
+
     const { productId, designId, itemType, quantity, selectedVariants = {}, selectedColorId, selectedColorName, colorPriceAdjustment = 0, selectedDesign, selectedSize, businessOwnerId, designerId } = body;
 
+    // Auto-detect itemType if not provided (backward compatibility)
+    let detectedItemType = itemType;
+    if (!detectedItemType) {
+      if (productId) {
+        detectedItemType = 'product';
+        console.log('[POST /api/cart] Auto-detected itemType as "product" from productId');
+      } else if (designId) {
+        detectedItemType = 'design';
+        console.log('[POST /api/cart] Auto-detected itemType as "design" from designId');
+      }
+    }
+
     // Validate item type
-    if (!itemType || !['product', 'design'].includes(itemType)) {
-      return NextResponse.json(ResponseBuilder.error('Invalid itemType. Must be "product" or "design"'), { status: 400 });
+    if (!detectedItemType || !['product', 'design'].includes(detectedItemType)) {
+      console.error('[POST /api/cart] Invalid or missing itemType. Received:', itemType, 'productId:', productId, 'designId:', designId);
+      return NextResponse.json(ResponseBuilder.error('Invalid itemType. Must be "product" or "design". Please provide itemType, productId, or designId.'), { status: 400 });
     }
 
     // Validate required fields based on item type
-    if (itemType === 'product') {
+    if (detectedItemType === 'product') {
       if (!productId || !quantity || !businessOwnerId) {
+        console.error('[POST /api/cart] Missing required fields for product:', { productId: !!productId, quantity, businessOwnerId: !!businessOwnerId });
         return NextResponse.json(ResponseBuilder.error('Missing required fields: productId, quantity, businessOwnerId'), { status: 400 });
       }
-    } else if (itemType === 'design') {
+      console.log('[POST /api/cart] Processing product item:', { productId, quantity, businessOwnerId });
+    } else if (detectedItemType === 'design') {
       if (!designId || !quantity || !designerId) {
+        console.error('[POST /api/cart] Missing required fields for design:', { designId: !!designId, quantity, designerId: !!designerId });
         return NextResponse.json(ResponseBuilder.error('Missing required fields: designId, quantity, designerId'), { status: 400 });
       }
+      console.log('[POST /api/cart] Processing design item:', { designId, quantity, designerId });
     }
 
-    if (quantity <= 0) {
+    if (!quantity || quantity <= 0) {
+      console.error('[POST /api/cart] Invalid quantity:', quantity);
       return NextResponse.json(ResponseBuilder.error('Quantity must be greater than 0'), { status: 400 });
     }
 
     // Handle design items
-    if (itemType === 'design') {
+    if (detectedItemType === 'design') {
       const { DesignRepository } = await import('@/repositories/DesignRepository');
       const designRepository = new DesignRepository();
       const design = await designRepository.findById(designId);
@@ -281,6 +417,7 @@ export async function POST(request: NextRequest) {
       // Prepare cart item for design
       // Designs are digital products - quantity should always be 1
       const designQuantity = 1;
+      console.log('[POST /api/cart] Preparing design cart item');
       const cartItem = {
         itemType: 'design' as const,
         designId,
@@ -310,6 +447,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Add to cart
+      console.log('[POST /api/cart] Adding design to cart');
       const cartRepository = new CartRepository();
       const cart = await cartRepository.addItemToCart(session.user.id, cartItem);
 
@@ -317,10 +455,15 @@ export async function POST(request: NextRequest) {
       const cacheKey = `cart-${session.user.id}`;
       await CacheService.invalidate(cacheKey);
 
-      return NextResponse.json(ResponseBuilder.success(cart));
+      // Serialize dates before returning
+      console.log('[POST /api/cart] Serializing cart dates');
+      const serializedCart = serializeDates(cart);
+      console.log('[POST /api/cart] Design added successfully');
+      return NextResponse.json(ResponseBuilder.success(serializedCart));
     }
 
     // Handle product items (existing logic)
+    console.log('[POST /api/cart] Processing product item');
     // Fetch product details
     const productRepository = new ProductRepository();
     const product = await productRepository.findById(productId!);
@@ -395,6 +538,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare cart item for product
+    console.log('[POST /api/cart] Preparing product cart item');
     const cartItem = {
       itemType: 'product' as const,
       productId,
@@ -423,6 +567,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Add to cart
+    console.log('[POST /api/cart] Adding product to cart');
     const cartRepository = new CartRepository();
     const cart = await cartRepository.addItemToCart(session.user.id, cartItem);
 
@@ -430,9 +575,29 @@ export async function POST(request: NextRequest) {
     const cacheKey = `cart-${session.user.id}`;
     await CacheService.invalidate(cacheKey);
 
-    return NextResponse.json(ResponseBuilder.success(cart));
-  } catch (error) {
-    console.error('Error adding item to cart:', error);
+    // Serialize dates before returning
+    console.log('[POST /api/cart] Serializing cart dates');
+    const serializedCart = serializeDates(cart);
+    console.log('[POST /api/cart] Product added successfully');
+    return NextResponse.json(ResponseBuilder.success(serializedCart));
+  } catch (error: any) {
+    console.error('[POST /api/cart] Error adding item to cart:', error);
+    console.error('[POST /api/cart] Error stack:', error?.stack);
+    console.error('[POST /api/cart] Error message:', error?.message);
+    
+    // If it's a validation error, return 400 instead of 500
+    if (error?.message?.includes('required') || error?.message?.includes('Invalid') || error?.statusCode === 400 || error?.code === 'BAD_REQUEST') {
+      console.error('[POST /api/cart] Validation error detected, returning 400');
+      return NextResponse.json(ResponseBuilder.error(error.message || 'Invalid request'), { status: 400 });
+    }
+    
+    // If it's a serialization error, return 400
+    if (error?.message?.includes('JSON') || error?.message?.includes('serialize') || error?.message?.includes('Date')) {
+      console.error('[POST /api/cart] Serialization error detected, returning 400');
+      return NextResponse.json(ResponseBuilder.error(`Failed to serialize cart data: ${error.message}`), { status: 400 });
+    }
+    
+    console.error('[POST /api/cart] Returning 500 error');
     return NextResponse.json(ResponseBuilder.error('Failed to add item to cart'), { status: 500 });
   }
 }
@@ -452,7 +617,9 @@ export async function DELETE(request: NextRequest) {
     const cacheKey = `cart-${session.user.id}`;
     await CacheService.invalidate(cacheKey);
 
-    return NextResponse.json(ResponseBuilder.success(cart));
+    // Serialize dates before returning
+    const serializedCart = serializeDates(cart);
+    return NextResponse.json(ResponseBuilder.success(serializedCart));
   } catch (error) {
     console.error('Error clearing cart:', error);
     return NextResponse.json(ResponseBuilder.error('Failed to clear cart'), { status: 500 });

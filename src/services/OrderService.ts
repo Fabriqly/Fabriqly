@@ -181,12 +181,11 @@ export class OrderService implements IOrderService {
       // Calculate tax on subtotal after product discount (shipping discount doesn't affect tax)
       // Tax applies to both products and designs, but discount only applies to products
       const taxableAmount = Math.max(0, subtotal - productDiscountAmount);
-      const tax = taxableAmount * 0.08; // 8% tax
+      const tax = taxableAmount * 0.12; // 12% VAT (Philippines standard VAT rate)
       const shipping = data.shippingCost || 0;
       const shippingAfterDiscount = Math.max(0, effectiveShippingCost - shippingDiscountAmount);
       
-      // Calculate platform commission/convenience fee (8-10% based on transaction type)
-      // 8% for product orders, 10% for design purchases
+      // Calculate platform commission/convenience fee (8% per transaction - approved rate)
       const commissionResult = calculateCommission({
         productSubtotal,
         designSubtotal

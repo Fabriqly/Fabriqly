@@ -618,7 +618,7 @@ export default function CheckoutPage() {
       }
     }
     
-    // Calculate commission based on transaction type (8% for products, 10% for designs)
+    // Calculate commission based on transaction type (8% per transaction - approved rate)
     return calculateCommission({
       productSubtotal,
       designSubtotal

@@ -239,12 +239,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Auto-detect itemType if not provided (backward compatibility)
+      const requestItem: AddToCartRequest = {
+        ...item,
+        itemType: item.itemType || (item.productId ? 'product' : item.designId ? 'design' : 'product')
+      };
+      
+      console.log('[CartContext] Adding item to cart:', requestItem);
+      
       const response = await fetch('/api/cart', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(item),
+        body: JSON.stringify(requestItem),
       });
 
       const data = await response.json();
@@ -263,12 +272,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
             console.error('Error caching cart:', error);
           }
         }
+        
+        // Refresh cart to get latest data
+        await refreshCart(false);
       } else {
-        dispatch({ type: 'SET_ERROR', payload: data.error || 'Failed to add item to cart' });
+        const errorMessage = data.error?.message || data.error || 'Failed to add item to cart';
+        console.error('[CartContext] Error adding item:', errorMessage, data);
+        dispatch({ type: 'SET_ERROR', payload: errorMessage });
       }
-    } catch (error) {
-      console.error('Error adding item to cart:', error);
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to add item to cart' });
+    } catch (error: any) {
+      console.error('[CartContext] Error adding item to cart:', error);
+      const errorMessage = error?.message || 'Failed to add item to cart';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 

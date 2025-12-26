@@ -600,7 +600,7 @@ export default function MyCustomizationsPage() {
       const productCost = request.pricingAgreement.productCost || 0;
       const printingCost = request.pricingAgreement.printingCost || 0;
       const subtotal = productCost + printingCost;
-      const tax = subtotal * 0.08; // 8% tax
+      const tax = subtotal * 0.12; // 12% VAT (Philippines standard VAT rate)
       setOrderAmount(subtotal + tax);
     }
   };
@@ -647,7 +647,7 @@ export default function MyCustomizationsPage() {
       const productCost = request.pricingAgreement.productCost || 0;
       const printingCost = request.pricingAgreement.printingCost || 0;
       const subtotal = productCost + printingCost;
-      const tax = subtotal * 0.08; // 8% tax
+      const tax = subtotal * 0.12; // 12% VAT (Philippines standard VAT rate)
       setOrderAmount(subtotal + tax);
     }
   };
