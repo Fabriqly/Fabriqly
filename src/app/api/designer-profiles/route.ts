@@ -97,13 +97,25 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ No existing profile found, creating new one...');
 
+    // Process featured customers - add IDs and timestamps
+    const featuredCustomers = body.featuredCustomers?.map(customer => ({
+      id: `customer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name: customer.name,
+      photoUrl: customer.photoUrl,
+      link: customer.link,
+      createdAt: Timestamp.now()
+    })) || [];
+
     const profileData: Omit<DesignerProfile, 'id'> = {
       businessName: body.businessName,
       userId: session.user.id,
       bio: body.bio,
       website: body.website,
+      profileImageUrl: body.profileImageUrl,
+      bannerUrl: body.bannerUrl,
       socialMedia: body.socialMedia,
       specialties: body.specialties || [],
+      featuredCustomers: featuredCustomers.length > 0 ? featuredCustomers : undefined,
       isVerified: false,
       isActive: true,
       portfolioStats: {

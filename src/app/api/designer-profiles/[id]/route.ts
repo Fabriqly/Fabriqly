@@ -111,15 +111,38 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Process featured customers - add IDs and timestamps for new ones
+    let processedFeaturedCustomers;
+    if (body.featuredCustomers !== undefined) {
+      processedFeaturedCustomers = body.featuredCustomers.map(customer => {
+        // If customer already has an id (from existing data), preserve it
+        // Otherwise, generate a new id
+        const customerId = (customer as any).id || `customer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const createdAt = (customer as any).createdAt || new Date();
+        
+        return {
+          id: customerId,
+          name: customer.name,
+          photoUrl: customer.photoUrl,
+          link: customer.link,
+          createdAt: createdAt
+        };
+      });
+    }
+
     // Prepare update data
-    const updateData = {
+    const updateData: any = {
       ...body,
       updatedAt: new Date()
     };
 
+    // Include processed featured customers if provided
+    if (processedFeaturedCustomers !== undefined) {
+      updateData.featuredCustomers = processedFeaturedCustomers.length > 0 ? processedFeaturedCustomers : undefined;
+    }
 
     // Remove id from update data if it exists
-    delete (updateData as any).id;
+    delete updateData.id;
 
     const updatedProfile = await FirebaseAdminService.updateDocument(
       Collections.DESIGNER_PROFILES,

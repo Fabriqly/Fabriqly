@@ -27,6 +27,7 @@ export function ImageUpload({
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getBucketForType = (type: string) => {
@@ -66,6 +67,9 @@ export function ImageUpload({
         // For new categories without ID, create a temporary upload
         const tempId = 'temp-' + Date.now();
         await uploadCategoryImage(file, tempId);
+      } else if (uploadType === 'profile') {
+        // Upload profile/featured customer image via API (bypasses RLS)
+        await uploadProfileImage(file, entityId);
       } else {
         // Upload directly to Supabase Storage for other types
         const bucket = getBucketForType(uploadType);
@@ -78,6 +82,7 @@ export function ImageUpload({
         });
         
         onChange(uploadResult.url);
+        setImageError(false); // Reset error state on successful upload
       }
     } catch (err: any) {
       setError(err.message || 'Failed to upload image');
@@ -108,6 +113,31 @@ export function ImageUpload({
     onChange(imageData.imageUrl);
   };
 
+  const uploadProfileImage = async (file: File, designerId?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (designerId) {
+      formData.append('designerId', designerId);
+    }
+
+    const response = await fetch('/api/upload/featured-customer', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = errorData.error?.message || errorData.error || 'Failed to upload image';
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    
+    // Handle ResponseBuilder structure
+    const imageData = data.data || data;
+    onChange(imageData.url);
+  };
+
   const handleRemove = async () => {
     if (value && uploadType === 'category' && entityId) {
       // Try to delete from Supabase Storage if we have storage info
@@ -124,6 +154,7 @@ export function ImageUpload({
     }
     
     onChange('');
+    setImageError(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -147,23 +178,44 @@ export function ImageUpload({
         <div className="relative group">
           <div className="flex items-center space-x-3 p-3 border border-gray-300 rounded-md bg-gray-50">
             <div className="flex-shrink-0">
-              <img
-                src={value}
-                alt="Uploaded"
-                className="w-12 h-12 object-cover rounded-md"
-                onError={(e) => {
-                  console.error('Image failed to load:', value);
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
+              {imageError ? (
+                <div className="w-12 h-12 rounded-md bg-red-50 border border-red-200 flex items-center justify-center">
+                  <ImageIcon className="w-6 h-6 text-red-400" />
+                </div>
+              ) : (
+                <img
+                  src={value}
+                  alt="Uploaded"
+                  className="w-12 h-12 object-cover rounded-md"
+                  onError={(e) => {
+                    // Mark image as failed so we can show a nicer UI instead of a broken image
+                    setImageError(true);
+                    e.currentTarget.style.display = 'none';
+                  }}
+                  onLoad={() => setImageError(false)}
+                />
+              )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                Image uploaded
-              </p>
-              <p className="text-xs text-gray-500">
-                Click to change or remove
-              </p>
+              {imageError ? (
+                <>
+                  <p className="text-sm font-medium text-red-600 truncate">
+                    Image failed to load
+                  </p>
+                  <p className="text-xs text-red-500">
+                    Please re-upload the image
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    Image uploaded
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Click to change or remove
+                  </p>
+                </>
+              )}
             </div>
             <button
               type="button"

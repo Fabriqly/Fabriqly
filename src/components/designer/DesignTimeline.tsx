@@ -3,12 +3,67 @@
 import React, { useState, useEffect } from 'react';
 import { DesignWithDetails } from '@/types/enhanced-products';
 import Link from 'next/link';
-import { Calendar, Eye, Download, Heart, Star } from 'lucide-react';
+import { Calendar, Eye, Download, Heart, Star, Image as ImageIcon } from 'lucide-react';
+import { WatermarkedImage } from '@/components/ui/WatermarkedImage';
 
 interface DesignTimelineProps {
   designerId: string;
   limit?: number;
 }
+
+// Helper function to extract storage path and bucket from a Supabase URL
+const extractStoragePath = (url: string): { path: string; bucket: string } | null => {
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/').filter(p => p);
+    const bucketIndex = pathParts.findIndex(part => part === 'public' || part === 'sign');
+    if (bucketIndex === -1 || bucketIndex + 1 >= pathParts.length) {
+      return null;
+    }
+    const bucket = pathParts[bucketIndex + 1];
+    let path = pathParts.slice(bucketIndex + 2).join('/');
+
+    // Ensure path includes "designs/" prefix if needed
+    if ((bucket === 'designs' || bucket === 'designs-private') && !path.startsWith('designs/')) {
+      if (/^\d+\//.test(path)) {
+        path = `designs/${path}`;
+      }
+    }
+
+    const isSignedUrl = pathParts.includes('sign');
+    let actualBucket = bucket;
+    if (!isSignedUrl) {
+      if (bucket === 'designs' || bucket === 'products') {
+        actualBucket = bucket + '-private';
+      } else {
+        actualBucket = bucket;
+      }
+    }
+    return { path, bucket: actualBucket };
+  } catch (e) {
+    console.error('Error extracting storage path:', e);
+    return null;
+  }
+};
+
+// Convert image URLs to storage info for WatermarkedImage
+const getImageStorageInfo = (url: string | undefined) => {
+  if (!url) return null;
+  const storageInfo = extractStoragePath(url);
+  if (storageInfo) {
+    let finalPath = storageInfo.path;
+    if ((storageInfo.bucket === 'designs-private' || storageInfo.bucket === 'designs') && !finalPath.startsWith('designs/')) {
+      if (/^\d+\//.test(finalPath)) {
+        finalPath = `designs/${finalPath}`;
+      }
+    }
+    return {
+      ...storageInfo,
+      path: finalPath
+    };
+  }
+  return null;
+};
 
 export function DesignTimeline({ designerId, limit = 12 }: DesignTimelineProps) {
   const [designs, setDesigns] = useState<DesignWithDetails[]>([]);
@@ -100,18 +155,35 @@ export function DesignTimeline({ designerId, limit = 12 }: DesignTimelineProps) 
 
       {/* Timeline Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {designs.map((design, index) => (
+        {designs.map((design) => (
           <Link key={design.id} href={`/designs/${design.id}`}>
             <div className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow overflow-hidden cursor-pointer group">
               {/* Design Image */}
               <div className="relative h-48 bg-gray-100 overflow-hidden">
-                {design.thumbnailUrl ? (
-                  <img
-                    src={design.thumbnailUrl}
-                    alt={design.designName}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
+                {design.thumbnailUrl ? (() => {
+                  const storageInfo = getImageStorageInfo(design.thumbnailUrl);
+                  if (storageInfo) {
+                    return (
+                      <WatermarkedImage
+                        storagePath={storageInfo.path}
+                        storageBucket={storageInfo.bucket}
+                        designId={design.id}
+                        isFree={design.pricing?.isFree}
+                        designType={design.designType}
+                        alt={design.designName}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        fallbackSrc={design.thumbnailUrl}
+                      />
+                    );
+                  }
+                  return (
+                    <img
+                      src={design.thumbnailUrl}
+                      alt={design.designName}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  );
+                })() : (
                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100">
                     <span className="text-4xl font-bold text-gray-400">
                       {design.designName.charAt(0).toUpperCase()}

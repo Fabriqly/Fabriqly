@@ -3,6 +3,15 @@ import { Timestamp } from 'firebase/firestore';
 
 // Enhanced types based on ERD structure
 
+// Featured Customer/Patron
+export interface FeaturedCustomer {
+  id: string;
+  name: string;
+  photoUrl?: string;
+  link?: string;
+  createdAt: Timestamp;
+}
+
 // Designer Profiles
 export interface DesignerProfile {
   id: string;
@@ -19,6 +28,7 @@ export interface DesignerProfile {
     linkedin?: string;
   };
   specialties: string[]; // Design specialties
+  featuredCustomers?: FeaturedCustomer[]; // Featured customers/patrons
   isVerified: boolean;
   isActive: boolean;
   portfolioStats: {
@@ -303,8 +313,11 @@ export interface CreateDesignerProfileData {
   businessName: string;
   bio?: string;
   website?: string;
+  profileImageUrl?: string;
+  bannerUrl?: string;
   socialMedia?: DesignerProfile['socialMedia'];
   specialties: string[];
+  featuredCustomers?: Omit<FeaturedCustomer, 'id' | 'createdAt'>[];
   payoutDetails?: {
     bankCode: string;
     accountNumber: string;
@@ -316,8 +329,11 @@ export interface UpdateDesignerProfileData {
   businessName?: string;
   bio?: string;
   website?: string;
+  profileImageUrl?: string;
+  bannerUrl?: string;
   socialMedia?: DesignerProfile['socialMedia'];
   specialties?: string[];
+  featuredCustomers?: Omit<FeaturedCustomer, 'id' | 'createdAt'>[];
   isVerified?: boolean;
   isActive?: boolean;
   payoutDetails?: {

@@ -16,13 +16,56 @@ import {
   Star,
   Download,
   Eye,
-  FileText
+  FileText,
+  Users,
+  ExternalLink
 } from 'lucide-react';
 
 interface DesignerProfileDisplayProps {
   profile: DesignerProfile;
   showActions?: boolean;
   onEdit?: (profile: DesignerProfile) => void;
+}
+
+// Component for individual featured customer item with error handling
+function FeaturedCustomerItem({ customer }: { customer: { name: string; photoUrl?: string; link?: string } }) {
+  const [imageError, setImageError] = useState(false);
+
+  return (
+    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+      {customer.photoUrl && !imageError ? (
+        <div className="flex-shrink-0">
+          <img
+            src={customer.photoUrl}
+            alt={customer.name}
+            className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
+            onError={() => {
+              setImageError(true);
+            }}
+          />
+        </div>
+      ) : (
+        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
+          {customer.name?.charAt(0)?.toUpperCase() || '?'}
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        {customer.link ? (
+          <a
+            href={customer.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-sm font-medium text-gray-900 hover:text-indigo-600 transition-colors"
+          >
+            {customer.name}
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        ) : (
+          <p className="text-sm font-medium text-gray-900">{customer.name}</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function DesignerProfileDisplay({ profile, showActions = false, onEdit }: DesignerProfileDisplayProps) {
@@ -242,6 +285,21 @@ export function DesignerProfileDisplay({ profile, showActions = false, onEdit }:
                     >
                       {specialty}
                     </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Featured Customers / Patrons Card */}
+            {profile.featuredCustomers && profile.featuredCustomers.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 md:p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-base md:text-lg font-semibold text-gray-900">Featured Customers & Patrons</h3>
+                </div>
+                <div className="space-y-3">
+                  {profile.featuredCustomers.map((customer, index) => (
+                    <FeaturedCustomerItem key={index} customer={customer} />
                   ))}
                 </div>
               </div>
